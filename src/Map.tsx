@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import maplibregl, { Marker } from "maplibre-gl";
+import maplibregl, { Marker, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./App.css";
 
@@ -32,7 +32,17 @@ function Map() {
       zoom: 10, // Initial zoom level
     });
 
-    let marker = new Marker().setLngLat([77.5946, 12.9716]).addTo(map);
+    let marker = new Marker()
+      .setPopup(new Popup().setHTML("<p>Shishir<p/>"))
+      .setLngLat([77.5946, 12.9716])
+      .addTo(map);
+
+    let marker2 = new Marker()
+      .setPopup(new Popup().setHTML("<p>Sireesh<p/>"))
+      .setLngLat([77.5946, 12.8716])
+      .addTo(map);
+
+    marker.togglePopup();
 
     // optional cleanup when component unmounts
     return () => map.remove();
