@@ -1,5 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { AUTH_MODULE, SERVER_MODULE } from "../constants/modules";
+import { AUTH_MODULE, GAME_MODULE, SERVER_MODULE } from "../constants/modules";
 import { AUTH_LOGIN_API, BASE_URL } from "../constants/api-endpoints";
 
 export const api = createApi({
@@ -18,7 +18,7 @@ export const api = createApi({
       }
     },
   }),
-  tagTypes: [AUTH_MODULE],
+  tagTypes: [AUTH_MODULE, GAME_MODULE],
   reducerPath: SERVER_MODULE,
   keepUnusedDataFor: 30,
   endpoints: (builder) => ({

@@ -44,10 +44,23 @@ export default function Login() {
 
     if (!emailError && !passwordError) {
       try {
-        await login({ email, password });
+        const result = await login({ email, password }).unwrap();
+
+        // The token should be automatically stored in Redux via your auth slice
+        // If you need to manually dispatch, uncomment below:
+        // dispatch(setCredentials({ userToken: result.token, user: result.user }));
+
         // Handle successful login (redirect, etc.)
-      } catch (error) {
+        console.log("Login successful:", result);
+        // navigate('/dashboard'); // If using react-router
+      } catch (error: any) {
         console.error("Login failed:", error);
+
+        // Display error message to user
+        setErrors({
+          email: "",
+          password: error?.data?.message || "Login failed. Please try again.",
+        });
       }
     }
   };

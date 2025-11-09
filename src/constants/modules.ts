@@ -1,2 +1,3 @@
 export const AUTH_MODULE = "auth";
 export const SERVER_MODULE = "api";
+export const GAME_MODULE = "game";
