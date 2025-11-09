@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import maplibregl, { Marker, Popup } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import "./App.css";
 
-function Map() {
+
+export default function Map() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -52,5 +52,3 @@ function Map() {
     <div ref={mapContainerRef} style={{ width: "100%", height: "100%" }}></div>
   );
 }
-
-export default Map;

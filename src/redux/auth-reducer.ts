@@ -29,5 +29,5 @@ export default authSlice.reducer;
 
 export const { setToken } = authSlice.actions;
 
-export const tokenSelector = (state: GlobalState): string | null =>
-  state.auth.token;
+export const selectAuthState = (state: GlobalState): AuthState =>
+  state[AUTH_MODULE];
