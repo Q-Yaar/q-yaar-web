@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { JSX } from "react";
 import {
+  DICE_ROLLER_ROUTE,
+  GAME_DETAIL_ROUTE,
   HOME_ROUTE,
   LOGIN_ROUTE,
   MAP_ROUTE,
@@ -12,6 +14,8 @@ import BaseLayout from "./Layouts/BaseLayout";
 import NotFound from "./components/NotFound";
 import Login from "./modules/Auth/Login";
 import Map from "./components/Map";
+import GameDetail from "./modules/Games/GameDetail";
+import DiceRoller from "./modules/DiceRoller";
 
 function ProtectedRoutes(): JSX.Element {
   return (
@@ -19,6 +23,8 @@ function ProtectedRoutes(): JSX.Element {
       <BaseLayout>
         <Routes>
           <Route path={HOME_ROUTE} element={<Home />} />
+          <Route path={GAME_DETAIL_ROUTE} element={<GameDetail />} />
+          <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BaseLayout>

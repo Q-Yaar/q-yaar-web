@@ -1,3 +1,5 @@
+import GameList from "../Games";
+
 export default function Home() {
-  return <div>Home page</div>;
+  return <GameList />;
 }

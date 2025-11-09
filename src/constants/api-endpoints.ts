@@ -1,4 +1,4 @@
-export const BASE_URL = "https://pokeapi.co/api/v2/";
+export const BASE_URL = "http://localhost:8000/api/v1/auth/login";
 
 export const AUTH_LOGIN_API = "";
 
