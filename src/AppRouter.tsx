@@ -7,6 +7,7 @@ import {
   LOGIN_ROUTE,
   MAP_ROUTE,
   ROOT_ROUTE,
+  SIGNUP_ROUTE,
 } from "./constants/routes";
 import Home from "./modules/Home";
 import AuthGuard from "./components/AuthGuard";
@@ -16,6 +17,7 @@ import Login from "./modules/Auth/Login";
 import Map from "./components/Map";
 import GameDetail from "./modules/Games/GameDetail";
 import DiceRoller from "./modules/DiceRoller";
+import SignUp from "./modules/Auth/SignUp";
 
 function ProtectedRoutes(): JSX.Element {
   return (
@@ -41,6 +43,7 @@ export default function AppRouter(): JSX.Element {
           element={<Navigate to={LOGIN_ROUTE} replace />}
         />
         <Route path={LOGIN_ROUTE} element={<Login />} />
+        <Route path={SIGNUP_ROUTE} element={<SignUp />} />
         <Route path={MAP_ROUTE} element={<Map />} />
         <Route path="*" element={<ProtectedRoutes />} />
       </Routes>

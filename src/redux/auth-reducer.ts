@@ -1,26 +1,26 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { GlobalState } from "./store";
 import { AUTH_MODULE } from "../constants/modules";
+import { LoginResponse } from "../models/Login";
 
 const token: string | null = localStorage.getItem("token");
 
 export interface AuthState {
-  token: string | null;
+  authData?: LoginResponse;
 }
 
 const initialState: AuthState = {
-  token: token,
 };
 
 export const authSlice = createSlice({
   name: AUTH_MODULE,
   initialState,
   reducers: {
-    setToken: (state: AuthState, { payload: { token } }) => {
-      state.token = token;
+    setToken: (state: AuthState, { payload: { authData } }) => {
+      state.authData = authData;
     },
     clearToken: (state: AuthState) => {
-      state.token = null;
+      state.authData = undefined;
     },
   },
 });

@@ -9,9 +9,10 @@ interface PRProps {
 }
 
 export default function AuthGuard({ children }: PRProps): JSX.Element | null {
-  const { token } = useSelector(selectAuthState);
-  if (!token) {
+  const auth = useSelector(selectAuthState);
+  const playerAccessToken = auth.authData?.profiles['PLAYER']?.access_token;
+  if (!playerAccessToken) {
     return <Navigate to={LOGIN_ROUTE} replace />;
   }
-  return token ? children : null;
+  return playerAccessToken ? children : null;
 }

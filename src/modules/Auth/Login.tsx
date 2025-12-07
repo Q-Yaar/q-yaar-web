@@ -1,9 +1,15 @@
 import React, { useState } from "react";
 import { Eye, EyeOff, Mail, Gamepad, Lock, AlertCircle } from "lucide-react";
 import { useLoginMutation } from "../../apis/api";
+import { setToken } from "../../redux/auth-reducer";
+import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { HOME_ROUTE, SIGNUP_ROUTE } from "../../constants/routes";
 
 export default function Login() {
   const [email, setEmail] = useState("");
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({ email: "", password: "" });
@@ -48,7 +54,9 @@ export default function Login() {
 
         // The token should be automatically stored in Redux via your auth slice
         // If you need to manually dispatch, uncomment below:
-        // dispatch(setCredentials({ userToken: result.token, user: result.user }));
+        dispatch(setToken({ authData: result }));
+
+        navigate(HOME_ROUTE)
 
         // Handle successful login (redirect, etc.)
         console.log("Login successful:", result);
@@ -98,11 +106,10 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onBlur={() => handleBlur("email")}
-                  className={`block w-full pl-10 pr-3 py-3 border ${
-                    touched.email && errors.email
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-                  } rounded-lg focus:outline-none focus:ring-2 transition-colors`}
+                  className={`block w-full pl-10 pr-3 py-3 border ${touched.email && errors.email
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+                    } rounded-lg focus:outline-none focus:ring-2 transition-colors`}
                   placeholder="you@example.com"
                 />
               </div>
@@ -132,11 +139,10 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onBlur={() => handleBlur("password")}
-                  className={`block w-full pl-10 pr-12 py-3 border ${
-                    touched.password && errors.password
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500"
-                      : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
-                  } rounded-lg focus:outline-none focus:ring-2 transition-colors`}
+                  className={`block w-full pl-10 pr-12 py-3 border ${touched.password && errors.password
+                    ? "border-red-300 focus:ring-red-500 focus:border-red-500"
+                    : "border-gray-300 focus:ring-indigo-500 focus:border-indigo-500"
+                    } rounded-lg focus:outline-none focus:ring-2 transition-colors`}
                   placeholder="••••••••"
                 />
                 <button
@@ -200,7 +206,7 @@ export default function Login() {
             Don't have an account?{" "}
             <button
               onClick={() => {
-                alert("Contact Admin");
+                navigate(SIGNUP_ROUTE);
               }}
               className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
             >
