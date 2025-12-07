@@ -13,5 +13,15 @@ export const gamesApi = api.injectEndpoints({
       }),
       providesTags: () => [GAME_MODULE],
     }),
+    fetchGameDetails: builder.query<Game, string>({
+      query: (gameId) => ({
+        url: `/games/${gameId}`, // Adjust path to match your backend (e.g. /games/{id})
+        method: "GET",
+      }),
+      providesTags: (result, error, id) => [GAME_MODULE],
+    }),
   }),
 });
+
+
+export const { useFetchGamesQuery, useFetchGameDetailsQuery } = gamesApi;

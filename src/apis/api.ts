@@ -2,6 +2,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { AUTH_MODULE, GAME_MODULE, SERVER_MODULE } from "../constants/modules";
 import { AUTH_LOGIN_API, BASE_URL, AUTH_SIGNUP_API } from "../constants/api-endpoints";
 import { LoginRequest, LoginResponse, SignupRequest } from "../models/Login";
+import { RootState } from "../redux/store";
 
 export const api = createApi({
   baseQuery: fetchBaseQuery({
@@ -9,9 +10,9 @@ export const api = createApi({
     prepareHeaders: (headers, { getState }) => {
       try {
         // You might need to adjust this depending on which token (user vs profile) you want to use by default
-        const token = (getState() as any).auth?.userToken;
-        if (token) {
-          headers.set("Authorization", `Bearer ${token}`);
+        const playerAccessToken = (getState() as RootState).auth.authData?.profiles['PLAYER']?.access_token;
+        if (playerAccessToken) {
+          headers.set("Authorization", `Bearer ${playerAccessToken}`);
         }
         return headers;
       } catch (err) {
