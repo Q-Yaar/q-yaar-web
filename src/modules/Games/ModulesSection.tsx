@@ -14,9 +14,10 @@ export interface GameModule {
 interface ModulesSectionProps {
   modules: GameModule[];
   gameId: string;
+  teamId: string;
 }
 
-export function ModulesSection({ modules, gameId }: ModulesSectionProps) {
+export function ModulesSection({ modules, gameId , teamId}: ModulesSectionProps) {
   const navigate = useNavigate();
 
   return (
@@ -31,6 +32,7 @@ export function ModulesSection({ modules, gameId }: ModulesSectionProps) {
               navigate(
                 getRoute(module.route, {
                   gameId: gameId,
+                  teamId: teamId
                 })
               );
             }}

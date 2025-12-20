@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { JSX } from "react";
 import {
+  DECK_ROUTE,
   DICE_ROLLER_ROUTE,
   GAME_DETAIL_ROUTE,
   HOME_ROUTE,
@@ -18,6 +19,7 @@ import Map from "./components/Map";
 import GameDetail from "./modules/Games/GameDetail";
 import DiceRoller from "./modules/DiceRoller";
 import SignUp from "./modules/Auth/SignUp";
+import DeckPage from "./modules/DeckPage";
 
 function ProtectedRoutes(): JSX.Element {
   return (
@@ -27,6 +29,7 @@ function ProtectedRoutes(): JSX.Element {
           <Route path={HOME_ROUTE} element={<Home />} />
           <Route path={GAME_DETAIL_ROUTE} element={<GameDetail />} />
           <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
+          <Route path={DECK_ROUTE} element={<DeckPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BaseLayout>

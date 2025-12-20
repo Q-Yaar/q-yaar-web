@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { DICE_ROLLER_ROUTE, MAP_ROUTE } from "../../constants/routes";
+import { DECK_ROUTE, DICE_ROLLER_ROUTE, MAP_ROUTE } from "../../constants/routes";
 import { useFetchMyTeamQuery } from "../../apis/gameApi";
 import { HeroSection } from "./HeroSection";
 import { ModulesSection, GameModule } from "./ModulesSection";
@@ -32,7 +32,7 @@ export default function GameDetail() {
       icon: "🃏",
       description: "Manage and draw cards",
       color: "from-red-500 to-pink-500",
-      route: "",
+      route: DECK_ROUTE,
     },
     {
       id: 2,
@@ -87,7 +87,7 @@ export default function GameDetail() {
           isLoading={isTeamLoading}
           error={teamError}
         />
-        <ModulesSection modules={modules} gameId={gameId || "123"} />
+        <ModulesSection modules={modules} gameId={gameId || "123"} teamId={team?.team_id || "123"} />
         <StatsSection />
       </div>
 
