@@ -62,6 +62,14 @@ export const deckApi = api.injectEndpoints({
             }),
             invalidatesTags: [DECK_MODULE],
         }),
+
+        returnCard: builder.mutation<void, { cardId: string; teamId: string }>({
+            query: ({ cardId, teamId }) => ({
+                url: `/api/v1/cards/deck/${teamId}/cards/${cardId}/return`,
+                method: "POST",
+            }),
+            invalidatesTags: [DECK_MODULE],
+        }),
     }),
 });
 
@@ -73,4 +81,5 @@ export const {
     useDrawCardMutation,
     useDiscardCardMutation,
     useShuffleDeckMutation,
+    useReturnCardMutation
 } = deckApi;
