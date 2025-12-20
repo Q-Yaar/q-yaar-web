@@ -68,7 +68,7 @@ export default function DeckPage() {
                             <ChevronRight className="w-5 h-5 rotate-180" />
                         </button>
                         <div>
-                            <h1 className="text-lg sm:text-xl font-bold">Card Deck</h1>
+                            <h1 className="text-lg sm:text-xl font-bold text-left">Card Deck</h1>
                             <div className="text-[10px] sm:text-xs text-indigo-200 flex items-center gap-3">
                                 <span className="flex items-center gap-1"><Layers size={12} /> {stats?.deck_cards ?? 0} Deck</span>
                                 <span className="w-px h-3 bg-indigo-400/30"></span>
