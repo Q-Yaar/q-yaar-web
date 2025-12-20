@@ -3,6 +3,7 @@ import type { ListResponse } from "../models/ApiResponse";
 import { api } from "./api";
 import { Game } from "../models/Game";
 import { GAMES_API } from "../constants/api-endpoints";
+import { Team } from "../models/Team";
 
 export const gamesApi = api.injectEndpoints({
   endpoints: (builder) => ({
@@ -20,8 +21,15 @@ export const gamesApi = api.injectEndpoints({
       }),
       providesTags: (result, error, id) => [GAME_MODULE],
     }),
+    fetchMyTeam: builder.query<Team, string>({
+      query: (gameId) => ({
+        url: `api/v1/games/${gameId}/team/me`,
+        method: "GET",
+      }),
+      providesTags: (result, error, id) => [GAME_MODULE],
+    }),
   }),
 });
 
 
-export const { useFetchGamesQuery, useFetchGameDetailsQuery } = gamesApi;
+export const { useFetchGamesQuery, useFetchGameDetailsQuery, useFetchMyTeamQuery } = gamesApi;
