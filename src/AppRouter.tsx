@@ -15,7 +15,7 @@ import AuthGuard from "./components/AuthGuard";
 import BaseLayout from "./Layouts/BaseLayout";
 import NotFound from "./components/NotFound";
 import Login from "./modules/Auth/Login";
-import Map from "./components/Map";
+import MapPage from "./modules/Map";
 import GameDetail from "./modules/Games/GameDetail";
 import DiceRoller from "./modules/DiceRoller";
 import SignUp from "./modules/Auth/SignUp";
@@ -30,6 +30,7 @@ function ProtectedRoutes(): JSX.Element {
           <Route path={GAME_DETAIL_ROUTE} element={<GameDetail />} />
           <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
           <Route path={DECK_ROUTE} element={<DeckPage />} />
+          <Route path={MAP_ROUTE} element={<MapPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BaseLayout>
@@ -47,7 +48,7 @@ export default function AppRouter(): JSX.Element {
         />
         <Route path={LOGIN_ROUTE} element={<Login />} />
         <Route path={SIGNUP_ROUTE} element={<SignUp />} />
-        <Route path={MAP_ROUTE} element={<Map />} />
+
         <Route path="*" element={<ProtectedRoutes />} />
       </Routes>
     </BrowserRouter>
