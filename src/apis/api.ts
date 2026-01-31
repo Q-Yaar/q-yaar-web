@@ -1,8 +1,17 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { AUTH_MODULE, DECK_MODULE, GAME_MODULE, SERVER_MODULE } from "../constants/modules";
-import { AUTH_LOGIN_API, BASE_URL, AUTH_SIGNUP_API } from "../constants/api-endpoints";
-import { LoginRequest, LoginResponse, SignupRequest } from "../models/Login";
-import { RootState } from "../redux/store";
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import {
+  AUTH_MODULE,
+  DECK_MODULE,
+  GAME_MODULE,
+  SERVER_MODULE,
+} from '../constants/modules';
+import {
+  AUTH_LOGIN_API,
+  BASE_URL,
+  AUTH_SIGNUP_API,
+} from '../constants/api-endpoints';
+import { LoginRequest, LoginResponse, SignupRequest } from '../models/Login';
+import { RootState } from '../redux/store';
 
 export const api = createApi({
   baseQuery: fetchBaseQuery({
@@ -10,25 +19,26 @@ export const api = createApi({
     prepareHeaders: (headers, { getState }) => {
       try {
         // You might need to adjust this depending on which token (user vs profile) you want to use by default
-        const playerAccessToken = (getState() as RootState).auth.authData?.profiles['PLAYER']?.access_token;
+        const playerAccessToken = (getState() as RootState).auth.authData
+          ?.profiles['PLAYER']?.access_token;
         if (playerAccessToken) {
-          headers.set("Authorization", `Bearer ${playerAccessToken}`);
+          headers.set('Authorization', `Bearer ${playerAccessToken}`);
         }
         return headers;
       } catch (err) {
-        console.error("Error preparing headers:", err);
+        console.error('Error preparing headers:', err);
         return headers;
       }
     },
   }),
-  tagTypes: [AUTH_MODULE, GAME_MODULE, DECK_MODULE],
+  tagTypes: [AUTH_MODULE, GAME_MODULE, DECK_MODULE, 'QnA'],
   reducerPath: SERVER_MODULE,
   keepUnusedDataFor: 30,
   endpoints: (builder) => ({
     login: builder.mutation<LoginResponse, LoginRequest>({
       query: (credentials) => ({
         url: AUTH_LOGIN_API,
-        method: "POST",
+        method: 'POST',
         body: credentials,
       }),
       invalidatesTags: [AUTH_MODULE],
@@ -36,7 +46,7 @@ export const api = createApi({
     signup: builder.mutation<LoginResponse, SignupRequest>({
       query: (payload) => ({
         url: AUTH_SIGNUP_API, // Or use AUTH_SIGNUP_API constant
-        method: "POST",
+        method: 'POST',
         body: payload,
       }),
       // Since signup logs you in (returns token), it invalidates auth tags
