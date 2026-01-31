@@ -11,6 +11,7 @@ import {
 
 import { cn } from 'lib/utils';
 import { Label } from 'components/ui/label';
+import { BlockList } from 'net';
 
 const Form = FormProvider;
 
@@ -92,7 +93,7 @@ const FormLabel = React.forwardRef<
   return (
     <Label
       ref={ref}
-      className={cn(error && 'text-destructive', 'text-left', className)}
+      className={cn(error && 'text-destructive', 'text-left','block', className)}
       htmlFor={formItemId}
       {...props}
     />
