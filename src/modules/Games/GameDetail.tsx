@@ -10,7 +10,6 @@ import { useFetchMyTeamQuery } from '../../apis/gameApi';
 import { HeroSection } from './HeroSection';
 import { ModulesSection, GameModule } from './ModulesSection';
 import { TeamSection } from './TeamSection';
-import { StatsSection } from './StatsSection';
 
 export default function GameDetail() {
   const navigate = useNavigate();
@@ -90,7 +89,6 @@ export default function GameDetail() {
           gameId={gameId || '123'}
           teamId={team?.team_id || '123'}
         />
-        <StatsSection />
       </div>
     </div>
   );
