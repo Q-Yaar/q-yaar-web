@@ -1,4 +1,3 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { api } from './api';
 import { QNA_API } from '../constants/api-endpoints';
 import { ListResponse } from '../models/ApiResponse';
@@ -9,7 +8,7 @@ import {
   AskQuestionRequest,
   AnswerQuestionRequest,
 } from '../models/QnA';
-import { GAME_MODULE, QNA_MODULE } from '../constants/modules';
+import { QNA_MODULE } from '../constants/modules';
 
 export const qnaApi = api.injectEndpoints({
   endpoints: (builder) => ({
@@ -74,6 +73,16 @@ export const qnaApi = api.injectEndpoints({
       }),
       providesTags: [QNA_MODULE],
     }),
+    acceptAnswer: builder.mutation<
+      AskedQuestion,
+      { gameId: string; askedQuestionId: string }
+    >({
+      query: ({ gameId, askedQuestionId }) => ({
+        url: `${QNA_API}game/${gameId}/asked-questions/${askedQuestionId}/accept`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: [QNA_MODULE],
+    }),
   }),
 });
 
@@ -84,4 +93,5 @@ export const {
   useFetchAskedQuestionsQuery,
   useAskQuestionMutation,
   useAnswerQuestionMutation,
+  useAcceptAnswerMutation,
 } = qnaApi;

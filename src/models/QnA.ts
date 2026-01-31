@@ -47,6 +47,8 @@ export interface AskedQuestion {
     answered?: boolean;
     result?: string;
   };
+  answered?: boolean;
+  accepted?: boolean;
   created: string;
   modified: string;
 }

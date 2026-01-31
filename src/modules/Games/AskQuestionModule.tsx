@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useFetchCategoriesQuery,
   useFetchQuestionTemplatesQuery,
   useFetchQuestionTemplateDetailsQuery,
   useAskQuestionMutation,
+  useFetchAskedQuestionsQuery,
+  useAcceptAnswerMutation,
 } from '../../apis/qnaApi';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
-import { Category, QuestionTemplate } from '../../models/QnA';
+import { Category, QuestionTemplate, AskedQuestion } from '../../models/QnA';
 import {
   Loader,
   Send,
@@ -15,6 +17,9 @@ import {
   AlertCircle,
   ArrowLeft,
   HelpCircle,
+  Clock,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 
 export function AskQuestionModule() {
@@ -53,8 +58,19 @@ export function AskQuestionModule() {
     gameId || '',
     { skip: !gameId },
   );
+
+  // Fetch asked questions for history
+  const { data: askedQuestionsData, isLoading: isLoadingHistory } =
+    useFetchAskedQuestionsQuery(
+      { gameId: gameId || '' },
+      { skip: !gameId, pollingInterval: 15000 },
+    );
+
   const [askQuestion, { isLoading: isAsking, error: askError }] =
     useAskQuestionMutation();
+
+  const [acceptAnswer, { isLoading: isAccepting }] = useAcceptAnswerMutation();
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
   const handleCategorySelect = (category: Category) => {
     setSelectedCategory(category);
@@ -93,12 +109,35 @@ export function AskQuestionModule() {
     }
   };
 
+  const handleAccept = async (question: AskedQuestion) => {
+    if (!gameId) return;
+    setAcceptingId(question.question_id);
+    try {
+      await acceptAnswer({
+        gameId,
+        askedQuestionId: question.question_id,
+      }).unwrap();
+    } catch (err) {
+      console.error('Failed to accept answer', err);
+      alert('Failed to accept answer.');
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
   const handleBack = () => {
     navigate(-1);
   };
 
   // Use fullTemplate if available for rendering Step 3, otherwise fallback/loading
   const activeTemplate = fullTemplate || selectedTemplateBasic;
+
+  // Filter questions for display (maybe sort by date desc?)
+  const myAskedQuestions = askedQuestionsData?.results
+    ? [...askedQuestionsData.results].sort(
+        (a, b) => new Date(b.created).getTime() - new Date(a.created).getTime(),
+      )
+    : [];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -156,41 +195,133 @@ export function AskQuestionModule() {
 
         {/* Step 1: Category Selection */}
         {!selectedCategory && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 px-1">
-              Choose a Category
-            </h2>
-            {isLoadingCategories ? (
-              <div className="flex justify-center p-12">
-                <Loader className="animate-spin text-indigo-600 w-8 h-8" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {categoriesData?.results.map((category) => (
-                  <button
-                    key={category.category_id}
-                    onClick={() => handleCategorySelect(category)}
-                    className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 active:scale-[0.98] transition-all hover:border-indigo-500 hover:shadow-md text-left flex flex-col justify-between h-32 group"
-                  >
-                    <div className="flex justify-between items-start w-full">
-                      <span className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors">
-                        {category.category_name}
-                      </span>
-                      <div className="bg-indigo-50 text-indigo-600 p-1.5 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        <ChevronRight className="w-5 h-5" />
+          <>
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-gray-900 px-1">
+                Choose a Category
+              </h2>
+              {isLoadingCategories ? (
+                <div className="flex justify-center p-12">
+                  <Loader className="animate-spin text-indigo-600 w-8 h-8" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {categoriesData?.results.map((category) => (
+                    <button
+                      key={category.category_id}
+                      onClick={() => handleCategorySelect(category)}
+                      className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 active:scale-[0.98] transition-all hover:border-indigo-500 hover:shadow-md text-left flex flex-col justify-between h-32 group"
+                    >
+                      <div className="flex justify-between items-start w-full">
+                        <span className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors">
+                          {category.category_name}
+                        </span>
+                        <div className="bg-indigo-50 text-indigo-600 p-1.5 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                          <ChevronRight className="w-5 h-5" />
+                        </div>
                       </div>
+                      <div className="text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg self-start">
+                        Reward:{' '}
+                        <span className="font-medium text-gray-700">
+                          {category.reward.reward_name}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* History Section (Visible only when filtering categories/on initial screen) */}
+            <div className="pt-8 border-t border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 px-1 mb-4 flex items-center">
+                <Clock className="w-5 h-5 mr-2 text-gray-500" />
+                Question History
+              </h2>
+              {isLoadingHistory ? (
+                <div className="space-y-3">
+                  <div className="h-20 bg-gray-100 rounded-xl animate-pulse" />
+                  <div className="h-20 bg-gray-100 rounded-xl animate-pulse" />
+                </div>
+              ) : myAskedQuestions.length === 0 ? (
+                <div className="text-center p-8 bg-white rounded-xl border border-dashed border-gray-300">
+                  <p className="text-gray-500">
+                    You haven't asked any questions yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myAskedQuestions.map((q) => (
+                    <div
+                      key={q.question_id}
+                      className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden"
+                    >
+                      {/* Status Badge */}
+                      {q.accepted ? (
+                        <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
+                          ACCEPTED
+                        </div>
+                      ) : q.answer_meta?.answered ? (
+                        <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
+                          ANSWERED
+                        </div>
+                      ) : (
+                        <div className="absolute top-0 right-0 bg-gray-400 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
+                          PENDING
+                        </div>
+                      )}
+
+                      <div className="pr-16">
+                        <p className="font-semibold text-gray-900 text-lg mb-1">
+                          {q.rendered_question}
+                        </p>
+                        <div className="flex items-center text-xs text-gray-500 space-x-2">
+                          <span className="bg-gray-100 px-2 py-0.5 rounded">
+                            {q.category.category_name}
+                          </span>
+                          <span>
+                            {new Date(q.created).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action / Result */}
+                      {q.answer_meta?.answered && (
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                          <div className="flex items-center">
+                            <span className="text-sm text-gray-600 mr-2">
+                              Answer:
+                            </span>
+                            {q.answer_meta.result === 'HIT' ? (
+                              <span className="flex items-center font-bold text-green-600">
+                                <CheckCircle className="w-4 h-4 mr-1" /> HIT
+                              </span>
+                            ) : (
+                              <span className="flex items-center font-bold text-red-600">
+                                <XCircle className="w-4 h-4 mr-1" /> MISS
+                              </span>
+                            )}
+                          </div>
+
+                          {!q.accepted && (
+                            <button
+                              onClick={() => handleAccept(q)}
+                              disabled={isAccepting}
+                              className="text-sm bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg font-medium transition-colors border border-indigo-200 disabled:opacity-50"
+                            >
+                              {isAccepting && acceptingId === q.question_id
+                                ? 'Accepting...'
+                                : 'Accept Answer'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg self-start">
-                      Reward:{' '}
-                      <span className="font-medium text-gray-700">
-                        {category.reward.reward_name}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Step 2: Template Selection */}
