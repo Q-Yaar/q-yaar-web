@@ -197,7 +197,8 @@ export function AskQuestionModule() {
         {!selectedCategory && (
           <>
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 px-1">
+              <h2 className="text-lg font-semibold text-gray-900 px-1 text-left">
+                <HelpCircle className="w-5 h-5 mr-2 text-indigo-600 inline" />
                 Choose a Category
               </h2>
               {isLoadingCategories ? (
@@ -272,7 +273,7 @@ export function AskQuestionModule() {
                       )}
 
                       <div className="pr-16">
-                        <p className="font-semibold text-gray-900 text-lg mb-1">
+                        <p className="font-semibold text-gray-900 text-lg mb-1 text-left">
                           {q.rendered_question}
                         </p>
                         <div className="flex items-center text-xs text-gray-500 space-x-2">
@@ -292,15 +293,9 @@ export function AskQuestionModule() {
                             <span className="text-sm text-gray-600 mr-2">
                               Answer:
                             </span>
-                            {q.answer_meta.result === 'HIT' ? (
-                              <span className="flex items-center font-bold text-green-600">
-                                <CheckCircle className="w-4 h-4 mr-1" /> HIT
-                              </span>
-                            ) : (
-                              <span className="flex items-center font-bold text-red-600">
-                                <XCircle className="w-4 h-4 mr-1" /> MISS
-                              </span>
-                            )}
+                            <span className="flex items-center font-bold text-green-600">
+                              {q.answer_meta.result}
+                            </span>
                           </div>
 
                           {!q.accepted && (

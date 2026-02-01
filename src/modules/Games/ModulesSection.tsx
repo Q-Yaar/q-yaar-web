@@ -51,7 +51,7 @@ export function ModulesSection({
           >
             <CardHeader className="pb-2">
               <div
-                className={`w-12 h-12 rounded-lg bg-gradient-to-br ${module.color} flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform`}
+                className={`w-12 h-12 rounded-lg bg-gradient-to-br ${module.color} flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform mx-auto`}
               >
                 {module.icon}
               </div>
@@ -62,7 +62,7 @@ export function ModulesSection({
             <CardContent>
               <CardDescription>{module.description}</CardDescription>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="justify-center">
               <div className="flex items-center text-indigo-600 text-sm font-medium">
                 <span>Open Module</span>
                 <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />

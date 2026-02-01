@@ -26,8 +26,16 @@ export function AnswerQuestionModule() {
     useAnswerQuestionMutation();
   const [answeringId, setAnsweringId] = useState<string | null>(null);
 
-  const handleAnswer = async (question: AskedQuestion, result: string) => {
+  const [answerTexts, setAnswerTexts] = useState<Record<string, string>>({});
+
+  const handleAnswer = async (question: AskedQuestion) => {
     if (!gameId) return;
+    const answerText = answerTexts[question.question_id]?.trim();
+    if (!answerText) {
+      alert('Please enter an answer.');
+      return;
+    }
+
     setAnsweringId(question.question_id);
 
     try {
@@ -37,16 +45,29 @@ export function AnswerQuestionModule() {
         body: {
           answer_meta: {
             answered: true,
-            result: result,
+            result: answerText,
           },
         },
       }).unwrap();
+      // Clear answer text after successful submission
+      setAnswerTexts((prev) => {
+        const next = { ...prev };
+        delete next[question.question_id];
+        return next;
+      });
     } catch (err) {
       console.error('Failed to answer', err);
       alert('Failed to submit answer.');
     } finally {
       setAnsweringId(null);
     }
+  };
+
+  const handleTextChange = (questionId: string, text: string) => {
+    setAnswerTexts((prev) => ({
+      ...prev,
+      [questionId]: text,
+    }));
   };
 
   const handleBack = () => {
@@ -120,36 +141,37 @@ export function AnswerQuestionModule() {
                     </span>
                   </div>
 
-                  <h3 className="text-xl font-bold text-gray-900 mb-6 leading-relaxed">
+                  <h3 className="text-xl font-bold text-gray-900 mb-6 leading-relaxed text-left">
                     {question.rendered_question}
                   </h3>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-3">
+                    <textarea
+                      value={answerTexts[question.question_id] || ''}
+                      onChange={(e) =>
+                        handleTextChange(question.question_id, e.target.value)
+                      }
+                      placeholder="Type your answer here..."
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[100px] resize-y"
+                      disabled={
+                        isAnswering && answeringId === question.question_id
+                      }
+                    />
+
                     <button
-                      onClick={() => handleAnswer(question, 'HIT')}
-                      disabled={isAnswering}
-                      className="py-3 px-4 bg-white border-2 border-green-500 text-green-600 hover:bg-green-50 rounded-xl font-bold transition-all active:scale-[0.98] flex justify-center items-center"
+                      onClick={() => handleAnswer(question)}
+                      disabled={
+                        isAnswering ||
+                        !answerTexts[question.question_id]?.trim()
+                      }
+                      className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl font-bold transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
                     >
                       {isAnswering && answeringId === question.question_id ? (
                         <Loader className="w-5 h-5 animate-spin" />
                       ) : (
                         <>
                           <CheckCircle className="w-5 h-5 mr-2" />
-                          HIT
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => handleAnswer(question, 'MISS')}
-                      disabled={isAnswering}
-                      className="py-3 px-4 bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 rounded-xl font-bold transition-all active:scale-[0.98] flex justify-center items-center"
-                    >
-                      {isAnswering && answeringId === question.question_id ? (
-                        <Loader className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <>
-                          <XCircle className="w-5 h-5 mr-2" />
-                          MISS
+                          Submit Answer
                         </>
                       )}
                     </button>
@@ -186,13 +208,13 @@ export function AnswerQuestionModule() {
                     </div>
                   </div>
                   <div className="flex-shrink-0">
-                    {question.answer_meta?.result === 'HIT' ? (
+                    {question.accepted ? (
                       <span className="whitespace-nowrap inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                        <CheckCircle className="w-3 h-3 mr-1" /> HIT
+                        <CheckCircle className="w-3 h-3 mr-1" /> Accepted
                       </span>
                     ) : (
                       <span className="whitespace-nowrap inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                        <XCircle className="w-3 h-3 mr-1" /> MISS
+                        <XCircle className="w-3 h-3 mr-1" /> Not Accepted
                       </span>
                     )}
                   </div>
