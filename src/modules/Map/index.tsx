@@ -24,7 +24,7 @@ const MapPage: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
             <Navbar gameId={gameId} title="Interactive Game Map" />
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                <div style={{ width: '350px', height: '100%', overflowY: 'auto', borderRight: '1px solid #ccc', backgroundColor: '#f5f5f5' }}>
+                <div style={{ width: '380px', height: '100%', overflowY: 'auto', zIndex: 10 }}>
                     <Sidebar
                         onSelectOption={setAction}
                         points={points}
