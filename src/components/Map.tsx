@@ -117,21 +117,35 @@ const Map: React.FC<MapProps> = ({
     }, [points, action, radius, shadingMode, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, operations]);
 
     useEffect(() => {
-        if (map.current || !mapContainerRef.current) return;
+        if (!mapContainerRef.current) return;
 
-        map.current = new maplibregl.Map({
-            container: mapContainerRef.current,
+        const container = mapContainerRef.current;
+        const instanceId = Math.random().toString(36).substring(7);
+        console.log(`[Map ${instanceId}] Initializing Map...`);
+
+        const m = new maplibregl.Map({
+            container: container,
             style: `https://tiles.openfreemap.org/styles/liberty`,
             center: [77.591, 12.979],
             zoom: 14
         });
 
-        map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+        map.current = m;
+        m.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-        map.current.on('load', () => {
-            if (!map.current) return;
+        // Use ResizeObserver to ensure the map resizes whenever the container size changes
+        const resizeObserver = new ResizeObserver(() => {
+            if (m) {
+                console.log(`[Map ${instanceId}] Container resized, calling m.resize()`);
+                m.resize();
+            }
+        });
+        resizeObserver.observe(container);
 
-            map.current.addSource('measurement-source', {
+        m.on('load', () => {
+            console.log(`[Map ${instanceId}] Map Loaded`);
+
+            m.addSource('measurement-source', {
                 'type': 'geojson',
                 'data': {
                     'type': 'FeatureCollection',
@@ -140,7 +154,7 @@ const Map: React.FC<MapProps> = ({
             });
 
             // Layer for lines
-            map.current.addLayer({
+            m.addLayer({
                 'id': 'measurement-line',
                 'type': 'line',
                 'source': 'measurement-source',
@@ -169,7 +183,7 @@ const Map: React.FC<MapProps> = ({
             });
 
             // Layer for shading
-            map.current.addLayer({
+            m.addLayer({
                 'id': 'shading-fill',
                 'type': 'fill',
                 'source': 'measurement-source',
@@ -181,7 +195,7 @@ const Map: React.FC<MapProps> = ({
             });
 
             // Layer for points
-            map.current.addLayer({
+            m.addLayer({
                 'id': 'measurement-points',
                 'type': 'circle',
                 'source': 'measurement-source',
@@ -193,7 +207,11 @@ const Map: React.FC<MapProps> = ({
             });
         });
 
-        map.current.on('click', (e) => {
+        m.on('error', (e) => {
+            console.error(`[Map ${instanceId}] Map Error:`, e);
+        });
+
+        m.on('click', (e) => {
             const currentAction = actionRef.current;
 
             if (currentAction === 'distance' || currentAction === 'heading' || currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'hotter-colder') {
@@ -224,16 +242,18 @@ const Map: React.FC<MapProps> = ({
         });
 
         return () => {
-            if (map.current) {
-                map.current.remove();
+            console.log(`[Map ${instanceId}] Cleaning up...`);
+            resizeObserver.disconnect();
+            if (map.current === m) {
                 map.current = null;
             }
+            m.remove();
         }
     }, []); // Empty dependency array ensures map is only initialized once
 
     return (
-        <div style={{ flex: 1, position: 'relative' }}>
-            <div ref={mapContainerRef} style={{ height: '100%', width: '100%' }} />
+        <div style={{ display: 'flex', flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+            <div ref={mapContainerRef} style={{ flex: 1, width: '100%', height: '100%' }} />
         </div>
     );
 };

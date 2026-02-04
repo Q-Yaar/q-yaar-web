@@ -3,8 +3,10 @@ import Map from '../../components/Map';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import { Heading, Operation } from '../../utils/geoTypes';
+import { useParams } from 'react-router-dom';
 
 const MapPage: React.FC = () => {
+    const { gameId } = useParams();
     const [action, setAction] = useState<string>('');
     const [points, setPoints] = useState<number[][]>([]);
     const [distance, setDistance] = useState<number | null>(null);
@@ -20,7 +22,7 @@ const MapPage: React.FC = () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-            <Navbar />
+            <Navbar gameId={gameId} title="Interactive Game Map" />
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                 <div style={{ width: '350px', height: '100%', overflowY: 'auto', borderRight: '1px solid #ccc', backgroundColor: '#f5f5f5' }}>
                     <Sidebar
@@ -46,7 +48,7 @@ const MapPage: React.FC = () => {
                         setOperations={setOperations}
                     />
                 </div>
-                <div style={{ flex: 1, position: 'relative' }}>
+                <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
                     <Map
                         action={action}
                         points={points}
