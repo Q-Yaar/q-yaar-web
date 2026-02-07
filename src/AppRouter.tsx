@@ -1,35 +1,24 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { JSX } from 'react';
 import {
+  ANSWER_QUESTION_ROUTE,
+  ASK_QUESTION_ROUTE,
   DECK_ROUTE,
   DICE_ROLLER_ROUTE,
+  FACTS_ROUTE,
   GAME_DETAIL_ROUTE,
   HOME_ROUTE,
   LOGIN_ROUTE,
   MAP_ROUTE,
   ROOT_ROUTE,
   SIGNUP_ROUTE,
-} from "./constants/routes";
-import Home from "./modules/Home";
-import AuthGuard from "./components/AuthGuard";
-import BaseLayout from "./Layouts/BaseLayout";
-import NotFound from "./components/NotFound";
-import Login from "./modules/Auth/Login";
-import MapPage from "./modules/Map";
-import GameDetail from "./modules/Games/GameDetail";
-import DiceRoller from "./modules/DiceRoller";
-import SignUp from "./modules/Auth/SignUp";
-import DeckPage from "./modules/DeckPage";
-  ASK_QUESTION_ROUTE,
-  ANSWER_QUESTION_ROUTE,
-  FACTS_ROUTE,
 } from './constants/routes';
 import Home from './modules/Home';
 import AuthGuard from './components/AuthGuard';
 import BaseLayout from './Layouts/BaseLayout';
 import NotFound from './components/NotFound';
 import Login from './modules/Auth/Login';
-import Map from './components/Map';
+import MapPage from './modules/Map';
 import GameDetail from './modules/Games/GameDetail';
 import DiceRoller from './modules/DiceRoller';
 import SignUp from './modules/Auth/SignUp';
