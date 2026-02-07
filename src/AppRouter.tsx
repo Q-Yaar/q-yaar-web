@@ -11,6 +11,7 @@ import {
   SIGNUP_ROUTE,
   ASK_QUESTION_ROUTE,
   ANSWER_QUESTION_ROUTE,
+  FACTS_ROUTE,
 } from './constants/routes';
 import Home from './modules/Home';
 import AuthGuard from './components/AuthGuard';
@@ -24,6 +25,7 @@ import SignUp from './modules/Auth/SignUp';
 import DeckPage from './modules/DeckPage';
 import { AskQuestionModule } from './modules/Games/AskQuestionModule';
 import { AnswerQuestionModule } from './modules/Games/AnswerQuestionModule';
+import { FactsModule } from './modules/Games/FactsModule';
 
 function ProtectedRoutes(): JSX.Element {
   return (
@@ -39,6 +41,7 @@ function ProtectedRoutes(): JSX.Element {
             path={ANSWER_QUESTION_ROUTE}
             element={<AnswerQuestionModule />}
           />
+          <Route path={FACTS_ROUTE} element={<FactsModule />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BaseLayout>

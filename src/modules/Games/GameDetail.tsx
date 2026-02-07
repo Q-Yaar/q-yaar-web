@@ -5,6 +5,7 @@ import {
   MAP_ROUTE,
   ASK_QUESTION_ROUTE,
   ANSWER_QUESTION_ROUTE,
+  FACTS_ROUTE,
 } from '../../constants/routes';
 import { useFetchMyTeamQuery } from '../../apis/gameApi';
 import { HeroSection } from './HeroSection';
@@ -75,6 +76,14 @@ export default function GameDetail() {
       description: 'Answer pending questions',
       color: 'from-teal-500 to-green-500',
       route: ANSWER_QUESTION_ROUTE,
+    },
+    {
+      id: 9,
+      name: 'Facts',
+      icon: '📜',
+      description: 'History of facts',
+      color: 'from-orange-500 to-amber-500',
+      route: FACTS_ROUTE,
     },
   ];
 
