@@ -14,6 +14,7 @@ import { LoginRequest, LoginResponse, SignupRequest } from '../models/Login';
 import { RootState } from '../redux/store';
 
 import { jwtDecode } from 'jwt-decode';
+import { Mutex } from 'async-mutex';
 import { clearToken, setToken } from '../redux/auth-reducer';
 import { AUTH_REFRESH_API } from '../constants/api-endpoints';
 import {
@@ -40,15 +41,20 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
+const mutex = new Mutex();
+
 const baseQueryWithReauth: BaseQueryFn<
   string | FetchArgs,
   unknown,
   FetchBaseQueryError
 > = async (args, api, extraOptions) => {
+  // Wait until the mutex is available without locking it yet
+  await mutex.waitForUnlock();
+
   const state = api.getState() as RootState;
   const authData = state.auth.authData;
   const playerProfile = authData?.profiles['PLAYER'];
-  const token = playerProfile?.access_token;
+  let token = playerProfile?.access_token;
 
   if (token) {
     try {
@@ -56,42 +62,65 @@ const baseQueryWithReauth: BaseQueryFn<
       const currentTime = Date.now() / 1000;
 
       if (decoded.exp < currentTime) {
-        const refreshToken = playerProfile?.refresh_token;
-        const userId = authData?.user?.data?.user_id;
+        // Check if another request has already refreshed the token while we were waiting
+        // We need to check the state again *inside* the lock if we acquire it.
+        // But first, let's try to acquire the lock.
+        if (!mutex.isLocked()) {
+          const release = await mutex.acquire();
+          try {
+            // Re-read state to see if token was updated while we were acquiring lock
+            const currentState = api.getState() as RootState;
+            const currentAuthData = currentState.auth.authData;
+            const currentProfile = currentAuthData?.profiles['PLAYER'];
+            const currentToken = currentProfile?.access_token;
 
-        if (refreshToken && userId) {
-          // Attempt to refresh token
-          const refreshResult = await fetch(`${BASE_URL}/${AUTH_REFRESH_API}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              refresh_token: refreshToken,
-              user_id: userId,
-            }),
-          });
+            if (currentToken) {
+              const currentDecoded: any = jwtDecode(currentToken);
+              // If still expired, we refresh
+              if (currentDecoded.exp < currentTime) {
+                const refreshToken = currentProfile?.refresh_token;
+                const userId = currentAuthData?.user?.data?.user_id;
 
-          if (refreshResult.ok) {
-            const refreshData = await refreshResult.json();
-            api.dispatch(setToken({ authData: refreshData }));
-            // Retry the original query
-            return baseQuery(args, api, extraOptions);
-          } else {
-            // Refresh failed
-            api.dispatch(clearToken());
-            return { error: { status: 401, data: 'Refresh failed' } };
+                if (refreshToken && userId) {
+                  const refreshResult = await fetch(
+                    `${BASE_URL}/${AUTH_REFRESH_API}`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        refresh_token: refreshToken,
+                        user_id: userId,
+                      }),
+                    },
+                  );
+
+                  if (refreshResult.ok) {
+                    const refreshData = await refreshResult.json();
+                    api.dispatch(setToken({ authData: refreshData }));
+                  } else {
+                    api.dispatch(clearToken());
+                    return { error: { status: 401, data: 'Refresh failed' } };
+                  }
+                } else {
+                  api.dispatch(clearToken());
+                  return { error: { status: 401, data: 'No refresh token' } };
+                }
+              }
+            }
+          } finally {
+            release();
           }
         } else {
-          // No refresh token available
-          api.dispatch(clearToken());
-          return { error: { status: 401, data: 'No refresh token' } };
+          // Mutex is locked, meaning a refresh is in progress.
+          // We wait for it to unlock (which we did at the start), and then we continue.
+          // After unlock, the token should be refreshed in the store.
+          await mutex.waitForUnlock();
         }
       }
     } catch (error) {
-      // Token decode error or other issue
       console.error('Token validation error', error);
-      // Should we clear token? Maybe. Or let the request fail naturally with 401.
     }
   }
 
