@@ -26,6 +26,12 @@ interface SidebarProps {
     setAreaOpType: (type: 'intersection' | 'difference') => void;
     uploadedAreaForOp: any;
     setUploadedAreaForOp: (area: any) => void;
+    multiLineStringForOp: any;
+    setMultiLineStringForOp: (area: any) => void;
+    closerFurther: 'closer' | 'further';
+    setCloserFurther: (val: 'closer' | 'further') => void;
+    selectedLineIndex: number;
+    setSelectedLineIndex: (val: number) => void;
     operations: Operation[];
     setOperations: (ops: Operation[]) => void;
 }
@@ -38,6 +44,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     preferredPoint, setPreferredPoint,
     areaOpType, setAreaOpType,
     uploadedAreaForOp, setUploadedAreaForOp,
+    multiLineStringForOp, setMultiLineStringForOp,
+    closerFurther, setCloserFurther,
+    selectedLineIndex, setSelectedLineIndex,
     operations, setOperations
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -57,7 +66,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     };
 
     const handleSaveOperation = () => {
-        if (!selectedOption || (selectedOption !== 'areas' && points.length === 0)) return;
+        if (!selectedOption) return;
+        if (selectedOption !== 'areas' && selectedOption !== 'closer-to-line' && points.length === 0) return;
+        if (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) return;
 
         const newOp: Operation = {
             id: Date.now().toString(),
@@ -68,7 +79,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             splitDirection,
             preferredPoint,
             areaOpType,
-            uploadedArea: uploadedAreaForOp
+            uploadedArea: uploadedAreaForOp,
+            multiLineString: multiLineStringForOp,
+            closerFurther,
+            selectedLineIndex
         };
 
         setOperations([...operations, newOp]);
@@ -113,6 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <option value="split-by-direction">Split by Direction</option>
                             <option value="hotter-colder">Hotter / Colder</option>
                             <option value="areas">Boolean Area Ops</option>
+                            <option value="closer-to-line">Closer to Line</option>
                         </>
                     )}
                 </select>
@@ -235,8 +250,62 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     )}
 
+                    {selectedOption === 'closer-to-line' && (
+                        <div className="tool-section">
+                            <label>Hider is...</label>
+                            <div className="radio-group">
+                                <label className="radio-item">
+                                    <input type="radio" checked={closerFurther === 'closer'} onChange={() => setCloserFurther('closer')} /> Closer
+                                </label>
+                                <label className="radio-item">
+                                    <input type="radio" checked={closerFurther === 'further'} onChange={() => setCloserFurther('further')} /> Further
+                                </label>
+                            </div>
+                            <label style={{ marginTop: '10px' }}>Upload Line (GeoJSON)</label>
+                            <div className="file-input-wrapper">
+                                <input
+                                    type="file"
+                                    accept=".json,.geojson"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (event) => {
+                                                try {
+                                                    const json = JSON.parse(event.target?.result as string);
+                                                    setMultiLineStringForOp(json);
+                                                    setSelectedLineIndex(0);
+                                                } catch (err) { alert("Invalid GeoJSON"); }
+                                            };
+                                            reader.readAsText(file);
+                                        }
+                                    }}
+                                />
+                                {multiLineStringForOp && <div className="success-badge">✓ Line Ready</div>}
+                            </div>
+
+                            {multiLineStringForOp && (multiLineStringForOp.type === 'FeatureCollection') && multiLineStringForOp.features.length > 1 && (
+                                <div style={{ marginTop: '10px' }}>
+                                    <label>Select Specific Line</label>
+                                    <select
+                                        value={selectedLineIndex}
+                                        onChange={(e) => setSelectedLineIndex(parseInt(e.target.value) || 0)}
+                                    >
+                                        {multiLineStringForOp.features.map((feat: any, idx: number) => (
+                                            <option key={idx} value={idx}>
+                                                Line {idx + 1} {feat.properties?.name ? `(${feat.properties.name})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <span className="help-text">Set Seeker position (P1) on clicking map.</span>
+                        </div>
+                    )}
+
                     {/* Shared Play Area Upload */}
-                    {(selectedOption === 'draw-circle' || selectedOption === 'split-by-direction' || selectedOption === 'hotter-colder') && (
+                    {(selectedOption === 'draw-circle' || selectedOption === 'split-by-direction' || selectedOption === 'hotter-colder' || selectedOption === 'closer-to-line') && (
                         <div className="tool-section" style={{ marginTop: '15px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
                             <label>Restrict to Play Area</label>
                             <div className="file-input-wrapper">
@@ -267,7 +336,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <button
                             className="save-btn"
                             onClick={handleSaveOperation}
-                            disabled={!selectedOption || (selectedOption !== 'areas' && points.length === 0) || (selectedOption === 'areas' && !uploadedAreaForOp)}
+                            disabled={
+                                !selectedOption ||
+                                (selectedOption === 'areas' && !uploadedAreaForOp) ||
+                                (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) ||
+                                (['draw-circle', 'split-by-direction', 'hotter-colder'].includes(selectedOption) && points.length === 0)
+                            }
                         >
                             Save Operation
                         </button>
@@ -287,6 +361,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     {op.type === 'split-by-direction' && `Hider is ${op.splitDirection}`}
                                     {op.type === 'hotter-colder' && `Closer to ${op.preferredPoint}`}
                                     {op.type === 'areas' && `${op.areaOpType}`}
+                                    {op.type === 'closer-to-line' && `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
                                 </div>
                                 <button className="remove-op" onClick={() => removeOperation(op.id)}>×</button>
                             </li>

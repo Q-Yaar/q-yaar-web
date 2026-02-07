@@ -18,6 +18,9 @@ const MapPage: React.FC = () => {
     const [preferredPoint, setPreferredPoint] = useState<'p1' | 'p2'>('p1');
     const [areaOpType, setAreaOpType] = useState<'intersection' | 'difference'>('intersection');
     const [uploadedAreaForOp, setUploadedAreaForOp] = useState<any>(null);
+    const [multiLineStringForOp, setMultiLineStringForOp] = useState<any>(null);
+    const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>('closer');
+    const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
     const [operations, setOperations] = useState<Operation[]>([]);
 
     return (
@@ -44,6 +47,12 @@ const MapPage: React.FC = () => {
                         setAreaOpType={setAreaOpType}
                         uploadedAreaForOp={uploadedAreaForOp}
                         setUploadedAreaForOp={setUploadedAreaForOp}
+                        multiLineStringForOp={multiLineStringForOp}
+                        setMultiLineStringForOp={setMultiLineStringForOp}
+                        closerFurther={closerFurther}
+                        setCloserFurther={setCloserFurther}
+                        selectedLineIndex={selectedLineIndex}
+                        setSelectedLineIndex={setSelectedLineIndex}
                         operations={operations}
                         setOperations={setOperations}
                     />
@@ -62,6 +71,9 @@ const MapPage: React.FC = () => {
                         preferredPoint={preferredPoint}
                         areaOpType={areaOpType}
                         uploadedAreaForOp={uploadedAreaForOp}
+                        multiLineStringForOp={multiLineStringForOp}
+                        closerFurther={closerFurther}
+                        selectedLineIndex={selectedLineIndex}
                         operations={operations}
                     />
                 </div>
