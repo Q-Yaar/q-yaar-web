@@ -5,7 +5,7 @@ export interface Heading {
 
 export interface Operation {
     id: string;
-    type: 'draw-circle' | 'split-by-direction' | 'hotter-colder' | 'areas';
+    type: 'draw-circle' | 'split-by-direction' | 'hotter-colder' | 'areas' | 'closer-to-line';
     points: number[][];
     radius?: number;
     shadingMode?: 'inside' | 'outside';
@@ -13,4 +13,7 @@ export interface Operation {
     preferredPoint?: 'p1' | 'p2';
     areaOpType?: 'intersection' | 'difference';
     uploadedArea?: any;
+    multiLineString?: any;
+    closerFurther?: 'closer' | 'further';
+    selectedLineIndex?: number;
 }

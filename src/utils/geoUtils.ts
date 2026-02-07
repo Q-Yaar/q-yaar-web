@@ -1,4 +1,4 @@
-import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox } from '@turf/turf';
+import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance } from '@turf/turf';
 import { Heading, Operation } from './geoTypes';
 import { Feature, Point, Polygon, MultiPolygon, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 
@@ -283,6 +283,45 @@ export const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoi
 };
 
 /**
+ * Splits a polygon based on whether points are closer or further from a MultiLineString
+ * than a given seeker point.
+ * @param seekerPoint 
+ * @param multiLineString 
+ * @param preference 'closer' or 'further'
+ * @param selectedLineIndex index of the line in FeatureCollection
+ * @param playAreaFeature 
+ * @returns 
+ */
+export const splitPolygonByLineDistance = (seekerPoint: number[], multiLineString: any, preference: 'closer' | 'further', selectedLineIndex: number | undefined, playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+    try {
+        const p = point(seekerPoint);
+
+        // Ensure we have a Feature or Geometry suitable for pointToLineDistance
+        let lineFeature: any = multiLineString;
+        if (multiLineString.type === 'FeatureCollection' && multiLineString.features.length > 0) {
+            lineFeature = multiLineString.features[selectedLineIndex !== undefined ? selectedLineIndex : 0]; // Take selected or first
+        }
+
+        const d = pointToLineDistance(p, lineFeature, { units: 'kilometers' });
+
+        // Create a buffer around the line with radius d
+        // We use a slightly large number of steps for smoothness
+        const lineBuffer = buffer(lineFeature, d, { units: 'kilometers', steps: 64 }) as Feature<Polygon | MultiPolygon>;
+
+        if (preference === 'closer') {
+            // Hider is closer than seeker -> Hider is inside the buffer
+            return intersectPolygons(playAreaFeature, lineBuffer);
+        } else {
+            // Hider is further than seeker -> Hider is outside the buffer
+            return differencePolygons(playAreaFeature, lineBuffer);
+        }
+    } catch (e) {
+        console.error("Split by line distance failed", e);
+        return playAreaFeature;
+    }
+};
+
+/**
  * Global World Polygon for default shading/play area.
  */
 export const globalWorld: Feature<Polygon> = {
@@ -349,6 +388,10 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
                 return differencePolygons(area, uploadedFeature);
             }
         }
+    }
+
+    if (op.type === 'closer-to-line' && op.points.length > 0 && op.multiLineString) {
+        return splitPolygonByLineDistance(op.points[0], op.multiLineString, op.closerFurther || 'closer', op.selectedLineIndex, area);
     }
 
     return area;
