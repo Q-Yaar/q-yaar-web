@@ -194,3 +194,24 @@
     align-items: center;
     gap: 4px;
 }
+
+.clear-btn {
+    background: none;
+    border: none;
+    color: #ff4444;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 5px;
+    text-decoration: underline;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.clear-btn:hover {
+    opacity: 1;
+}
+
+.divider {
+    border-top: 1px solid #eee;
+    margin: 15px 0;
+}

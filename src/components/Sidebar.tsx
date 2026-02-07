@@ -115,6 +115,43 @@ const Sidebar: React.FC<SidebarProps> = ({
             </header>
 
             <section className="tool-section">
+                <label>Play Area (Optional)</label>
+                <div className="file-input-wrapper">
+                    <input
+                        type="file"
+                        accept=".json,.geojson"
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (event) => {
+                                    try {
+                                        const json = JSON.parse(event.target?.result as string);
+                                        setPlayArea(json);
+                                    } catch (err) { alert("Invalid GeoJSON"); }
+                                };
+                                reader.readAsText(file);
+                            }
+                        }}
+                    />
+                    {playArea && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                            <div className="success-badge">✓ Area Loaded</div>
+                            <button
+                                onClick={() => setPlayArea(null)}
+                                className="clear-btn"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    )}
+                    {!playArea && <span className="help-text">Defaults to viewport.</span>}
+                </div>
+            </section>
+
+            <div className="divider" />
+
+            <section className="tool-section">
                 <label>Category</label>
                 <select value={selectedCategory} onChange={handleCategoryChange}>
                     <option value="">Select Category</option>
@@ -468,33 +505,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     )}
 
-                    {/* Shared Play Area Upload */}
-                    {(selectedOption === 'draw-circle' || selectedOption === 'split-by-direction' || selectedOption === 'hotter-colder' || selectedOption === 'closer-to-line' || selectedOption === 'same-closest-line' || selectedOption === 'polygon-location') && (
-                        <div className="tool-section" style={{ marginTop: '15px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
-                            <label>Restrict to Play Area</label>
-                            <div className="file-input-wrapper">
-                                <input
-                                    type="file"
-                                    accept=".json,.geojson"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (event) => {
-                                                try {
-                                                    const json = JSON.parse(event.target?.result as string);
-                                                    setPlayArea(json);
-                                                } catch (err) { alert("Invalid GeoJSON"); }
-                                            };
-                                            reader.readAsText(file);
-                                        }
-                                    }}
-                                />
-                                {playArea && <div className="success-badge">✓ Play Area Loaded</div>}
-                                {!playArea && <span className="help-text">Optional. Defaults to viewport.</span>}
-                            </div>
-                        </div>
-                    )}
 
                     {selectedCategory === 'facts' && (
                         <button
