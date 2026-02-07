@@ -185,6 +185,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     )}
 
+                    {selectedOption === 'hotter-colder' && (
+                        <div className="tool-section">
+                            <label>Closer to...</label>
+                            <div className="radio-group">
+                                <label className="radio-item">
+                                    <input type="radio" checked={preferredPoint === 'p1'} onChange={() => setPreferredPoint('p1')} /> P1
+                                </label>
+                                <label className="radio-item">
+                                    <input type="radio" checked={preferredPoint === 'p2'} onChange={() => setPreferredPoint('p2')} /> P2
+                                </label>
+                            </div>
+                            <span className="help-text">Area closer to the OTHER point will be shaded out.</span>
+                        </div>
+                    )}
+
                     {selectedOption === 'areas' && (
                         <div className="tool-section">
                             <label>Operation</label>
