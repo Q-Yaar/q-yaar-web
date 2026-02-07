@@ -22,8 +22,8 @@ interface SidebarProps {
     setSplitDirection: (dir: 'North' | 'South' | 'East' | 'West') => void;
     preferredPoint: 'p1' | 'p2';
     setPreferredPoint: (p: 'p1' | 'p2') => void;
-    areaOpType: 'intersection' | 'difference';
-    setAreaOpType: (type: 'intersection' | 'difference') => void;
+    areaOpType: 'inside' | 'outside';
+    setAreaOpType: (type: 'inside' | 'outside') => void;
     uploadedAreaForOp: any;
     setUploadedAreaForOp: (area: any) => void;
     multiLineStringForOp: any;
@@ -32,8 +32,13 @@ interface SidebarProps {
     setCloserFurther: (val: 'closer' | 'further') => void;
     selectedLineIndex: number;
     setSelectedLineIndex: (val: number) => void;
+    hiderAnswer: 'yes' | 'no';
+    setHiderAnswer: (val: 'yes' | 'no') => void;
+    polygonGeoJSONForOp: any;
+    setPolygonGeoJSONForOp: (area: any) => void;
     operations: Operation[];
     setOperations: (ops: Operation[]) => void;
+    setPoints: (points: number[][]) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -47,7 +52,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     multiLineStringForOp, setMultiLineStringForOp,
     closerFurther, setCloserFurther,
     selectedLineIndex, setSelectedLineIndex,
-    operations, setOperations
+    hiderAnswer, setHiderAnswer,
+    polygonGeoJSONForOp, setPolygonGeoJSONForOp,
+    operations, setOperations,
+    setPoints
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedOption, setSelectedOption] = useState<string>('');
@@ -57,18 +65,24 @@ const Sidebar: React.FC<SidebarProps> = ({
         setSelectedCategory(category);
         setSelectedOption('');
         onSelectOption('');
+        setPoints([]);
     };
 
     const handleOptionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const value = event.target.value;
         setSelectedOption(value);
         onSelectOption(value);
+        if (value === 'areas') {
+            setPoints([]);
+        }
     };
 
     const handleSaveOperation = () => {
         if (!selectedOption) return;
-        if (selectedOption !== 'areas' && selectedOption !== 'closer-to-line' && points.length === 0) return;
+        if (selectedOption !== 'areas' && selectedOption !== 'closer-to-line' && selectedOption !== 'same-closest-line' && points.length === 0) return;
         if (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) return;
+        if (selectedOption === 'same-closest-line' && !multiLineStringForOp) return;
+        if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
 
         const newOp: Operation = {
             id: Date.now().toString(),
@@ -78,11 +92,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             shadingMode,
             splitDirection,
             preferredPoint,
-            areaOpType,
+            areaOpType: areaOpType as 'inside' | 'outside',
             uploadedArea: uploadedAreaForOp,
             multiLineString: multiLineStringForOp,
             closerFurther,
-            selectedLineIndex
+            selectedLineIndex,
+            hiderAnswer,
+            polygonGeoJSON: polygonGeoJSONForOp
         };
 
         setOperations([...operations, newOp]);
@@ -119,6 +135,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <>
                             <option value="distance">Distance Measurement</option>
                             <option value="heading">Relative Heading</option>
+                            <option value="polygon-location">Polygon Location</option>
                         </>
                     )}
                     {selectedCategory === 'facts' && (
@@ -126,8 +143,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <option value="draw-circle">Draw Circle</option>
                             <option value="split-by-direction">Split by Direction</option>
                             <option value="hotter-colder">Hotter / Colder</option>
-                            <option value="areas">Boolean Area Ops</option>
+                            <option value="areas">Area Operations</option>
                             <option value="closer-to-line">Closer to Line</option>
+                            <option value="same-closest-line">Same Closest Line</option>
                         </>
                     )}
                 </select>
@@ -220,10 +238,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <label>Operation</label>
                             <div className="radio-group">
                                 <label className="radio-item">
-                                    <input type="radio" checked={areaOpType === 'intersection'} onChange={() => setAreaOpType('intersection')} /> Intersection
+                                    <input type="radio" checked={areaOpType === 'inside'} onChange={() => setAreaOpType('inside')} /> Inside
                                 </label>
                                 <label className="radio-item">
-                                    <input type="radio" checked={areaOpType === 'difference'} onChange={() => setAreaOpType('difference')} /> Difference
+                                    <input type="radio" checked={areaOpType === 'outside'} onChange={() => setAreaOpType('outside')} /> Outside
                                 </label>
                             </div>
                             <label style={{ marginTop: '10px' }}>Upload GeoJSON</label>
@@ -239,6 +257,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                 try {
                                                     const json = JSON.parse(event.target?.result as string);
                                                     setUploadedAreaForOp(json);
+                                                    setSelectedLineIndex(0);
                                                 } catch (err) { alert("Invalid GeoJSON"); }
                                             };
                                             reader.readAsText(file);
@@ -247,6 +266,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 />
                                 {uploadedAreaForOp && <div className="success-badge">✓ Area Ready</div>}
                             </div>
+
+                            {uploadedAreaForOp && (uploadedAreaForOp.type === 'FeatureCollection') && uploadedAreaForOp.features.filter((f: any) => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')).length > 1 && (
+                                <div style={{ marginTop: '10px' }}>
+                                    <label>Select Specific Area</label>
+                                    <select
+                                        value={selectedLineIndex}
+                                        onChange={(e) => setSelectedLineIndex(parseInt(e.target.value) || 0)}
+                                    >
+                                        {uploadedAreaForOp.features
+                                            .map((feat: any, idx: number) => ({ feat, idx }))
+                                            .filter((item: any) => item.feat.geometry && (item.feat.geometry.type === 'Polygon' || item.feat.geometry.type === 'MultiPolygon'))
+                                            .map((item: any, listIdx: number) => (
+                                                <option key={item.idx} value={item.idx}>
+                                                    Area {listIdx + 1} {item.feat.properties?.name ? `(${item.feat.properties.name})` : ''}
+                                                </option>
+                                            ))
+                                        }
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -304,8 +343,133 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     )}
 
+                    {selectedOption === 'same-closest-line' && (
+                        <div className="tool-section">
+                            <label>Upload Lines (GeoJSON)</label>
+                            <div className="file-input-wrapper">
+                                <input
+                                    type="file"
+                                    accept=".json,.geojson"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (event) => {
+                                                try {
+                                                    const json = JSON.parse(event.target?.result as string);
+                                                    setMultiLineStringForOp(json);
+                                                    setSelectedLineIndex(0);
+                                                } catch (err) { alert("Invalid GeoJSON"); }
+                                            };
+                                            reader.readAsText(file);
+                                        }
+                                    }}
+                                />
+                                {multiLineStringForOp && <div className="success-badge">✓ Lines Ready</div>}
+                            </div>
+
+                            {multiLineStringForOp && (
+                                <div style={{ marginTop: '10px' }}>
+                                    <label>Seeker is closest to...</label>
+                                    <select
+                                        value={selectedLineIndex}
+                                        onChange={(e) => setSelectedLineIndex(parseInt(e.target.value) || 0)}
+                                    >
+                                        {(() => {
+                                            const lines: any[] = [];
+                                            const processGeometry = (geom: any, props: any) => {
+                                                if (geom.type === 'LineString') {
+                                                    lines.push({ type: 'Feature', geometry: geom, properties: props });
+                                                } else if (geom.type === 'MultiLineString') {
+                                                    geom.coordinates.forEach((coords: any) => {
+                                                        lines.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: props });
+                                                    });
+                                                } else if (geom.type === 'GeometryCollection') {
+                                                    geom.geometries.forEach((g: any) => processGeometry(g, props));
+                                                }
+                                            };
+                                            const processItem = (item: any) => {
+                                                if (item.type === 'Feature') {
+                                                    processGeometry(item.geometry, item.properties);
+                                                } else if (item.type === 'FeatureCollection') {
+                                                    item.features.forEach((f: any) => processItem(f));
+                                                } else {
+                                                    processGeometry(item, {});
+                                                }
+                                            };
+                                            processItem(multiLineStringForOp);
+
+                                            return lines.map((feat: any, idx: number) => (
+                                                <option key={idx} value={idx}>
+                                                    Line {idx + 1} {feat.properties?.name ? `(${feat.properties.name})` : ''}
+                                                </option>
+                                            ));
+                                        })()}
+                                    </select>
+                                </div>
+                            )}
+
+                            <label style={{ marginTop: '10px' }}>Hider Answer: "Are you closer to the same line?"</label>
+                            <div className="radio-group">
+                                <label className="radio-item">
+                                    <input type="radio" checked={hiderAnswer === 'yes'} onChange={() => setHiderAnswer('yes')} /> Yes
+                                </label>
+                                <label className="radio-item">
+                                    <input type="radio" checked={hiderAnswer === 'no'} onChange={() => setHiderAnswer('no')} /> No
+                                </label>
+                            </div>
+                        </div>
+                    )}
+
+                    {selectedOption === 'polygon-location' && (
+                        <div className="tool-section">
+                            <label>Upload Polygons (GeoJSON)</label>
+                            <div className="file-input-wrapper">
+                                <input
+                                    type="file"
+                                    accept=".json,.geojson"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (event) => {
+                                                try {
+                                                    const json = JSON.parse(event.target?.result as string);
+                                                    setPolygonGeoJSONForOp(json);
+                                                } catch (err) { alert("Invalid GeoJSON"); }
+                                            };
+                                            reader.readAsText(file);
+                                        }
+                                    }}
+                                />
+                                {polygonGeoJSONForOp && <div className="success-badge">✓ Polygons Ready</div>}
+                            </div>
+
+                            {points.length > 0 && polygonGeoJSONForOp && (
+                                <div className="info-box" style={{ marginTop: '10px', backgroundColor: '#f9f9f9' }}>
+                                    {(() => {
+                                        const { findContainingPolygon } = require('../utils/geoUtils');
+                                        const found = findContainingPolygon(points[0], polygonGeoJSONForOp);
+                                        if (found) {
+                                            return (
+                                                <>
+                                                    <strong>Containing Polygon Attributes:</strong>
+                                                    <pre style={{ fontSize: '0.75rem', marginTop: '5px', overflowX: 'auto' }}>
+                                                        {JSON.stringify(found.properties, null, 2)}
+                                                    </pre>
+                                                </>
+                                            );
+                                        }
+                                        return <i>Point is not inside any polygon.</i>;
+                                    })()}
+                                </div>
+                            )}
+                            <span className="help-text">Click on map to set your location (P1).</span>
+                        </div>
+                    )}
+
                     {/* Shared Play Area Upload */}
-                    {(selectedOption === 'draw-circle' || selectedOption === 'split-by-direction' || selectedOption === 'hotter-colder' || selectedOption === 'closer-to-line') && (
+                    {(selectedOption === 'draw-circle' || selectedOption === 'split-by-direction' || selectedOption === 'hotter-colder' || selectedOption === 'closer-to-line' || selectedOption === 'same-closest-line' || selectedOption === 'polygon-location') && (
                         <div className="tool-section" style={{ marginTop: '15px', borderTop: '1px solid #eee', paddingTop: '15px' }}>
                             <label>Restrict to Play Area</label>
                             <div className="file-input-wrapper">
@@ -340,6 +504,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 !selectedOption ||
                                 (selectedOption === 'areas' && !uploadedAreaForOp) ||
                                 (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) ||
+                                (selectedOption === 'same-closest-line' && !multiLineStringForOp) ||
+                                (selectedOption === 'polygon-location' && (!polygonGeoJSONForOp || points.length === 0)) ||
                                 (['draw-circle', 'split-by-direction', 'hotter-colder'].includes(selectedOption) && points.length === 0)
                             }
                         >
@@ -355,13 +521,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <ul className="operations-list">
                         {operations.map((op, index) => (
                             <li key={op.id} className="operation-card">
-                                <strong>{index + 1}. {op.type.replace(/-/g, ' ')}</strong>
+                                <strong>{index + 1}. {op.type === 'areas' ? 'Area Operations' : op.type.replace(/-/g, ' ')}</strong>
                                 <div className="help-text">
                                     {op.type === 'draw-circle' && `${op.radius}km · ${op.shadingMode}`}
                                     {op.type === 'split-by-direction' && `Hider is ${op.splitDirection}`}
                                     {op.type === 'hotter-colder' && `Closer to ${op.preferredPoint}`}
-                                    {op.type === 'areas' && `${op.areaOpType}`}
+                                    {op.type === 'areas' && `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
                                     {op.type === 'closer-to-line' && `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
+                                    {op.type === 'same-closest-line' && `Same Line? ${op.hiderAnswer} (to Line ${op.selectedLineIndex !== undefined ? op.selectedLineIndex + 1 : 1})`}
+                                    {op.type === 'polygon-location' && `In polygon`}
                                 </div>
                                 <button className="remove-op" onClick={() => removeOperation(op.id)}>×</button>
                             </li>

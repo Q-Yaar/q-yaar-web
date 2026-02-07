@@ -1,4 +1,4 @@
-import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance } from '@turf/turf';
+import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance, union, along, length, booleanPointInPolygon } from '@turf/turf';
 import { Heading, Operation } from './geoTypes';
 import { Feature, Point, Polygon, MultiPolygon, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 
@@ -322,6 +322,245 @@ export const splitPolygonByLineDistance = (seekerPoint: number[], multiLineStrin
 };
 
 /**
+ * Splits a polygon based on which line in a set is closest to the hider.
+ * @param multiLineString 
+ * @param selectedLineIndex index of the line the seeker is closest to
+ * @param hiderAnswer 'yes' or 'no'
+ * @param playAreaFeature 
+ * @returns 
+ */
+export const getSameClosestLinePolygon = (
+    multiLineString: any,
+    selectedLineIndex: number,
+    hiderAnswer: 'yes' | 'no',
+    playAreaFeature: Feature<Polygon | MultiPolygon>
+): Feature<Polygon | MultiPolygon> => {
+    console.log("getSameClosestLinePolygon (Grid) called with lineIdx:", selectedLineIndex);
+    try {
+        // 1. Extract lines (Recursive Flattening)
+        let lines: Feature<LineString>[] = [];
+        const processGeometry = (geom: any) => {
+            if (geom.type === 'LineString') {
+                lines.push({ type: 'Feature', geometry: geom, properties: {} });
+            } else if (geom.type === 'MultiLineString') {
+                geom.coordinates.forEach((coords: any) => {
+                    lines.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} });
+                });
+            } else if (geom.type === 'GeometryCollection') {
+                geom.geometries.forEach((g: any) => processGeometry(g));
+            }
+        };
+
+        const processItem = (item: any) => {
+            if (item.type === 'Feature') {
+                processGeometry(item.geometry);
+            } else if (item.type === 'FeatureCollection') {
+                item.features.forEach((f: any) => processItem(f));
+            } else {
+                processGeometry(item);
+            }
+        };
+
+        if (multiLineString) {
+            processItem(multiLineString);
+        }
+
+        if (lines.length < 2) return playAreaFeature;
+
+        // 2. Define Grid over Play Area
+        const areaBbox = bbox(playAreaFeature);
+        // Expand slightly to ensure edge coverage
+        const minX = areaBbox[0];
+        const minY = areaBbox[1];
+        const maxX = areaBbox[2];
+        const maxY = areaBbox[3];
+
+        // Resolution: Trade-off speed vs quality.
+        // For 50-100 lines, 80x80 grid is fast (6400 points * 100 calcs = 640k ops).
+        // If lines > 100, scale down grid.
+        let gridSize = 80;
+        if (lines.length > 50) gridSize = 60;
+        if (lines.length > 200) gridSize = 40;
+
+        const stepX = (maxX - minX) / gridSize;
+        const stepY = (maxY - minY) / gridSize;
+
+        // If area is very small or very large, handle gracefully
+        if (stepX === 0 || stepY === 0) return playAreaFeature;
+
+        const selectedCells: Feature<Polygon>[] = [];
+
+        // 3. Scan Grid
+        // Optimization: Run Length Encoding of horizontal strips
+        // Instead of individual squares, we accumulate horizontal runs of matching cells.
+
+        for (let j = 0; j < gridSize; j++) {
+            const y = minY + (j + 0.5) * stepY;
+            let startI = -1;
+
+            for (let i = 0; i < gridSize; i++) {
+                const x = minX + (i + 0.5) * stepX;
+                const p = [x, y];
+
+                // Find closest line
+                let minDist = Infinity;
+                let closestIdx = -1;
+
+                // Simple linear scan of lines is fastest for small N
+                for (let k = 0; k < lines.length; k++) {
+                    const d = pointToLineDistance(p, lines[k], { units: 'kilometers' });
+                    if (d < minDist) {
+                        minDist = d;
+                        closestIdx = k;
+                    }
+                }
+
+                if (closestIdx === selectedLineIndex) {
+                    if (startI === -1) startI = i; // Start run
+                } else {
+                    if (startI !== -1) {
+                        // End run, create rectangle
+                        const rectMinX = minX + startI * stepX;
+                        const rectMaxX = minX + i * stepX;
+                        const rectMinY = minY + j * stepY;
+                        const rectMaxY = minY + (j + 1) * stepY;
+
+                        // Create polygon for range [startI, i-1]
+                        // Note: To avoid gaps, slightly expand? No, grid is contiguous.
+                        // But floating point issues might cause gaps if union is picky.
+                        // Overlap slightly (0.1% overlap)
+                        const epsX = stepX * 0.01;
+                        const epsY = stepY * 0.01;
+
+                        selectedCells.push(polygon([[
+                            [rectMinX - epsX, rectMinY - epsY],
+                            [rectMaxX + epsX, rectMinY - epsY],
+                            [rectMaxX + epsX, rectMaxY + epsY],
+                            [rectMinX - epsX, rectMaxY + epsY],
+                            [rectMinX - epsX, rectMinY - epsY]
+                        ]]));
+                        startI = -1;
+                    }
+                }
+            }
+            // End of row check
+            if (startI !== -1) {
+                const rectMinX = minX + startI * stepX;
+                const rectMaxX = maxX; // End of row
+                const rectMinY = minY + j * stepY;
+                const rectMaxY = minY + (j + 1) * stepY;
+                const epsX = stepX * 0.01;
+                const epsY = stepY * 0.01;
+
+                selectedCells.push(polygon([[
+                    [rectMinX - epsX, rectMinY - epsY],
+                    [rectMaxX + epsX, rectMinY - epsY],
+                    [rectMaxX + epsX, rectMaxY + epsY],
+                    [rectMinX - epsX, rectMaxY + epsY],
+                    [rectMinX - epsX, rectMinY - epsY]
+                ]]));
+            }
+        }
+
+        if (selectedCells.length === 0) {
+            console.warn("No grid cells selected for lineIdx:", selectedLineIndex);
+            // If grid missed it (line very thin/short), fallback?
+            // Fallback to bounding box of line?
+            // For now, return empty or full based on logic.
+            return {
+                type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: [] },
+                properties: {}
+            };
+        }
+
+        console.log("Grid RLE rects:", selectedCells.length);
+
+        // 4. Union the rectangles
+        let unioned: Feature<Polygon | MultiPolygon> | null = null;
+        try {
+            // Unioning hundreds of rects is still heavy.
+            // But they are simple.
+            // Using cascading union (chunks) is best.
+            const chunkSize = 50;
+            const chunks: (Feature<Polygon | MultiPolygon>)[] = [];
+            for (let i = 0; i < selectedCells.length; i += chunkSize) {
+                const chunk = selectedCells.slice(i, i + chunkSize);
+                if (chunk.length === 1) chunks.push(chunk[0]);
+                else {
+                    const u = union(featureCollection(chunk));
+                    if (u) chunks.push(u as Feature<Polygon | MultiPolygon>);
+                }
+            }
+            if (chunks.length === 1) unioned = chunks[0];
+            else unioned = union(featureCollection(chunks)) as Feature<Polygon | MultiPolygon>;
+
+        } catch (e) { console.error("Grid Union failed", e); }
+
+        if (!unioned) return playAreaFeature;
+
+        // 5. Intersect with Play Area
+        let finalSelectedRegion: Feature<Polygon | MultiPolygon> | null = null;
+        try {
+            const intersection = intersect(featureCollection([playAreaFeature, unioned]));
+            finalSelectedRegion = (intersection as Feature<Polygon | MultiPolygon>) || {
+                type: 'Feature' as const,
+                geometry: { type: 'Polygon' as const, coordinates: [] },
+                properties: {}
+            };
+        } catch (e) { console.error("Final intersection failed", e); }
+
+        if (!finalSelectedRegion) return playAreaFeature;
+
+        if (hiderAnswer === 'yes') {
+            return finalSelectedRegion;
+        } else {
+            return differencePolygons(playAreaFeature, finalSelectedRegion);
+        }
+
+    } catch (e) {
+        console.error("Same Closest Line (Grid) failed", e);
+        return playAreaFeature;
+    }
+};
+
+/**
+ * Finds the first polygon or multipolygon in a GeoJSON that contains the given point.
+ * @param pt 
+ * @param geojson 
+ * @returns 
+ */
+export const findContainingPolygon = (pt: number[], geojson: any): Feature<Polygon | MultiPolygon> | null => {
+    if (!geojson) return null;
+
+    const p = point(pt);
+    let foundFeature: Feature<Polygon | MultiPolygon> | null = null;
+
+    const processItem = (item: any) => {
+        if (foundFeature) return;
+        if (item.type === 'Feature') {
+            if (item.geometry.type === 'Polygon' || item.geometry.type === 'MultiPolygon') {
+                if (booleanPointInPolygon(p, item)) {
+                    foundFeature = item;
+                }
+            }
+        } else if (item.type === 'FeatureCollection') {
+            for (const f of item.features) {
+                processItem(f);
+                if (foundFeature) break;
+            }
+        } else if (item.type === 'Polygon' || item.type === 'MultiPolygon') {
+            if (booleanPointInPolygon(p, item)) {
+                foundFeature = { type: 'Feature', geometry: item, properties: {} };
+            }
+        }
+    };
+
+    processItem(geojson);
+    return foundFeature;
+};
+
+/**
  * Global World Polygon for default shading/play area.
  */
 export const globalWorld: Feature<Polygon> = {
@@ -377,12 +616,15 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
         } else if (ua.type === 'Polygon' || ua.type === 'MultiPolygon') {
             uploadedFeature = { type: 'Feature', geometry: ua, properties: {} };
         } else if (ua.type === 'FeatureCollection') {
-            const polyFeature = ua.features.find((f: any) => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
-            if (polyFeature) uploadedFeature = polyFeature;
+            const idx = op.selectedLineIndex !== undefined ? op.selectedLineIndex : 0;
+            const polyFeature = ua.features[idx];
+            if (polyFeature && polyFeature.geometry && (polyFeature.geometry.type === 'Polygon' || polyFeature.geometry.type === 'MultiPolygon')) {
+                uploadedFeature = polyFeature;
+            }
         }
 
         if (uploadedFeature) {
-            if (op.areaOpType === 'intersection') {
+            if (op.areaOpType === 'inside') {
                 return intersectPolygons(area, uploadedFeature);
             } else {
                 return differencePolygons(area, uploadedFeature);
@@ -392,6 +634,24 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
 
     if (op.type === 'closer-to-line' && op.points.length > 0 && op.multiLineString) {
         return splitPolygonByLineDistance(op.points[0], op.multiLineString, op.closerFurther || 'closer', op.selectedLineIndex, area);
+    }
+
+    if (op.type === 'same-closest-line' && op.multiLineString) {
+        return getSameClosestLinePolygon(op.multiLineString, op.selectedLineIndex || 0, op.hiderAnswer || 'yes', area);
+    }
+
+    if (op.type === 'polygon-location' && op.points.length > 0 && op.polygonGeoJSON) {
+        const found = findContainingPolygon(op.points[0], op.polygonGeoJSON);
+        if (found) {
+            return intersectPolygons(area, found);
+        } else {
+            // User outside all polygons -> return empty area
+            return {
+                type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: [] },
+                properties: {}
+            };
+        }
     }
 
     return area;

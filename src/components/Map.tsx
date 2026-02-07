@@ -15,11 +15,13 @@ interface MapProps {
     playArea: any;
     splitDirection: 'North' | 'South' | 'East' | 'West';
     preferredPoint: 'p1' | 'p2';
-    areaOpType: 'intersection' | 'difference';
+    areaOpType: 'inside' | 'outside';
     uploadedAreaForOp: any;
     multiLineStringForOp: any;
     closerFurther: 'closer' | 'further';
     selectedLineIndex: number;
+    hiderAnswer: 'yes' | 'no';
+    polygonGeoJSONForOp: any;
     operations: Operation[];
 }
 
@@ -27,7 +29,8 @@ const Map: React.FC<MapProps> = ({
     action, points, setPoints, setDistance, setHeading,
     radius, shadingMode, playArea, splitDirection, preferredPoint,
     areaOpType, uploadedAreaForOp,
-    multiLineStringForOp, closerFurther, selectedLineIndex,
+    multiLineStringForOp, closerFurther, selectedLineIndex, hiderAnswer,
+    polygonGeoJSONForOp,
     operations
 }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -48,14 +51,16 @@ const Map: React.FC<MapProps> = ({
                 'features': []
             };
 
-            // Add current interaction points
-            points.forEach(p => {
-                geojson.features.push({
-                    'type': 'Feature',
-                    'geometry': { 'type': 'Point', 'coordinates': p },
-                    'properties': {}
+            // Add current interaction points (except for area operations where they are irrelevant)
+            if (action !== 'areas') {
+                points.forEach(p => {
+                    geojson.features.push({
+                        'type': 'Feature',
+                        'geometry': { 'type': 'Point', 'coordinates': p },
+                        'properties': {}
+                    });
                 });
-            });
+            }
 
             if ((action === 'distance' || action === 'heading') && points.length === 2) {
                 geojson.features.push({
@@ -86,8 +91,76 @@ const Map: React.FC<MapProps> = ({
                 }
             }
 
+            if (action === 'same-closest-line' && multiLineStringForOp) {
+                // Ensure same recursive flattening logic as geoUtils for consistent indexing
+                let lines: any[] = [];
+                const processGeometry = (geom: any) => {
+                    if (geom.type === 'LineString') {
+                        lines.push({ type: 'Feature', geometry: geom, properties: {} });
+                    } else if (geom.type === 'MultiLineString') {
+                        geom.coordinates.forEach((coords: any) => {
+                            lines.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} });
+                        });
+                    } else if (geom.type === 'GeometryCollection') {
+                        geom.geometries.forEach((g: any) => processGeometry(g));
+                    }
+                };
+                const processItem = (item: any) => {
+                    if (item.type === 'Feature') {
+                        processGeometry(item.geometry);
+                    } else if (item.type === 'FeatureCollection') {
+                        item.features.forEach((f: any) => processItem(f));
+                    } else {
+                        processGeometry(item);
+                    }
+                };
+                if (multiLineStringForOp) processItem(multiLineStringForOp);
+
+                lines.forEach((l, idx) => {
+                    geojson.features.push({
+                        ...l,
+                        properties: {
+                            ...l.properties,
+                            'is-selected-line': idx === selectedLineIndex
+                        }
+                    });
+                });
+            }
+
+            if (action === 'polygon-location' && polygonGeoJSONForOp) {
+                if (polygonGeoJSONForOp.type === 'FeatureCollection') {
+                    geojson.features.push(...polygonGeoJSONForOp.features);
+                } else if (polygonGeoJSONForOp.type === 'Feature') {
+                    geojson.features.push(polygonGeoJSONForOp);
+                } else {
+                    geojson.features.push({
+                        type: 'Feature',
+                        geometry: polygonGeoJSONForOp,
+                        properties: {}
+                    });
+                }
+            }
+
+            if (action === 'areas' && uploadedAreaForOp) {
+                if (uploadedAreaForOp.type === 'FeatureCollection') {
+                    const idx = selectedLineIndex !== undefined ? selectedLineIndex : 0;
+                    const feat = uploadedAreaForOp.features[idx];
+                    if (feat) {
+                        geojson.features.push(feat);
+                    }
+                } else if (uploadedAreaForOp.type === 'Feature') {
+                    geojson.features.push(uploadedAreaForOp);
+                } else {
+                    geojson.features.push({
+                        type: 'Feature',
+                        geometry: uploadedAreaForOp,
+                        properties: {}
+                    });
+                }
+            }
+
             // Apply current active operation (if not yet saved)
-            if (['draw-circle', 'split-by-direction', 'hotter-colder', 'closer-to-line'].includes(action)) {
+            if (['draw-circle', 'split-by-direction', 'hotter-colder', 'closer-to-line', 'same-closest-line', 'polygon-location', 'areas'].includes(action)) {
                 const currentOp: Operation = {
                     id: 'current',
                     type: action as any,
@@ -100,13 +173,18 @@ const Map: React.FC<MapProps> = ({
                     uploadedArea: uploadedAreaForOp,
                     multiLineString: multiLineStringForOp,
                     closerFurther,
-                    selectedLineIndex
+                    selectedLineIndex,
+                    hiderAnswer,
+                    polygonGeoJSON: polygonGeoJSONForOp
                 };
 
-                const minPoints = (action === 'draw-circle' || action === 'split-by-direction' || action === 'closer-to-line') ? 1 : (action === 'hotter-colder' ? 2 : 0);
+                const minPoints = (action === 'draw-circle' || action === 'split-by-direction' || action === 'closer-to-line') ? 1 :
+                    (action === 'hotter-colder' ? 2 : 0);
                 const hasRequiredInputs = (action === 'areas') ? !!uploadedAreaForOp :
                     (action === 'closer-to-line') ? (!!multiLineStringForOp && points.length >= 1) :
-                        points.length >= minPoints;
+                        (action === 'same-closest-line') ? !!multiLineStringForOp :
+                            (action === 'polygon-location') ? (!!polygonGeoJSONForOp && points.length >= 1) :
+                                points.length >= minPoints;
 
                 if (hasRequiredInputs) {
                     currentHiderArea = applySingleOperation(currentOp, currentHiderArea as any);
@@ -141,7 +219,7 @@ const Map: React.FC<MapProps> = ({
 
             source.setData(geojson);
         }
-    }, [points, action, radius, shadingMode, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations]);
+    }, [points, action, radius, shadingMode, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, hiderAnswer, operations]);
 
     useEffect(() => {
         if (!mapContainerRef.current) return;
@@ -193,11 +271,13 @@ const Map: React.FC<MapProps> = ({
                     'line-color': [
                         'case',
                         ['==', ['get', 'line-type'], 'bisector'], '#ff00ff',
+                        ['==', ['get', 'is-selected-line'], true], '#ff9800',
                         '#0000ff'
                     ],
                     'line-width': [
                         'case',
                         ['==', ['get', 'line-type'], 'bisector'], 2,
+                        ['==', ['get', 'is-selected-line'], true], 6,
                         4
                     ],
                     'line-dasharray': [
@@ -241,11 +321,11 @@ const Map: React.FC<MapProps> = ({
         m.on('click', (e) => {
             const currentAction = actionRef.current;
 
-            if (currentAction === 'distance' || currentAction === 'heading' || currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'hotter-colder' || currentAction === 'closer-to-line') {
+            if (currentAction === 'distance' || currentAction === 'heading' || currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'hotter-colder' || currentAction === 'closer-to-line' || currentAction === 'polygon-location') {
                 const newPoint = [e.lngLat.lng, e.lngLat.lat];
                 let currentPoints = pointsRef.current;
 
-                const maxPoints = (currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'closer-to-line') ? 1 : 2;
+                const maxPoints = (currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'closer-to-line' || currentAction === 'polygon-location') ? 1 : 2;
 
                 if (currentPoints.length >= maxPoints) {
                     // Reset if we already have enough points and click again

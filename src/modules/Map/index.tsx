@@ -16,11 +16,13 @@ const MapPage: React.FC = () => {
     const [playArea, setPlayArea] = useState<any>(null);
     const [splitDirection, setSplitDirection] = useState<'North' | 'South' | 'East' | 'West'>('North');
     const [preferredPoint, setPreferredPoint] = useState<'p1' | 'p2'>('p1');
-    const [areaOpType, setAreaOpType] = useState<'intersection' | 'difference'>('intersection');
+    const [areaOpType, setAreaOpType] = useState<'inside' | 'outside'>('inside');
     const [uploadedAreaForOp, setUploadedAreaForOp] = useState<any>(null);
     const [multiLineStringForOp, setMultiLineStringForOp] = useState<any>(null);
     const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>('closer');
     const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
+    const [hiderAnswer, setHiderAnswer] = useState<'yes' | 'no'>('yes');
+    const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
     const [operations, setOperations] = useState<Operation[]>([]);
 
     return (
@@ -53,8 +55,13 @@ const MapPage: React.FC = () => {
                         setCloserFurther={setCloserFurther}
                         selectedLineIndex={selectedLineIndex}
                         setSelectedLineIndex={setSelectedLineIndex}
+                        hiderAnswer={hiderAnswer}
+                        setHiderAnswer={setHiderAnswer}
+                        polygonGeoJSONForOp={polygonGeoJSON}
+                        setPolygonGeoJSONForOp={setPolygonGeoJSON}
                         operations={operations}
                         setOperations={setOperations}
+                        setPoints={setPoints}
                     />
                 </div>
                 <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
@@ -74,6 +81,8 @@ const MapPage: React.FC = () => {
                         multiLineStringForOp={multiLineStringForOp}
                         closerFurther={closerFurther}
                         selectedLineIndex={selectedLineIndex}
+                        hiderAnswer={hiderAnswer}
+                        polygonGeoJSONForOp={polygonGeoJSON}
                         operations={operations}
                     />
                 </div>
