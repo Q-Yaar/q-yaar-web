@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
 
+const PUBLIC_ASSETS = [
+    { name: 'Bengaluru Urban District', path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson' },
+    { name: 'Bengaluru Corporations', path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson' },
+    { name: 'Metro Lines', path: '/assets/geojsons/bengaluru/metro_lines.geojson' },
+    { name: 'Metro Nearest Regions', path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson' },
+];
+
 interface Heading {
     lat: string;
     lon: string;
@@ -59,6 +66,20 @@ const Sidebar: React.FC<SidebarProps> = ({
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedOption, setSelectedOption] = useState<string>('');
 
+    const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
+        try {
+            const response = await fetch(path);
+            const data = await response.json();
+            // Store path in the object so dropdown can show correctly
+            data._source_path = path;
+            setter(data);
+            setSelectedLineIndex(0);
+        } catch (err) {
+            console.error('Error fetching GeoJSON:', err);
+            alert("Failed to load GeoJSON asset");
+        }
+    };
+
     const handleCategoryChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const category = event.target.value;
         setSelectedCategory(category);
@@ -114,23 +135,22 @@ const Sidebar: React.FC<SidebarProps> = ({
             <section className="tool-section">
                 <label>Play Area (Optional)</label>
                 <div className="file-input-wrapper">
-                    <input
-                        type="file"
-                        accept=".json,.geojson"
+                    <select
                         onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (event) => {
-                                    try {
-                                        const json = JSON.parse(event.target?.result as string);
-                                        setPlayArea(json);
-                                    } catch (err) { alert("Invalid GeoJSON"); }
-                                };
-                                reader.readAsText(file);
+                            const path = e.target.value;
+                            if (path) {
+                                fetchGeoJSON(path, setPlayArea);
+                            } else {
+                                setPlayArea(null);
                             }
                         }}
-                    />
+                        value={playArea?._source_path || ''}
+                    >
+                        <option value="">Default (Viewport)</option>
+                        {PUBLIC_ASSETS.map(asset => (
+                            <option key={asset.path} value={asset.path}>{asset.name}</option>
+                        ))}
+                    </select>
                     {playArea && (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
                             <div className="success-badge">✓ Area Loaded</div>
@@ -142,7 +162,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </button>
                         </div>
                     )}
-                    {!playArea && <span className="help-text">Defaults to viewport.</span>}
                 </div>
             </section>
 
@@ -277,26 +296,24 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     <input type="radio" checked={areaOpType === 'outside'} onChange={() => setAreaOpType('outside')} /> Outside
                                 </label>
                             </div>
-                            <label style={{ marginTop: '10px' }}>Upload GeoJSON</label>
+                            <label style={{ marginTop: '10px' }}>Select Area Asset</label>
                             <div className="file-input-wrapper">
-                                <input
-                                    type="file"
-                                    accept=".json,.geojson"
+                                <select
                                     onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (event) => {
-                                                try {
-                                                    const json = JSON.parse(event.target?.result as string);
-                                                    setUploadedAreaForOp(json);
-                                                    setSelectedLineIndex(0);
-                                                } catch (err) { alert("Invalid GeoJSON"); }
-                                            };
-                                            reader.readAsText(file);
+                                        const path = e.target.value;
+                                        if (path) {
+                                            fetchGeoJSON(path, setUploadedAreaForOp);
+                                        } else {
+                                            setUploadedAreaForOp(null);
                                         }
                                     }}
-                                />
+                                    value={uploadedAreaForOp?._source_path || ''}
+                                >
+                                    <option value="">Select Asset</option>
+                                    {PUBLIC_ASSETS.map(asset => (
+                                        <option key={asset.path} value={asset.path}>{asset.name}</option>
+                                    ))}
+                                </select>
                                 {uploadedAreaForOp && <div className="success-badge">✓ Area Ready</div>}
                             </div>
 
@@ -333,26 +350,24 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     <input type="radio" checked={closerFurther === 'further'} onChange={() => setCloserFurther('further')} /> Further
                                 </label>
                             </div>
-                            <label style={{ marginTop: '10px' }}>Upload Line (GeoJSON)</label>
+                            <label style={{ marginTop: '10px' }}>Select Line Asset</label>
                             <div className="file-input-wrapper">
-                                <input
-                                    type="file"
-                                    accept=".json,.geojson"
+                                <select
                                     onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (event) => {
-                                                try {
-                                                    const json = JSON.parse(event.target?.result as string);
-                                                    setMultiLineStringForOp(json);
-                                                    setSelectedLineIndex(0);
-                                                } catch (err) { alert("Invalid GeoJSON"); }
-                                            };
-                                            reader.readAsText(file);
+                                        const path = e.target.value;
+                                        if (path) {
+                                            fetchGeoJSON(path, setMultiLineStringForOp);
+                                        } else {
+                                            setMultiLineStringForOp(null);
                                         }
                                     }}
-                                />
+                                    value={multiLineStringForOp?._source_path || ''}
+                                >
+                                    <option value="">Select Asset</option>
+                                    {PUBLIC_ASSETS.map(asset => (
+                                        <option key={asset.path} value={asset.path}>{asset.name}</option>
+                                    ))}
+                                </select>
                                 {multiLineStringForOp && <div className="success-badge">✓ Line Ready</div>}
                             </div>
 
@@ -384,25 +399,24 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                     {selectedOption === 'polygon-location' && (
                         <div className="tool-section">
-                            <label>Upload Polygons (GeoJSON)</label>
+                            <label style={{ marginTop: '10px' }}>Select Polygons Asset</label>
                             <div className="file-input-wrapper">
-                                <input
-                                    type="file"
-                                    accept=".json,.geojson"
+                                <select
                                     onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (event) => {
-                                                try {
-                                                    const json = JSON.parse(event.target?.result as string);
-                                                    setPolygonGeoJSONForOp(json);
-                                                } catch (err) { alert("Invalid GeoJSON"); }
-                                            };
-                                            reader.readAsText(file);
+                                        const path = e.target.value;
+                                        if (path) {
+                                            fetchGeoJSON(path, setPolygonGeoJSONForOp);
+                                        } else {
+                                            setPolygonGeoJSONForOp(null);
                                         }
                                     }}
-                                />
+                                    value={polygonGeoJSONForOp?._source_path || ''}
+                                >
+                                    <option value="">Select Asset</option>
+                                    {PUBLIC_ASSETS.map(asset => (
+                                        <option key={asset.path} value={asset.path}>{asset.name}</option>
+                                    ))}
+                                </select>
                                 {polygonGeoJSONForOp && <div className="success-badge">✓ Polygons Ready</div>}
                             </div>
 
