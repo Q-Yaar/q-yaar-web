@@ -2,6 +2,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import {
   AUTH_MODULE,
   DECK_MODULE,
+  FACTS_MODULE,
   GAME_MODULE,
   SERVER_MODULE,
 } from '../constants/modules';
@@ -9,8 +10,16 @@ import {
   AUTH_LOGIN_API,
   BASE_URL,
   AUTH_SIGNUP_API,
+  FACTS_API,
 } from '../constants/api-endpoints';
 import { LoginRequest, LoginResponse, SignupRequest } from '../models/Login';
+import {
+  CreateFactRequest,
+  Fact,
+  GetFactsRequest,
+  GetFactsResponse,
+  UpdateFactRequest,
+} from '../models/Fact';
 import { RootState } from '../redux/store';
 
 import { jwtDecode } from 'jwt-decode';
@@ -133,7 +142,7 @@ const baseQueryWithReauth: BaseQueryFn<
 
 export const api = createApi({
   baseQuery: baseQueryWithReauth,
-  tagTypes: [AUTH_MODULE, GAME_MODULE, DECK_MODULE, 'QnA'],
+  tagTypes: [AUTH_MODULE, GAME_MODULE, DECK_MODULE, 'QnA', FACTS_MODULE],
   reducerPath: SERVER_MODULE,
   keepUnusedDataFor: 30,
   endpoints: (builder) => ({
@@ -154,7 +163,45 @@ export const api = createApi({
       // Since signup logs you in (returns token), it invalidates auth tags
       invalidatesTags: [AUTH_MODULE],
     }),
+    getFacts: builder.query<GetFactsResponse, GetFactsRequest>({
+      query: (params) => ({
+        url: FACTS_API,
+        method: 'GET',
+        params,
+      }),
+      providesTags: [FACTS_MODULE],
+    }),
+    createFact: builder.mutation<Fact, CreateFactRequest>({
+      query: (body) => ({
+        url: FACTS_API,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [FACTS_MODULE],
+    }),
+    updateFact: builder.mutation<Fact, UpdateFactRequest>({
+      query: ({ fact_id, ...body }) => ({
+        url: `${FACTS_API}${fact_id}`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: [FACTS_MODULE],
+    }),
+    deleteFact: builder.mutation<void, string>({
+      query: (fact_id) => ({
+        url: `${FACTS_API}${fact_id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: [FACTS_MODULE],
+    }),
   }),
 });
 
-export const { useLoginMutation, useSignupMutation } = api;
+export const {
+  useLoginMutation,
+  useSignupMutation,
+  useGetFactsQuery,
+  useCreateFactMutation,
+  useUpdateFactMutation,
+  useDeleteFactMutation,
+} = api;

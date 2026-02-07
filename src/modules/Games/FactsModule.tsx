@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Plus,
-  Search,
-  Trash2,
-  Calendar,
-  User,
-  Users,
-} from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Calendar, User, Users } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import {
@@ -20,112 +12,86 @@ import {
   CardTitle,
 } from '../../components/ui/card';
 import { Label } from '../../components/ui/label';
-
-// Mock Data Types
-interface Fact {
-  id: string;
-  text: string;
-  timestamp: string;
-  playerId: string;
-  playerName: string;
-  teamId: string;
-  teamName: string;
-  teamColor: string;
-}
-
-// Mock Initial Data
-const INITIAL_FACTS: Fact[] = [
-  {
-    id: '1',
-    text: 'The Red Dragons discovered the hidden cave system beneath the mountains.',
-    timestamp: '2023-10-27T10:30:00Z',
-    playerId: 'p1',
-    playerName: 'Alex Warrior',
-    teamId: 't1',
-    teamName: 'Red Dragons',
-    teamColor: 'bg-red-100 border-red-200 text-red-800',
-  },
-  {
-    id: '2',
-    text: 'Blue Knights formed an alliance with the Elves of the West.',
-    timestamp: '2023-10-28T14:15:00Z',
-    playerId: 'p2',
-    playerName: 'Sarah Mage',
-    teamId: 't2',
-    teamName: 'Blue Knights',
-    teamColor: 'bg-blue-100 border-blue-200 text-blue-800',
-  },
-  {
-    id: '3',
-    text: 'Green Rangers lost their supply wagon crossing the river.',
-    timestamp: '2023-10-29T09:00:00Z',
-    playerId: 'p3',
-    playerName: 'John Rogue',
-    teamId: 't3',
-    teamName: 'Green Rangers',
-    teamColor: 'bg-green-100 border-green-200 text-green-800',
-  },
-];
-
-const TEAMS = [
-  { id: 'all', name: 'All Teams' },
-  { id: 't1', name: 'Red Dragons' },
-  { id: 't2', name: 'Blue Knights' },
-  { id: 't3', name: 'Green Rangers' },
-];
-
-const PLAYERS = [
-  { id: 'all', name: 'All Players' },
-  { id: 'p1', name: 'Alex Warrior' },
-  { id: 'p2', name: 'Sarah Mage' },
-  { id: 'p3', name: 'John Rogue' },
-  { id: 'currentUser', name: 'Current User' }, // Simulating current user
-];
+import {
+  useCreateFactMutation,
+  useDeleteFactMutation,
+  useGetFactsQuery,
+} from '../../apis/api';
+import { useFetchMyTeamQuery, useFetchTeamsQuery } from '../../apis/gameApi';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../redux/store';
 
 export function FactsModule() {
   const navigate = useNavigate();
   const { gameId } = useParams();
-
-  // State
-  const [facts, setFacts] = useState<Fact[]>(INITIAL_FACTS);
   const [newFactText, setNewFactText] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('all');
   const [selectedPlayer, setSelectedPlayer] = useState('all');
 
-  // Simulated Current User
-  const currentUserId = 'currentUser';
-  const currentUserTeamId = 't1';
-  const currentUserName = 'Current User';
-  const currentUserTeamName = 'Red Dragons';
-  const currentUserTeamColor = 'bg-red-100 border-red-200 text-red-800';
+  // API Hooks
+  const { data: factsData, isLoading: isFactsLoading } = useGetFactsQuery(
+    { game_id: gameId! },
+    { skip: !gameId },
+  );
+  const [createFact] = useCreateFactMutation();
+  const [deleteFact] = useDeleteFactMutation();
 
-  const handleAddFact = (e: React.FormEvent) => {
+  const { data: currentTeam } = useFetchMyTeamQuery(gameId!, { skip: !gameId });
+  const { data: teamsData } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+
+  // Current User Data from Redux
+  const auth = useSelector((state: RootState) => state.auth.authData);
+  const user = auth?.user?.data;
+  const playerProfile = auth?.profiles?.['PLAYER']?.data;
+
+  const currentUserId = user?.user_id;
+  const currentUserName =
+    playerProfile?.profile_name || user?.email || 'Unknown User';
+  const currentUserTeamId = currentTeam?.team_id;
+  const currentUserTeamName = currentTeam?.team_name;
+  // Fallback color or use team_colour from API
+  const currentUserTeamColor = currentTeam?.team_colour;
+
+  const facts = factsData?.results || [];
+
+  const handleAddFact = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFactText.trim()) return;
+    if (!newFactText.trim() || !gameId || !currentUserTeamId) return;
 
-    const newFact: Fact = {
-      id: Date.now().toString(),
-      text: newFactText,
-      timestamp: new Date().toISOString(),
-      playerId: currentUserId,
-      playerName: currentUserName,
-      teamId: currentUserTeamId,
-      teamName: currentUserTeamName,
-      teamColor: currentUserTeamColor,
-    };
-
-    setFacts([newFact, ...facts]);
-    setNewFactText('');
+    try {
+      await createFact({
+        game_id: gameId,
+        team_id: currentUserTeamId, // Required by API spec example
+        fact_type: 'GENERAL',
+        fact_info: {
+          text: newFactText,
+          playerId: currentUserId,
+          playerName: currentUserName,
+          teamId: currentUserTeamId,
+          teamName: currentUserTeamName,
+          teamColor: currentUserTeamColor, // Storing processed color class for now
+        },
+      }).unwrap();
+      setNewFactText('');
+    } catch (error) {
+      console.error('Failed to create fact:', error);
+    }
   };
 
-  const handleDeleteFact = (id: string) => {
-    setFacts(facts.filter((fact) => fact.id !== id));
+  const handleDeleteFact = async (factId: string) => {
+    try {
+      await deleteFact(factId).unwrap();
+    } catch (error) {
+      console.error('Failed to delete fact:', error);
+    }
   };
 
   const filteredFacts = facts.filter((fact) => {
-    const matchTeam = selectedTeam === 'all' || fact.teamId === selectedTeam;
+    const info = fact.fact_info;
+    const matchTeam = selectedTeam === 'all' || info.teamId === selectedTeam;
+    // We filter by playerId stored in fact_info
     const matchPlayer =
-      selectedPlayer === 'all' || fact.playerId === selectedPlayer;
+      selectedPlayer === 'all' || info.playerId === selectedPlayer;
     return matchTeam && matchPlayer;
   });
 
@@ -137,6 +103,27 @@ export function FactsModule() {
       minute: '2-digit',
     });
   };
+
+  const TEAMS = [
+    { id: 'all', name: 'All Teams' },
+    ...(teamsData || []).map((t) => ({ id: t.team_id, name: t.team_name })),
+  ];
+
+  // We extract unique players from loaded facts for the filter dropdown
+  const uniquePlayers = Array.from(
+    new Set(
+      facts.map((f) =>
+        JSON.stringify({
+          id: f.fact_info.playerId,
+          name: f.fact_info.playerName,
+        }),
+      ),
+    ),
+  )
+    .map((s) => JSON.parse(s))
+    .filter((p) => p.id && p.name);
+
+  const PLAYERS = [{ id: 'all', name: 'All Players' }, ...uniquePlayers];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
@@ -173,16 +160,22 @@ export function FactsModule() {
                 </Label>
                 <Input
                   id="fact-text"
-                  placeholder="What happened? e.g. 'We found a secret door...'"
+                  placeholder={
+                    !currentUserTeamId
+                      ? 'Loading team info...'
+                      : "What happened? e.g. 'We found a secret door...'"
+                  }
                   value={newFactText}
                   onChange={(e) => setNewFactText(e.target.value)}
-                  className="min-h-[80px] text-lg py-3" // Making it look a bit like a textarea but using Input for now as per constraints
+                  className="min-h-[80px] text-lg py-3"
+                  disabled={!currentUserTeamId}
                 />
               </div>
               <div className="flex justify-end">
                 <Button
                   type="submit"
                   className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                  disabled={!currentUserTeamId || !newFactText.trim()}
                 >
                   Post Fact
                 </Button>
@@ -209,7 +202,6 @@ export function FactsModule() {
                   </option>
                 ))}
               </select>
-              {/* Custom arrow for select if needed, but native is fine for MVP */}
             </div>
           </div>
           <div className="flex-1 space-y-2">
@@ -234,23 +226,27 @@ export function FactsModule() {
 
         {/* Timeline */}
         <div className="space-y-8 relative before:absolute before:inset-0 before:left-8 before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-          {filteredFacts.length === 0 ? (
+          {isFactsLoading ? (
+            <div className="text-center py-12 text-gray-500 ml-16">
+              <p>Loading details...</p>
+            </div>
+          ) : filteredFacts.length === 0 ? (
             <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300 ml-16">
               <p>No facts found for the selected filters.</p>
             </div>
           ) : (
             filteredFacts.map((fact) => (
               <div
-                key={fact.id}
+                key={fact.fact_id}
                 className="relative flex items-start gap-6 group"
               >
                 {/* Timeline Icon/Dot with Time */}
                 <div className="flex flex-col items-center z-10">
                   <div className="flex items-center justify-center w-16 h-16 rounded-full border-4 border-white bg-slate-100 shadow-md shrink-0 text-center">
                     <span
-                      className={`text-xs font-bold leading-none ${fact.teamColor.split(' ')[2] || 'text-gray-600'}`}
+                      className={`text-xs font-bold leading-none ${fact.fact_info.teamColor?.split(' ')[2] || 'text-gray-600'}`}
                     >
-                      {new Date(fact.timestamp)
+                      {new Date(fact.created)
                         .toLocaleTimeString(undefined, {
                           hour: 'numeric',
                           hour12: true,
@@ -262,26 +258,26 @@ export function FactsModule() {
 
                 {/* Card */}
                 <Card
-                  className={`flex-1 p-0 border-l-4 shadow-sm hover:shadow-md transition-shadow ${fact.teamColor.replace('bg-', 'border-l-').split(' ')[0]}`}
+                  className={`flex-1 p-0 border-l-4 shadow-sm hover:shadow-md transition-shadow ${fact.fact_info.teamColor?.replace('bg-', 'border-l-').split(' ')[0] || 'border-l-gray-300'}`}
                 >
                   <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0 bg-gray-50/50 rounded-t-lg">
                     <div className="flex flex-col">
                       <span
-                        className={`text-xs font-bold uppercase tracking-wider ${fact.teamColor.split(' ')[2] || 'text-gray-600'}`}
+                        className={`text-xs font-bold uppercase tracking-wider ${fact.fact_info.teamColor?.split(' ')[2] || 'text-gray-600'}`}
                       >
-                        {fact.teamName}
+                        {fact.fact_info.teamName || 'Unknown Team'}
                       </span>
                       <span className="text-xs text-gray-500 flex items-center gap-1">
                         <Calendar className="w-3 h-3" />{' '}
-                        {formatDate(fact.timestamp)}
+                        {formatDate(fact.created)}
                       </span>
                     </div>
-                    {fact.playerId === currentUserId && (
+                    {fact.fact_info.playerId === currentUserId && (
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 -mr-2"
-                        onClick={() => handleDeleteFact(fact.id)}
+                        onClick={() => handleDeleteFact(fact.fact_id)}
                         aria-label="Delete fact"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -290,16 +286,16 @@ export function FactsModule() {
                   </CardHeader>
                   <CardContent className="py-4 px-4">
                     <p className="text-gray-800 text-base leading-relaxed">
-                      {fact.text}
+                      {fact.fact_info.text}
                     </p>
                   </CardContent>
                   <CardFooter className="py-2 px-4 bg-gray-50/30 border-t flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                        {fact.playerName.charAt(0)}
+                        {fact.fact_info.playerName?.charAt(0) || '?'}
                       </div>
                       <span className="text-xs font-medium text-gray-600">
-                        {fact.playerName}
+                        {fact.fact_info.playerName || 'Unknown Player'}
                       </span>
                     </div>
                   </CardFooter>
