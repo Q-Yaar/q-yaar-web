@@ -20,7 +20,6 @@ interface MapProps {
     multiLineStringForOp: any;
     closerFurther: 'closer' | 'further';
     selectedLineIndex: number;
-    hiderAnswer: 'yes' | 'no';
     polygonGeoJSONForOp: any;
     operations: Operation[];
 }
@@ -29,7 +28,7 @@ const Map: React.FC<MapProps> = ({
     action, points, setPoints, setDistance, setHeading,
     radius, shadingMode, playArea, splitDirection, preferredPoint,
     areaOpType, uploadedAreaForOp,
-    multiLineStringForOp, closerFurther, selectedLineIndex, hiderAnswer,
+    multiLineStringForOp, closerFurther, selectedLineIndex,
     polygonGeoJSONForOp,
     operations
 }) => {
@@ -52,7 +51,7 @@ const Map: React.FC<MapProps> = ({
             };
 
             // Add current interaction points (except for area operations where they are irrelevant)
-            if (action !== 'areas') {
+            if (action !== 'areas' && action !== 'closer-to-line') {
                 points.forEach(p => {
                     geojson.features.push({
                         'type': 'Feature',
@@ -76,13 +75,17 @@ const Map: React.FC<MapProps> = ({
             if (action === 'closer-to-line' && multiLineStringForOp) {
                 if (multiLineStringForOp.type === 'FeatureCollection') {
                     if (selectedLineIndex !== undefined && multiLineStringForOp.features[selectedLineIndex]) {
-                        geojson.features.push(multiLineStringForOp.features[selectedLineIndex]);
+                        const feat = multiLineStringForOp.features[selectedLineIndex];
+                        if (feat.geometry.type === 'LineString' || feat.geometry.type === 'MultiLineString') {
+                            geojson.features.push(feat);
+                        }
                     } else {
-                        geojson.features.push(...multiLineStringForOp.features);
+                        const lines = multiLineStringForOp.features.filter((f: any) => f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
+                        geojson.features.push(...lines);
                     }
-                } else if (multiLineStringForOp.type === 'Feature') {
+                } else if (multiLineStringForOp.type === 'Feature' && (multiLineStringForOp.geometry.type === 'LineString' || multiLineStringForOp.geometry.type === 'MultiLineString')) {
                     geojson.features.push(multiLineStringForOp);
-                } else {
+                } else if (multiLineStringForOp.type === 'LineString' || multiLineStringForOp.type === 'MultiLineString') {
                     geojson.features.push({
                         type: 'Feature',
                         geometry: multiLineStringForOp,
@@ -91,41 +94,7 @@ const Map: React.FC<MapProps> = ({
                 }
             }
 
-            if (action === 'same-closest-line' && multiLineStringForOp) {
-                // Ensure same recursive flattening logic as geoUtils for consistent indexing
-                let lines: any[] = [];
-                const processGeometry = (geom: any) => {
-                    if (geom.type === 'LineString') {
-                        lines.push({ type: 'Feature', geometry: geom, properties: {} });
-                    } else if (geom.type === 'MultiLineString') {
-                        geom.coordinates.forEach((coords: any) => {
-                            lines.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} });
-                        });
-                    } else if (geom.type === 'GeometryCollection') {
-                        geom.geometries.forEach((g: any) => processGeometry(g));
-                    }
-                };
-                const processItem = (item: any) => {
-                    if (item.type === 'Feature') {
-                        processGeometry(item.geometry);
-                    } else if (item.type === 'FeatureCollection') {
-                        item.features.forEach((f: any) => processItem(f));
-                    } else {
-                        processGeometry(item);
-                    }
-                };
-                if (multiLineStringForOp) processItem(multiLineStringForOp);
 
-                lines.forEach((l, idx) => {
-                    geojson.features.push({
-                        ...l,
-                        properties: {
-                            ...l.properties,
-                            'is-selected-line': idx === selectedLineIndex
-                        }
-                    });
-                });
-            }
 
             if (action === 'polygon-location' && polygonGeoJSONForOp) {
                 if (polygonGeoJSONForOp.type === 'FeatureCollection') {
@@ -160,7 +129,7 @@ const Map: React.FC<MapProps> = ({
             }
 
             // Apply current active operation (if not yet saved)
-            if (['draw-circle', 'split-by-direction', 'hotter-colder', 'closer-to-line', 'same-closest-line', 'polygon-location', 'areas'].includes(action)) {
+            if (['draw-circle', 'split-by-direction', 'hotter-colder', 'closer-to-line', 'polygon-location', 'areas'].includes(action)) {
                 const currentOp: Operation = {
                     id: 'current',
                     type: action as any,
@@ -174,7 +143,6 @@ const Map: React.FC<MapProps> = ({
                     multiLineString: multiLineStringForOp,
                     closerFurther,
                     selectedLineIndex,
-                    hiderAnswer,
                     polygonGeoJSON: polygonGeoJSONForOp
                 };
 
@@ -182,9 +150,8 @@ const Map: React.FC<MapProps> = ({
                     (action === 'hotter-colder' ? 2 : 0);
                 const hasRequiredInputs = (action === 'areas') ? !!uploadedAreaForOp :
                     (action === 'closer-to-line') ? (!!multiLineStringForOp && points.length >= 1) :
-                        (action === 'same-closest-line') ? !!multiLineStringForOp :
-                            (action === 'polygon-location') ? (!!polygonGeoJSONForOp && points.length >= 1) :
-                                points.length >= minPoints;
+                        (action === 'polygon-location') ? (!!polygonGeoJSONForOp && points.length >= 1) :
+                            points.length >= minPoints;
 
                 if (hasRequiredInputs) {
                     currentHiderArea = applySingleOperation(currentOp, currentHiderArea as any);
@@ -219,7 +186,7 @@ const Map: React.FC<MapProps> = ({
 
             source.setData(geojson);
         }
-    }, [points, action, radius, shadingMode, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, hiderAnswer, operations]);
+    }, [points, action, radius, shadingMode, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations]);
 
     useEffect(() => {
         if (!mapContainerRef.current) return;

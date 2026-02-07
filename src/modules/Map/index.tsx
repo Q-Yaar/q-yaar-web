@@ -21,7 +21,6 @@ const MapPage: React.FC = () => {
     const [multiLineStringForOp, setMultiLineStringForOp] = useState<any>(null);
     const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>('closer');
     const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
-    const [hiderAnswer, setHiderAnswer] = useState<'yes' | 'no'>('yes');
     const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
     const [operations, setOperations] = useState<Operation[]>([]);
 
@@ -55,8 +54,6 @@ const MapPage: React.FC = () => {
                         setCloserFurther={setCloserFurther}
                         selectedLineIndex={selectedLineIndex}
                         setSelectedLineIndex={setSelectedLineIndex}
-                        hiderAnswer={hiderAnswer}
-                        setHiderAnswer={setHiderAnswer}
                         polygonGeoJSONForOp={polygonGeoJSON}
                         setPolygonGeoJSONForOp={setPolygonGeoJSON}
                         operations={operations}
@@ -81,7 +78,6 @@ const MapPage: React.FC = () => {
                         multiLineStringForOp={multiLineStringForOp}
                         closerFurther={closerFurther}
                         selectedLineIndex={selectedLineIndex}
-                        hiderAnswer={hiderAnswer}
                         polygonGeoJSONForOp={polygonGeoJSON}
                         operations={operations}
                     />

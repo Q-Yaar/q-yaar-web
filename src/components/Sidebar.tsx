@@ -32,8 +32,7 @@ interface SidebarProps {
     setCloserFurther: (val: 'closer' | 'further') => void;
     selectedLineIndex: number;
     setSelectedLineIndex: (val: number) => void;
-    hiderAnswer: 'yes' | 'no';
-    setHiderAnswer: (val: 'yes' | 'no') => void;
+
     polygonGeoJSONForOp: any;
     setPolygonGeoJSONForOp: (area: any) => void;
     operations: Operation[];
@@ -52,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     multiLineStringForOp, setMultiLineStringForOp,
     closerFurther, setCloserFurther,
     selectedLineIndex, setSelectedLineIndex,
-    hiderAnswer, setHiderAnswer,
+
     polygonGeoJSONForOp, setPolygonGeoJSONForOp,
     operations, setOperations,
     setPoints
@@ -79,9 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     const handleSaveOperation = () => {
         if (!selectedOption) return;
-        if (selectedOption !== 'areas' && selectedOption !== 'closer-to-line' && selectedOption !== 'same-closest-line' && points.length === 0) return;
+        if (selectedOption !== 'areas' && selectedOption !== 'closer-to-line' && points.length === 0) return;
         if (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) return;
-        if (selectedOption === 'same-closest-line' && !multiLineStringForOp) return;
         if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
 
         const newOp: Operation = {
@@ -97,7 +95,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             multiLineString: multiLineStringForOp,
             closerFurther,
             selectedLineIndex,
-            hiderAnswer,
             polygonGeoJSON: polygonGeoJSONForOp
         };
 
@@ -181,8 +178,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <option value="split-by-direction">Split by Direction</option>
                             <option value="hotter-colder">Hotter / Colder</option>
                             <option value="areas">Area Operations</option>
-                            <option value="closer-to-line">Closer to Line</option>
-                            <option value="same-closest-line">Same Closest Line</option>
+                            <option value="closer-to-line">Distance from Metro Line</option>
                         </>
                     )}
                 </select>
@@ -367,11 +363,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         value={selectedLineIndex}
                                         onChange={(e) => setSelectedLineIndex(parseInt(e.target.value) || 0)}
                                     >
-                                        {multiLineStringForOp.features.map((feat: any, idx: number) => (
-                                            <option key={idx} value={idx}>
-                                                Line {idx + 1} {feat.properties?.name ? `(${feat.properties.name})` : ''}
-                                            </option>
-                                        ))}
+                                        {multiLineStringForOp.features
+                                            .map((feat: any, idx: number) => ({ feat, idx }))
+                                            .filter((item: any) => item.feat.geometry.type === 'LineString' || item.feat.geometry.type === 'MultiLineString')
+                                            .map((item: any) => (
+                                                <option key={item.idx} value={item.idx}>
+                                                    Line {item.idx + 1} {item.feat.properties?.name ? `(${item.feat.properties.name})` : ''}
+                                                </option>
+                                            ))
+                                        }
                                     </select>
                                 </div>
                             )}
@@ -380,83 +380,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                     )}
 
-                    {selectedOption === 'same-closest-line' && (
-                        <div className="tool-section">
-                            <label>Upload Lines (GeoJSON)</label>
-                            <div className="file-input-wrapper">
-                                <input
-                                    type="file"
-                                    accept=".json,.geojson"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (event) => {
-                                                try {
-                                                    const json = JSON.parse(event.target?.result as string);
-                                                    setMultiLineStringForOp(json);
-                                                    setSelectedLineIndex(0);
-                                                } catch (err) { alert("Invalid GeoJSON"); }
-                                            };
-                                            reader.readAsText(file);
-                                        }
-                                    }}
-                                />
-                                {multiLineStringForOp && <div className="success-badge">✓ Lines Ready</div>}
-                            </div>
 
-                            {multiLineStringForOp && (
-                                <div style={{ marginTop: '10px' }}>
-                                    <label>Seeker is closest to...</label>
-                                    <select
-                                        value={selectedLineIndex}
-                                        onChange={(e) => setSelectedLineIndex(parseInt(e.target.value) || 0)}
-                                    >
-                                        {(() => {
-                                            const lines: any[] = [];
-                                            const processGeometry = (geom: any, props: any) => {
-                                                if (geom.type === 'LineString') {
-                                                    lines.push({ type: 'Feature', geometry: geom, properties: props });
-                                                } else if (geom.type === 'MultiLineString') {
-                                                    geom.coordinates.forEach((coords: any) => {
-                                                        lines.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: props });
-                                                    });
-                                                } else if (geom.type === 'GeometryCollection') {
-                                                    geom.geometries.forEach((g: any) => processGeometry(g, props));
-                                                }
-                                            };
-                                            const processItem = (item: any) => {
-                                                if (item.type === 'Feature') {
-                                                    processGeometry(item.geometry, item.properties);
-                                                } else if (item.type === 'FeatureCollection') {
-                                                    item.features.forEach((f: any) => processItem(f));
-                                                } else {
-                                                    processGeometry(item, {});
-                                                }
-                                            };
-                                            processItem(multiLineStringForOp);
-
-                                            return lines.map((feat: any, idx: number) => (
-                                                <option key={idx} value={idx}>
-                                                    Line {idx + 1} {feat.properties?.name ? `(${feat.properties.name})` : ''}
-                                                </option>
-                                            ));
-                                        })()}
-                                    </select>
-                                </div>
-                            )}
-
-                            <label style={{ marginTop: '10px' }}>Hider Answer: "Are you closer to the same line?"</label>
-                            <div className="radio-group">
-                                <label className="radio-item">
-                                    <input type="radio" checked={hiderAnswer === 'yes'} onChange={() => setHiderAnswer('yes')} /> Yes
-                                </label>
-                                <label className="radio-item">
-                                    <input type="radio" checked={hiderAnswer === 'no'} onChange={() => setHiderAnswer('no')} /> No
-                                </label>
-                            </div>
-                        </div>
-                    )}
 
                     {selectedOption === 'polygon-location' && (
                         <div className="tool-section">
@@ -514,7 +438,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 !selectedOption ||
                                 (selectedOption === 'areas' && !uploadedAreaForOp) ||
                                 (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) ||
-                                (selectedOption === 'same-closest-line' && !multiLineStringForOp) ||
                                 (selectedOption === 'polygon-location' && (!polygonGeoJSONForOp || points.length === 0)) ||
                                 (['draw-circle', 'split-by-direction', 'hotter-colder'].includes(selectedOption) && points.length === 0)
                             }
@@ -531,14 +454,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <ul className="operations-list">
                         {operations.map((op, index) => (
                             <li key={op.id} className="operation-card">
-                                <strong>{index + 1}. {op.type === 'areas' ? 'Area Operations' : op.type.replace(/-/g, ' ')}</strong>
+                                <strong>{index + 1}. {op.type === 'areas' ? 'Area Operations' : (op.type === 'closer-to-line' ? 'Distance from Metro Line' : op.type.replace(/-/g, ' '))}</strong>
                                 <div className="help-text">
                                     {op.type === 'draw-circle' && `${op.radius}km · ${op.shadingMode}`}
                                     {op.type === 'split-by-direction' && `Hider is ${op.splitDirection}`}
                                     {op.type === 'hotter-colder' && `Closer to ${op.preferredPoint}`}
                                     {op.type === 'areas' && `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
                                     {op.type === 'closer-to-line' && `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
-                                    {op.type === 'same-closest-line' && `Same Line? ${op.hiderAnswer} (to Line ${op.selectedLineIndex !== undefined ? op.selectedLineIndex + 1 : 1})`}
                                     {op.type === 'polygon-location' && `In polygon`}
                                 </div>
                                 <button className="remove-op" onClick={() => removeOperation(op.id)}>×</button>
