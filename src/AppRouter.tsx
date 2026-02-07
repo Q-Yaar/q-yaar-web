@@ -9,6 +9,17 @@ import {
   MAP_ROUTE,
   ROOT_ROUTE,
   SIGNUP_ROUTE,
+} from "./constants/routes";
+import Home from "./modules/Home";
+import AuthGuard from "./components/AuthGuard";
+import BaseLayout from "./Layouts/BaseLayout";
+import NotFound from "./components/NotFound";
+import Login from "./modules/Auth/Login";
+import MapPage from "./modules/Map";
+import GameDetail from "./modules/Games/GameDetail";
+import DiceRoller from "./modules/DiceRoller";
+import SignUp from "./modules/Auth/SignUp";
+import DeckPage from "./modules/DeckPage";
   ASK_QUESTION_ROUTE,
   ANSWER_QUESTION_ROUTE,
   FACTS_ROUTE,
@@ -36,6 +47,7 @@ function ProtectedRoutes(): JSX.Element {
           <Route path={GAME_DETAIL_ROUTE} element={<GameDetail />} />
           <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
           <Route path={DECK_ROUTE} element={<DeckPage />} />
+          <Route path={MAP_ROUTE} element={<MapPage />} />
           <Route path={ASK_QUESTION_ROUTE} element={<AskQuestionModule />} />
           <Route
             path={ANSWER_QUESTION_ROUTE}
@@ -59,7 +71,7 @@ export default function AppRouter(): JSX.Element {
         />
         <Route path={LOGIN_ROUTE} element={<Login />} />
         <Route path={SIGNUP_ROUTE} element={<SignUp />} />
-        <Route path={MAP_ROUTE} element={<Map />} />
+
         <Route path="*" element={<ProtectedRoutes />} />
       </Routes>
     </BrowserRouter>
