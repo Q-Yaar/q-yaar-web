@@ -72,6 +72,9 @@ export function AskQuestionModule() {
   const [acceptAnswer, { isLoading: isAccepting }] = useAcceptAnswerMutation();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
+  const [locationErrorOpen, setLocationErrorOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<any>(null);
+
   const handleCategorySelect = (category: Category) => {
     setSelectedCategory(category);
     setSelectedTemplateBasic(null);
@@ -83,30 +86,78 @@ export function AskQuestionModule() {
     setPlaceholders({});
   };
 
-  const handleSubmit = async () => {
-    if (!gameId || !fullTemplate || !selectedTargetTeamId) return;
-
+  const sendQuestion = async (payload: any) => {
+    if (!gameId || !fullTemplate) return;
     try {
       await askQuestion({
         gameId,
         questionId: fullTemplate.question_id,
-        body: {
-          target_team_id: selectedTargetTeamId,
-          chosen_placeholders: placeholders,
-          question_meta: {
-            myLocation: 'Unknown',
-          },
-        },
+        body: payload,
       }).unwrap();
 
       // Reset after success
       setSelectedCategory(null);
       setSelectedTemplateBasic(null);
       setSelectedTargetTeamId('');
+      setPlaceholders({});
+      setLocationErrorOpen(false);
+      setPendingPayload(null);
       alert('Question asked successfully!');
     } catch (err) {
       console.error('Failed to ask question', err);
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!gameId || !fullTemplate || !selectedTargetTeamId) return;
+
+    const basePayload = {
+      target_team_id: selectedTargetTeamId,
+      chosen_placeholders: placeholders,
+      question_meta: {
+        location_points: [],
+      },
+    };
+
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const payload = {
+            ...basePayload,
+            question_meta: {
+              ...basePayload.question_meta,
+              location_points: [
+                {
+                  lat: position.coords.latitude.toString(),
+                  lon: position.coords.longitude.toString(),
+                },
+              ],
+            },
+          };
+          sendQuestion(payload);
+        },
+        (error) => {
+          console.error('Error getting location', error);
+          setPendingPayload(basePayload);
+          setLocationErrorOpen(true);
+        },
+      );
+    } else {
+      console.warn('Geolocation not available');
+      setPendingPayload(basePayload);
+      setLocationErrorOpen(true);
+    }
+  };
+
+  const handleLocationErrorProceed = () => {
+    if (pendingPayload) {
+      sendQuestion(pendingPayload);
+    }
+  };
+
+  const handleLocationErrorCancel = () => {
+    setLocationErrorOpen(false);
+    setPendingPayload(null);
   };
 
   const handleAccept = async (question: AskedQuestion) => {
@@ -486,6 +537,40 @@ export function AskQuestionModule() {
           </div>
         )}
       </div>
+
+      {/* Location Error Modal */}
+      {locationErrorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="bg-red-100 p-3 rounded-full text-red-600">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">
+                Location Access Needed
+              </h3>
+              <p className="text-gray-500">
+                We couldn't get your location. Would you like to send the
+                question without it?
+              </p>
+              <div className="flex flex-col w-full space-y-3 pt-2">
+                <button
+                  onClick={handleLocationErrorProceed}
+                  className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors"
+                >
+                  Ask Without Location
+                </button>
+                <button
+                  onClick={handleLocationErrorCancel}
+                  className="w-full py-3 text-gray-700 font-medium hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

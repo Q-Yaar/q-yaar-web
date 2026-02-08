@@ -41,7 +41,9 @@ export interface AskedQuestion {
   template: string;
   category: Category;
   question_meta: {
-    myLocation: string; // Or generic Record<string, any> if diverse
+    myLocation?: string;
+    location_points?: { lat: string; lon: string }[];
+    [key: string]: any;
   };
   answer_meta?: {
     answered?: boolean;
@@ -61,7 +63,7 @@ export interface AskQuestionRequest {
 
 export interface AnswerQuestionRequest {
   answer_meta: {
-    answered: boolean;
-    result: string; // e.g., "HIT", "MISS"
+    result: boolean;
+    metadata?: Record<string, any>;
   };
 }

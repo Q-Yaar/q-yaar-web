@@ -12,6 +12,7 @@ import {
   Clock,
   ArrowLeft,
   MessageCircle,
+  MapPin,
 } from 'lucide-react';
 
 export function AnswerQuestionModule() {
@@ -28,15 +29,15 @@ export function AnswerQuestionModule() {
 
   const [answerTexts, setAnswerTexts] = useState<Record<string, string>>({});
 
-  const handleAnswer = async (question: AskedQuestion) => {
+  const handleOpenLocation = (lat: string, lon: string) => {
+    window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank');
+  };
+
+  const handleAnswer = async (question: AskedQuestion, result: boolean) => {
     if (!gameId) return;
-    const answerText = answerTexts[question.question_id]?.trim();
-    if (!answerText) {
-      alert('Please enter an answer.');
-      return;
-    }
 
     setAnsweringId(question.question_id);
+    const answerText = answerTexts[question.question_id]?.trim();
 
     try {
       await answerQuestion({
@@ -44,8 +45,10 @@ export function AnswerQuestionModule() {
         askedQuestionId: question.question_id,
         body: {
           answer_meta: {
-            answered: true,
-            result: answerText,
+            result: result,
+            metadata: {
+              text: answerText || '',
+            },
           },
         },
       }).unwrap();
@@ -130,9 +133,26 @@ export function AnswerQuestionModule() {
                   className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      {question.category.category_name}
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        {question.category.category_name}
+                      </span>
+                      {question.question_meta?.location_points?.[0] && (
+                        <button
+                          onClick={() =>
+                            handleOpenLocation(
+                              question.question_meta.location_points![0].lat,
+                              question.question_meta.location_points![0].lon,
+                            )
+                          }
+                          className="text-gray-400 hover:text-indigo-600 transition-colors"
+                          title="View Location"
+                        >
+                          <MapPin className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
                     <span className="text-xs text-gray-400">
                       {new Date(question.created).toLocaleTimeString([], {
                         hour: '2-digit',
@@ -145,36 +165,53 @@ export function AnswerQuestionModule() {
                     {question.rendered_question}
                   </h3>
 
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <textarea
                       value={answerTexts[question.question_id] || ''}
                       onChange={(e) =>
                         handleTextChange(question.question_id, e.target.value)
                       }
-                      placeholder="Type your answer here..."
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[100px] resize-y"
+                      placeholder="Add an optional comment..."
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[80px] resize-y text-sm"
                       disabled={
                         isAnswering && answeringId === question.question_id
                       }
                     />
 
-                    <button
-                      onClick={() => handleAnswer(question)}
-                      disabled={
-                        isAnswering ||
-                        !answerTexts[question.question_id]?.trim()
-                      }
-                      className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl font-bold transition-all hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
-                    >
-                      {isAnswering && answeringId === question.question_id ? (
-                        <Loader className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle className="w-5 h-5 mr-2" />
-                          Submit Answer
-                        </>
-                      )}
-                    </button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => handleAnswer(question, false)}
+                        disabled={
+                          isAnswering && answeringId === question.question_id
+                        }
+                        className="flex items-center justify-center py-3 px-4 bg-red-50 text-red-700 border border-red-200 rounded-xl font-bold hover:bg-red-100 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isAnswering && answeringId === question.question_id ? (
+                          <Loader className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <>
+                            <XCircle className="w-5 h-5 mr-2" />
+                            No
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleAnswer(question, true)}
+                        disabled={
+                          isAnswering && answeringId === question.question_id
+                        }
+                        className="flex items-center justify-center py-3 px-4 bg-green-50 text-green-700 border border-green-200 rounded-xl font-bold hover:bg-green-100 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isAnswering && answeringId === question.question_id ? (
+                          <Loader className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <>
+                            <CheckCircle className="w-5 h-5 mr-2" />
+                            Yes
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
