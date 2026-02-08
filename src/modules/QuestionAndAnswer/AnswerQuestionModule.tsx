@@ -104,8 +104,8 @@ export function AnswerQuestionModule() {
   }
 
   const questions = askedQuestionsData?.results || [];
-  const pendingQuestions = questions.filter((q) => !q.answer_meta?.answered);
-  const answeredQuestions = questions.filter((q) => q.answer_meta?.answered);
+  const pendingQuestions = questions.filter((q) => !q.answered);
+  const answeredQuestions = questions.filter((q) => q.answered);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">

@@ -48,6 +48,9 @@ export interface AskedQuestion {
   answer_meta?: {
     answered?: boolean;
     result?: string;
+    metadata?: {
+      text: string;
+    };
   };
   answered?: boolean;
   accepted?: boolean;

@@ -393,7 +393,7 @@ export function AskQuestionModule() {
                           <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
                             ACCEPTED
                           </div>
-                        ) : q.answer_meta?.answered ? (
+                        ) : q.answered ? (
                           <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
                             ANSWERED
                           </div>
@@ -418,31 +418,44 @@ export function AskQuestionModule() {
                         </div>
 
                         {/* Action / Result */}
-                        {q.answer_meta?.answered && (
-                          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                            <div className="flex items-center">
-                              <span className="text-sm text-gray-600 mr-2">
-                                Answer:
-                              </span>
-                              <span className="flex items-center font-bold text-green-600">
-                                {q.answer_meta.result}
-                              </span>
-                            </div>
+                        {q.answered && (
+                          <>
+                            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="text-sm text-gray-600 mr-2">
+                                  Answer:
+                                </span>
+                                {q?.answer_meta?.result ? (
+                                  <span className="flex items-center font-bold text-green-600">
+                                    Yes
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center font-bold text-red-600">
+                                    No
+                                  </span>
+                                )}
+                              </div>
 
-                            {!q.accepted && (
-                              <Button
-                                onClick={() => handleAccept(q)}
-                                disabled={isAccepting}
-                                variant="outline"
-                                size="sm"
-                                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                              >
-                                {isAccepting && acceptingId === q.question_id
-                                  ? 'Accepting...'
-                                  : 'Accept Answer'}
-                              </Button>
+                              {!q.accepted && (
+                                <Button
+                                  onClick={() => handleAccept(q)}
+                                  disabled={isAccepting}
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                >
+                                  {isAccepting && acceptingId === q.question_id
+                                    ? 'Accepting...'
+                                    : 'Accept Answer'}
+                                </Button>
+                              )}
+                            </div>
+                            {q?.answer_meta?.metadata?.text && (
+                              <p className="text-sm text-gray-600 text-left border-l-2 border-indigo-500 pl-2">
+                                {q?.answer_meta?.metadata?.text}
+                              </p>
                             )}
-                          </div>
+                          </>
                         )}
                       </CardContent>
                     </Card>
