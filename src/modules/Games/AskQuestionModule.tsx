@@ -26,6 +26,7 @@ import {
   MapPin,
 } from 'lucide-react';
 
+import { Header } from '../../components/ui/header';
 import { Button } from 'components/ui/button';
 import { Input } from 'components/ui/input';
 import {
@@ -272,23 +273,12 @@ export function AskQuestionModule() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 safe-top">
-        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleBack}
-            className="-ml-2 text-gray-600 hover:bg-gray-100 rounded-full"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </Button>
-          <h1 className="text-lg font-bold text-gray-900 flex items-center">
-            <HelpCircle className="w-5 h-5 mr-2 text-indigo-600" />
-            Ask a Question
-          </h1>
-          <div className="w-10" /> {/* Spacer for centering */}
-        </div>
-      </div>
+      {/* Header */}
+      <Header
+        title="Ask a Question"
+        icon={<HelpCircle className="w-5 h-5 mr-2 text-indigo-600" />}
+        onBack={handleBack}
+      />
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Progress / Breadcrumbs */}

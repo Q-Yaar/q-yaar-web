@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, RotateCcw, History, Dices } from 'lucide-react';
+import { Header } from '../../components/ui/header';
 
 interface RollResult {
   id: string; // Unique ID for key
@@ -110,21 +111,11 @@ export default function DiceRoller() {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 safe-top shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <h1 className="text-lg font-bold text-gray-900 flex items-center">
-            <Dices className="w-6 h-6 mr-2 text-indigo-600" />
-            Dice Roller
-          </h1>
-          <div className="w-10" /> {/* Spacer */}
-        </div>
-      </div>
+      {/* Header */}
+      <Header
+        title="Dice Roller"
+        icon={<Dices className="w-6 h-6 mr-2 text-indigo-600" />}
+      />
 
       <div className="max-w-xl mx-auto px-4 py-8 space-y-8">
         {/* Last Roll Display (Hero) */}

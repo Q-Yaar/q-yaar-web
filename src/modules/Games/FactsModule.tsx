@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Header } from '../../components/ui/header';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -177,18 +178,11 @@ export function FactsModule() {
   return (
     <div className="min-h-screen bg-gray-50 pb-12">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">📜</span> History of Facts
-            </h1>
-          </div>
-        </div>
-      </div>
+      {/* Header */}
+      <Header
+        title="History of Facts"
+        icon={<span className="text-2xl">📜</span>}
+      />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Add Fact Section */}
