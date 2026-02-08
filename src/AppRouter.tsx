@@ -23,9 +23,9 @@ import GameDetail from './modules/Games/GameDetail';
 import DiceRoller from './modules/DiceRoller';
 import SignUp from './modules/Auth/SignUp';
 import DeckPage from './modules/DeckPage';
-import { AskQuestionModule } from './modules/Games/AskQuestionModule';
-import { AnswerQuestionModule } from './modules/Games/AnswerQuestionModule';
-import { FactsModule } from './modules/Games/FactsModule';
+import { AskQuestionModule } from './modules/QuestionAndAnswer/AskQuestionModule';
+import { AnswerQuestionModule } from './modules/QuestionAndAnswer/AnswerQuestionModule';
+import { FactsModule } from './modules/Facts/FactsModule';
 
 function ProtectedRoutes(): JSX.Element {
   return (

@@ -74,13 +74,17 @@ export function FactsModule() {
   const handleAddFact = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFactText.trim() || !gameId || !currentUserTeamId) return;
-
     try {
       await createFact({
         game_id: gameId,
         team_id: currentUserTeamId,
         fact_type: 'TEXT',
-        fact_info: {},
+        fact_info: {
+          op_type: 'plain_text',
+          op_meta: {
+            text: newFactText,
+          },
+        },
       }).unwrap();
       setNewFactText('');
     } catch (error) {
