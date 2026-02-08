@@ -80,14 +80,7 @@ export function FactsModule() {
         game_id: gameId,
         team_id: currentUserTeamId,
         fact_type: 'TEXT',
-        fact_info: {
-          text: newFactText,
-          playerId: currentUserId,
-          playerName: currentUserName,
-          teamId: currentUserTeamId,
-          teamName: currentUserTeamName,
-          teamColor: currentUserTeamColor,
-        },
+        fact_info: {},
       }).unwrap();
       setNewFactText('');
     } catch (error) {
