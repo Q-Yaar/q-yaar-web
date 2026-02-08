@@ -1,4 +1,4 @@
-import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox } from '@turf/turf';
+import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance, union, along, length, booleanPointInPolygon } from '@turf/turf';
 import { Heading, Operation } from './geoTypes';
 import { Feature, Point, Polygon, MultiPolygon, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 
@@ -283,6 +283,83 @@ export const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoi
 };
 
 /**
+ * Splits a polygon based on whether points are closer or further from a MultiLineString
+ * than a given seeker point.
+ * @param seekerPoint 
+ * @param multiLineString 
+ * @param preference 'closer' or 'further'
+ * @param selectedLineIndex index of the line in FeatureCollection
+ * @param playAreaFeature 
+ * @returns 
+ */
+export const splitPolygonByLineDistance = (seekerPoint: number[], multiLineString: any, preference: 'closer' | 'further', selectedLineIndex: number | undefined, playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+    try {
+        const p = point(seekerPoint);
+
+        // Ensure we have a Feature or Geometry suitable for pointToLineDistance
+        let lineFeature: any = multiLineString;
+        if (multiLineString.type === 'FeatureCollection' && multiLineString.features.length > 0) {
+            lineFeature = multiLineString.features[selectedLineIndex !== undefined ? selectedLineIndex : 0]; // Take selected or first
+        }
+
+        const d = pointToLineDistance(p, lineFeature, { units: 'kilometers' });
+
+        // Create a buffer around the line with radius d
+        // We use a slightly large number of steps for smoothness
+        const lineBuffer = buffer(lineFeature, d, { units: 'kilometers', steps: 64 }) as Feature<Polygon | MultiPolygon>;
+
+        if (preference === 'closer') {
+            // Hider is closer than seeker -> Hider is inside the buffer
+            return intersectPolygons(playAreaFeature, lineBuffer);
+        } else {
+            // Hider is further than seeker -> Hider is outside the buffer
+            return differencePolygons(playAreaFeature, lineBuffer);
+        }
+    } catch (e) {
+        console.error("Split by line distance failed", e);
+        return playAreaFeature;
+    }
+};
+
+
+
+/**
+ * Finds the first polygon or multipolygon in a GeoJSON that contains the given point.
+ * @param pt 
+ * @param geojson 
+ * @returns 
+ */
+export const findContainingPolygon = (pt: number[], geojson: any): Feature<Polygon | MultiPolygon> | null => {
+    if (!geojson) return null;
+
+    const p = point(pt);
+    let foundFeature: Feature<Polygon | MultiPolygon> | null = null;
+
+    const processItem = (item: any) => {
+        if (foundFeature) return;
+        if (item.type === 'Feature') {
+            if (item.geometry.type === 'Polygon' || item.geometry.type === 'MultiPolygon') {
+                if (booleanPointInPolygon(p, item)) {
+                    foundFeature = item;
+                }
+            }
+        } else if (item.type === 'FeatureCollection') {
+            for (const f of item.features) {
+                processItem(f);
+                if (foundFeature) break;
+            }
+        } else if (item.type === 'Polygon' || item.type === 'MultiPolygon') {
+            if (booleanPointInPolygon(p, item)) {
+                foundFeature = { type: 'Feature', geometry: item, properties: {} };
+            }
+        }
+    };
+
+    processItem(geojson);
+    return foundFeature;
+};
+
+/**
  * Global World Polygon for default shading/play area.
  */
 export const globalWorld: Feature<Polygon> = {
@@ -310,7 +387,7 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
             properties: {}
         };
         const circleFeature = getCirclePolygon(centerFeature, op.radius || 0);
-        if (op.shadingMode === 'outside') {
+        if (op.hiderLocation === 'inside') {
             return intersectPolygons(area, circleFeature);
         }
         return differencePolygons(area, circleFeature);
@@ -338,16 +415,39 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
         } else if (ua.type === 'Polygon' || ua.type === 'MultiPolygon') {
             uploadedFeature = { type: 'Feature', geometry: ua, properties: {} };
         } else if (ua.type === 'FeatureCollection') {
-            const polyFeature = ua.features.find((f: any) => f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'));
-            if (polyFeature) uploadedFeature = polyFeature;
+            const idx = op.selectedLineIndex !== undefined ? op.selectedLineIndex : 0;
+            const polyFeature = ua.features[idx];
+            if (polyFeature && polyFeature.geometry && (polyFeature.geometry.type === 'Polygon' || polyFeature.geometry.type === 'MultiPolygon')) {
+                uploadedFeature = polyFeature;
+            }
         }
 
         if (uploadedFeature) {
-            if (op.areaOpType === 'intersection') {
+            if (op.areaOpType === 'inside') {
                 return intersectPolygons(area, uploadedFeature);
             } else {
                 return differencePolygons(area, uploadedFeature);
             }
+        }
+    }
+
+    if (op.type === 'closer-to-line' && op.points.length > 0 && op.multiLineString) {
+        return splitPolygonByLineDistance(op.points[0], op.multiLineString, op.closerFurther || 'closer', op.selectedLineIndex, area);
+    }
+
+
+
+    if (op.type === 'polygon-location' && op.points.length > 0 && op.polygonGeoJSON) {
+        const found = findContainingPolygon(op.points[0], op.polygonGeoJSON);
+        if (found) {
+            return intersectPolygons(area, found);
+        } else {
+            // User outside all polygons -> return empty area
+            return {
+                type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: [] },
+                properties: {}
+            };
         }
     }
 

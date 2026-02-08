@@ -14,10 +14,46 @@
 }
 
 .sidebar h2 {
-    margin: 0 0 10px 0;
+    margin: 0;
     font-size: 1.5rem;
     font-weight: 700;
     color: #1a1a1a;
+}
+
+.sync-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.sync-btn,
+.export-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid #e0e0e0;
+}
+
+.sync-btn {
+    background: #f0f7ff;
+    color: #007bff;
+    border-color: #cce5ff;
+}
+
+.sync-btn:hover {
+    background: #e1f0ff;
+}
+
+.export-btn {
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.export-btn:hover {
+    background: #e9ecef;
 }
 
 .sidebar h3 {
@@ -193,4 +229,25 @@
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+.clear-btn {
+    background: none;
+    border: none;
+    color: #ff4444;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 5px;
+    text-decoration: underline;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.clear-btn:hover {
+    opacity: 1;
+}
+
+.divider {
+    border-top: 1px solid #eee;
+    margin: 15px 0;
 }
