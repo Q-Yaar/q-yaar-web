@@ -387,7 +387,7 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
             properties: {}
         };
         const circleFeature = getCirclePolygon(centerFeature, op.radius || 0);
-        if (op.shadingMode === 'outside') {
+        if (op.hiderLocation === 'inside') {
             return intersectPolygons(area, circleFeature);
         }
         return differencePolygons(area, circleFeature);

@@ -11,7 +11,7 @@ interface MapProps {
     setDistance: React.Dispatch<React.SetStateAction<number | null>>;
     setHeading: React.Dispatch<React.SetStateAction<Heading | null>>;
     radius: number;
-    shadingMode: 'inside' | 'outside';
+    hiderLocation: 'inside' | 'outside';
     playArea: any;
     splitDirection: 'North' | 'South' | 'East' | 'West';
     preferredPoint: 'p1' | 'p2';
@@ -26,7 +26,7 @@ interface MapProps {
 
 const Map: React.FC<MapProps> = ({
     action, points, setPoints, setDistance, setHeading,
-    radius, shadingMode, playArea, splitDirection, preferredPoint,
+    radius, hiderLocation, playArea, splitDirection, preferredPoint,
     areaOpType, uploadedAreaForOp,
     multiLineStringForOp, closerFurther, selectedLineIndex,
     polygonGeoJSONForOp,
@@ -135,7 +135,7 @@ const Map: React.FC<MapProps> = ({
                     type: action as any,
                     points: [...points],
                     radius,
-                    shadingMode,
+                    hiderLocation,
                     splitDirection,
                     preferredPoint,
                     areaOpType,
@@ -186,7 +186,7 @@ const Map: React.FC<MapProps> = ({
 
             source.setData(geojson);
         }
-    }, [points, action, radius, shadingMode, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations]);
+    }, [points, action, radius, hiderLocation, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations]);
 
     useEffect(() => {
         if (!mapContainerRef.current) return;

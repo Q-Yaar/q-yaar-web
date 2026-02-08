@@ -12,7 +12,7 @@ const MapPage: React.FC = () => {
     const [distance, setDistance] = useState<number | null>(null);
     const [heading, setHeading] = useState<Heading | null>(null);
     const [radius, setRadius] = useState<number>(5);
-    const [shadingMode, setShadingMode] = useState<'inside' | 'outside'>('outside');
+    const [hiderLocation, setHiderLocation] = useState<'inside' | 'outside'>('inside');
     const [playArea, setPlayArea] = useState<any>(null);
     const [splitDirection, setSplitDirection] = useState<'North' | 'South' | 'East' | 'West'>('North');
     const [preferredPoint, setPreferredPoint] = useState<'p1' | 'p2'>('p1');
@@ -36,8 +36,8 @@ const MapPage: React.FC = () => {
                         heading={heading}
                         radius={radius}
                         setRadius={setRadius}
-                        shadingMode={shadingMode}
-                        setShadingMode={setShadingMode}
+                        hiderLocation={hiderLocation}
+                        setHiderLocation={setHiderLocation}
                         playArea={playArea}
                         setPlayArea={setPlayArea}
                         splitDirection={splitDirection}
@@ -69,7 +69,7 @@ const MapPage: React.FC = () => {
                         setDistance={setDistance}
                         setHeading={setHeading}
                         radius={radius}
-                        shadingMode={shadingMode}
+                        hiderLocation={hiderLocation}
                         playArea={playArea}
                         splitDirection={splitDirection}
                         preferredPoint={preferredPoint}

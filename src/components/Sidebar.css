@@ -14,10 +14,46 @@
 }
 
 .sidebar h2 {
-    margin: 0 0 10px 0;
+    margin: 0;
     font-size: 1.5rem;
     font-weight: 700;
     color: #1a1a1a;
+}
+
+.sync-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.sync-btn,
+.export-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid #e0e0e0;
+}
+
+.sync-btn {
+    background: #f0f7ff;
+    color: #007bff;
+    border-color: #cce5ff;
+}
+
+.sync-btn:hover {
+    background: #e1f0ff;
+}
+
+.export-btn {
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+.export-btn:hover {
+    background: #e9ecef;
 }
 
 .sidebar h3 {

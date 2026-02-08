@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './Sidebar.css';
-import { Operation } from '../utils/geoTypes';
+import { Operation, Fact } from '../utils/geoTypes';
+import { convertFactToOperation, convertOperationToFact, mergeFacts } from '../utils/factUtils';
 
 const PUBLIC_ASSETS = [
     { name: 'Bengaluru Urban District', path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson' },
@@ -21,8 +22,8 @@ interface SidebarProps {
     heading: Heading | null;
     radius: number;
     setRadius: (radius: number) => void;
-    shadingMode: 'inside' | 'outside';
-    setShadingMode: (mode: 'inside' | 'outside') => void;
+    hiderLocation: 'inside' | 'outside';
+    setHiderLocation: (mode: 'inside' | 'outside') => void;
     playArea: any;
     setPlayArea: (area: any) => void;
     splitDirection: 'North' | 'South' | 'East' | 'West';
@@ -45,11 +46,13 @@ interface SidebarProps {
     operations: Operation[];
     setOperations: (ops: Operation[]) => void;
     setPoints: (points: number[][]) => void;
+    gameId?: string;
+    teamId?: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
     onSelectOption, points, distance, heading,
-    radius, setRadius, shadingMode, setShadingMode,
+    radius, setRadius, hiderLocation, setHiderLocation,
     playArea, setPlayArea,
     splitDirection, setSplitDirection,
     preferredPoint, setPreferredPoint,
@@ -61,7 +64,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     polygonGeoJSONForOp, setPolygonGeoJSONForOp,
     operations, setOperations,
-    setPoints
+    setPoints,
+    gameId = 'default-game',
+    teamId = 'default-team'
 }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('');
     const [selectedOption, setSelectedOption] = useState<string>('');
@@ -108,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             type: selectedOption as any,
             points: [...points],
             radius,
-            shadingMode,
+            hiderLocation,
             splitDirection,
             preferredPoint,
             areaOpType: areaOpType as 'inside' | 'outside',
@@ -116,10 +121,68 @@ const Sidebar: React.FC<SidebarProps> = ({
             multiLineString: multiLineStringForOp,
             closerFurther,
             selectedLineIndex,
-            polygonGeoJSON: polygonGeoJSONForOp
+            polygonGeoJSON: polygonGeoJSONForOp,
+            timestamp: Date.now()
         };
 
         setOperations([...operations, newOp]);
+    };
+
+    const handleSyncFacts = () => {
+        // This would eventually be a fetch call to the backend
+        // For now, let's simulate by using a file picker to "import"
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json';
+        input.onchange = async (e: any) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event: any) => {
+                try {
+                    const remoteFacts: Fact[] = JSON.parse(event.target.result);
+                    const localFacts = operations.map(op => convertOperationToFact(op, gameId, teamId));
+                    if (playArea) {
+                        localFacts.unshift(convertOperationToFact(playArea, gameId, teamId, true));
+                    }
+
+                    const mergedFacts = mergeFacts(localFacts, remoteFacts);
+
+                    // Extract Play Area if present
+                    const playAreaFact = mergedFacts.find(f => f.operation === 'play-area');
+                    if (playAreaFact) {
+                        setPlayArea(playAreaFact.parameters.playArea);
+                    }
+
+                    const newOperations = mergedFacts
+                        .filter(f => f.operation !== 'play-area')
+                        .map(f => convertFactToOperation(f))
+                        .filter((op): op is Operation => op !== null);
+
+                    setOperations(newOperations);
+                    alert("Facts synchronized successfully!");
+                } catch (err) {
+                    console.error("Failed to parse facts:", err);
+                    alert("Invalid JSON format");
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
+    const handleExportFacts = () => {
+        const facts = operations.map(op => convertOperationToFact(op, gameId, teamId));
+        if (playArea) {
+            facts.unshift(convertOperationToFact(playArea, gameId, teamId, true));
+        }
+        const blob = new Blob([JSON.stringify(facts, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `facts-${gameId}-${teamId}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
     const removeOperation = (id: string) => {
@@ -130,6 +193,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="sidebar">
             <header>
                 <h2>Map Tools</h2>
+                <div className="sync-buttons">
+                    <button className="sync-btn" onClick={handleSyncFacts} title="Sync with backend">Sync</button>
+                    <button className="export-btn" onClick={handleExportFacts} title="Download facts">Export</button>
+                </div>
             </header>
 
             <section className="tool-section">
@@ -245,13 +312,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 value={radius}
                                 onChange={(e) => setRadius(parseFloat(e.target.value) || 0)}
                             />
-                            <label style={{ marginTop: '10px' }}>Shading</label>
+                            <label style={{ marginTop: '10px' }}>Hider is</label>
                             <div className="radio-group">
                                 <label className="radio-item">
-                                    <input type="radio" checked={shadingMode === 'inside'} onChange={() => setShadingMode('inside')} /> Inside
+                                    <input type="radio" checked={hiderLocation === 'inside'} onChange={() => setHiderLocation('inside')} /> Inside
                                 </label>
                                 <label className="radio-item">
-                                    <input type="radio" checked={shadingMode === 'outside'} onChange={() => setShadingMode('outside')} /> Outside
+                                    <input type="radio" checked={hiderLocation === 'outside'} onChange={() => setHiderLocation('outside')} /> Outside
                                 </label>
                             </div>
                         </div>
@@ -470,7 +537,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <li key={op.id} className="operation-card">
                                 <strong>{index + 1}. {op.type === 'areas' ? 'Area Operations' : (op.type === 'closer-to-line' ? 'Distance from Metro Line' : op.type.replace(/-/g, ' '))}</strong>
                                 <div className="help-text">
-                                    {op.type === 'draw-circle' && `${op.radius}km · ${op.shadingMode}`}
+                                    {op.type === 'draw-circle' && `${op.radius}km · Hider ${op.hiderLocation}`}
                                     {op.type === 'split-by-direction' && `Hider is ${op.splitDirection}`}
                                     {op.type === 'hotter-colder' && `Closer to ${op.preferredPoint}`}
                                     {op.type === 'areas' && `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
