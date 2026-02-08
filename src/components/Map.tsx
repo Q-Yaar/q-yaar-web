@@ -22,6 +22,7 @@ interface MapProps {
     selectedLineIndex: number;
     polygonGeoJSONForOp: any;
     operations: Operation[];
+    currentLocation?: number[] | null;
 }
 
 const Map: React.FC<MapProps> = ({
@@ -30,7 +31,8 @@ const Map: React.FC<MapProps> = ({
     areaOpType, uploadedAreaForOp,
     multiLineStringForOp, closerFurther, selectedLineIndex,
     polygonGeoJSONForOp,
-    operations
+    operations,
+    currentLocation
 }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const map = useRef<maplibregl.Map | null>(null);
@@ -184,9 +186,17 @@ const Map: React.FC<MapProps> = ({
                 } as GeoJSON.Feature);
             }
 
+            if (currentLocation) {
+                geojson.features.push({
+                    'type': 'Feature',
+                    'geometry': { 'type': 'Point', 'coordinates': currentLocation },
+                    'properties': { 'is-current-location': true }
+                });
+            }
+
             source.setData(geojson);
         }
-    }, [points, action, radius, hiderLocation, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations]);
+    }, [points, action, radius, hiderLocation, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations, currentLocation]);
 
     useEffect(() => {
         if (!mapContainerRef.current) return;
@@ -257,6 +267,7 @@ const Map: React.FC<MapProps> = ({
             });
 
             // Layer for shading
+            // Layer for shading
             m.addLayer({
                 'id': 'shading-fill',
                 'type': 'fill',
@@ -268,6 +279,20 @@ const Map: React.FC<MapProps> = ({
                 'filter': ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]]
             });
 
+            // Layer for current location (Add BEFORE points so points appear on top)
+            m.addLayer({
+                'id': 'current-location-point',
+                'type': 'circle',
+                'source': 'measurement-source',
+                'paint': {
+                    'circle-radius': 8,
+                    'circle-color': '#007cbf',
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#ffffff'
+                },
+                'filter': ['==', 'is-current-location', true]
+            });
+
             // Layer for points
             m.addLayer({
                 'id': 'measurement-points',
@@ -277,7 +302,7 @@ const Map: React.FC<MapProps> = ({
                     'circle-radius': 6,
                     'circle-color': '#ff0000'
                 },
-                'filter': ['==', '$type', 'Point']
+                'filter': ['all', ['==', '$type', 'Point'], ['!has', 'is-current-location']]
             });
         });
 
@@ -303,14 +328,6 @@ const Map: React.FC<MapProps> = ({
                 } else {
                     const updatedPoints = [...currentPoints, newPoint];
                     setPoints(updatedPoints);
-
-                    if (updatedPoints.length === 2) {
-                        if (currentAction === 'distance') {
-                            setDistance(calculateDistance(updatedPoints[0], updatedPoints[1]));
-                        } else if (currentAction === 'heading') {
-                            setHeading(getRelativeHeading(updatedPoints[0], updatedPoints[1]) as Heading);
-                        }
-                    }
                 }
             }
         });
@@ -324,6 +341,19 @@ const Map: React.FC<MapProps> = ({
             m.remove();
         }
     }, []); // Empty dependency array ensures map is only initialized once
+
+    useEffect(() => {
+        if (points.length === 2) {
+            if (action === 'distance') {
+                setDistance(calculateDistance(points[0], points[1]));
+            } else if (action === 'heading') {
+                setHeading(getRelativeHeading(points[0], points[1]) as Heading);
+            }
+        } else {
+            setDistance(null);
+            setHeading(null);
+        }
+    }, [points, action, setDistance, setHeading]);
 
     return (
         <div style={{ display: 'flex', flex: 1, position: 'relative', width: '100%', height: '100%' }}>

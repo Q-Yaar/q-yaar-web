@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Map from '../../components/Map';
 import Sidebar from '../../components/Sidebar';
 import Navbar from '../../components/Navbar';
 import { Heading, Operation } from '../../utils/geoTypes';
 import { useParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
+
+// Simple in-memory cache for the last known location
+let lastKnownLocation: number[] | null = null;
 
 const MapPage: React.FC = () => {
     const { gameId } = useParams();
@@ -25,6 +28,37 @@ const MapPage: React.FC = () => {
     const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
     const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
     const [operations, setOperations] = useState<Operation[]>([]);
+
+    // Initialize with cached location if available
+    const [currentLocation, setCurrentLocation] = useState<number[] | null>(lastKnownLocation);
+
+    useEffect(() => {
+        if (!navigator.geolocation) {
+            console.warn("Geolocation is not supported by this browser.");
+            return;
+        }
+
+        const success = (position: GeolocationPosition) => {
+            const { latitude, longitude } = position.coords;
+            const newLoc = [longitude, latitude];
+            setCurrentLocation(newLoc);
+            lastKnownLocation = newLoc; // Update cache
+        };
+
+        const error = (err: GeolocationPositionError) => {
+            console.warn(`Geolocation error (${err.code}): ${err.message}`);
+        };
+
+        const options = {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 10000
+        };
+
+        const watchId = navigator.geolocation.watchPosition(success, error, options);
+
+        return () => navigator.geolocation.clearWatch(watchId);
+    }, []);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -70,6 +104,7 @@ const MapPage: React.FC = () => {
                         operations={operations}
                         setOperations={setOperations}
                         setPoints={setPoints}
+                        currentLocation={currentLocation}
                     />
                 </div>
                 <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
@@ -112,6 +147,7 @@ const MapPage: React.FC = () => {
                         selectedLineIndex={selectedLineIndex}
                         polygonGeoJSONForOp={polygonGeoJSON}
                         operations={operations}
+                        currentLocation={currentLocation}
                     />
                 </div>
             </div>

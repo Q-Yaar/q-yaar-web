@@ -46,6 +46,7 @@ interface SidebarProps {
     operations: Operation[];
     setOperations: (ops: Operation[]) => void;
     setPoints: (points: number[][]) => void;
+    currentLocation?: number[] | null;
     gameId?: string;
     teamId?: string;
 }
@@ -65,6 +66,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     polygonGeoJSONForOp, setPolygonGeoJSONForOp,
     operations, setOperations,
     setPoints,
+    currentLocation,
     gameId = 'default-game',
     teamId = 'default-team'
 }) => {
@@ -126,6 +128,42 @@ const Sidebar: React.FC<SidebarProps> = ({
         };
 
         setOperations([...operations, newOp]);
+    };
+
+    const isTwoPointTool = !(selectedOption === 'draw-circle' || selectedOption === 'split-by-direction' || selectedOption === 'closer-to-line' || selectedOption === 'polygon-location');
+
+    const handleUseCurrentLocation = (targetIndex?: number) => {
+        if (!currentLocation) {
+            alert("Current location is not available yet. Please enable location services.");
+            return;
+        }
+
+        const maxPoints = isTwoPointTool ? 2 : 1;
+
+        let indexToSet = targetIndex;
+
+        // Auto-determine logic if no index specified (for single point tools or generic behavior)
+        if (indexToSet === undefined) {
+            if (points.length < maxPoints) {
+                indexToSet = points.length;
+            } else {
+                // If full, overwrite the last point (P2 for 2-point tools, P1 for 1-point)
+                indexToSet = maxPoints - 1;
+            }
+        }
+
+        if (indexToSet > points.length) {
+            alert(`Please set Point ${indexToSet} first.`);
+            return;
+        }
+
+        const newPoints = [...points];
+        newPoints[indexToSet] = currentLocation;
+
+        // If we set P1 and P2 was already set, we keep P2. 
+        // Logic handles this naturally by using index assignment.
+
+        setPoints(newPoints);
     };
 
     const handleSyncFacts = () => {
@@ -272,6 +310,74 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             {selectedOption && (
                 <div className="tool-details">
+                    {/* Location Controls */}
+                    {selectedOption !== 'areas' && (
+                        <div style={{ marginBottom: '10px' }}>
+                            {isTwoPointTool ? (
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        className="action-btn"
+                                        onClick={() => handleUseCurrentLocation(0)}
+                                        disabled={!currentLocation}
+                                        title={!currentLocation ? "Waiting for location..." : "Set Point 1 to Current Location"}
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px',
+                                            backgroundColor: '#007cbf',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: currentLocation ? 'pointer' : 'not-allowed',
+                                            opacity: currentLocation ? 1 : 0.6,
+                                            fontSize: '0.9rem'
+                                        }}
+                                    >
+                                        📍 Set P1
+                                    </button>
+                                    <button
+                                        className="action-btn"
+                                        onClick={() => handleUseCurrentLocation(1)}
+                                        disabled={!currentLocation || points.length === 0}
+                                        title={!currentLocation ? "Waiting for location..." : (points.length === 0 ? "Set P1 first" : "Set Point 2 to Current Location")}
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px',
+                                            backgroundColor: '#007cbf',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: (currentLocation && points.length > 0) ? 'pointer' : 'not-allowed',
+                                            opacity: (currentLocation && points.length > 0) ? 1 : 0.6,
+                                            fontSize: '0.9rem'
+                                        }}
+                                    >
+                                        📍 Set P2
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    className="action-btn"
+                                    onClick={() => handleUseCurrentLocation()}
+                                    disabled={!currentLocation}
+                                    title={!currentLocation ? "Waiting for location..." : "Use/Update Current Location as a Point"}
+                                    style={{
+                                        width: '100%',
+                                        padding: '8px',
+                                        backgroundColor: '#007cbf',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: currentLocation ? 'pointer' : 'not-allowed',
+                                        opacity: currentLocation ? 1 : 0.6,
+                                        fontSize: '0.9rem'
+                                    }}
+                                >
+                                    📍 Use Current Location
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     {/* Points Information */}
                     {(selectedOption !== 'areas' && points.length > 0) && (
                         <div className="info-box" style={{ marginBottom: '15px' }}>
