@@ -32,7 +32,7 @@ export const qnaApi = api.injectEndpoints({
     }),
     fetchAskedQuestions: builder.query<
       ListResponse<AskedQuestion>,
-      { gameId: string; targetTeamId?: string }
+      { gameId: string; targetTeamId: string }
     >({
       query: ({ gameId, targetTeamId }) => ({
         url: `${QNA_API}game/${gameId}/asked-questions`,
