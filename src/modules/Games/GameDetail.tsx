@@ -8,9 +8,12 @@ import {
   FACTS_ROUTE,
 } from '../../constants/routes';
 import { useFetchMyTeamQuery } from '../../apis/gameApi';
-import { HeroSection } from './HeroSection';
+import { Header } from '../../components/ui/header';
 import { ModulesSection, GameModule } from './ModulesSection';
 import { TeamSection } from './TeamSection';
+import { TeamModal } from './TeamModal';
+import { useState } from 'react';
+import { useFetchTeamsQuery } from '../../apis/gameApi';
 
 export default function GameDetail() {
   const navigate = useNavigate();
@@ -22,6 +25,9 @@ export default function GameDetail() {
     isLoading: isTeamLoading,
     error: teamError,
   } = useFetchMyTeamQuery(gameId!);
+
+  const { data: teams } = useFetchTeamsQuery(gameId!);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const onBack = () => navigate(-1);
 
@@ -89,10 +95,26 @@ export default function GameDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <HeroSection game={gameInfo} onBack={onBack} />
+      <Header
+        title="Game Modules"
+        onBack={onBack}
+        action={
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="text-indigo-600 font-semibold hover:text-indigo-800 transition-colors"
+          >
+            {team?.team_name || 'Select Team'}
+          </button>
+        }
+      />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <TeamSection team={team} isLoading={isTeamLoading} error={teamError} />
+      <TeamModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        teams={teams || []}
+        currentTeam={team || null}
+      />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <ModulesSection
           modules={modules}
           gameId={gameId || '123'}
