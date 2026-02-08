@@ -14,6 +14,7 @@ import { TeamSection } from './TeamSection';
 import { TeamModal } from './TeamModal';
 import { useState } from 'react';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
+import { TeamAvatar } from 'components/TeamAvatar';
 
 export default function GameDetail() {
   const navigate = useNavigate();
@@ -101,8 +102,13 @@ export default function GameDetail() {
         action={
           <button
             onClick={() => setIsModalOpen(true)}
-            className="text-indigo-600 font-semibold hover:text-indigo-800 transition-colors"
+            className="text-indigo-600 font-semibold hover:text-indigo-800 transition-colors flex items-center gap-2"
           >
+            <TeamAvatar
+              teamName={team?.team_name || 'Select Team'}
+              teamColor={team?.team_colour || 'gray'}
+              className="w-4 h-4"
+            />
             {team?.team_name || 'Select Team'}
           </button>
         }

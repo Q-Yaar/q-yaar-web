@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Modal } from '../../components/ui/modal';
 import { Team } from '../../models/Team';
-import { Users, User, Shield } from 'lucide-react';
+import { Users, User, Shield, X } from 'lucide-react';
+import { TeamAvatar } from '../../components/TeamAvatar';
 
 interface TeamModalProps {
   isOpen: boolean;
@@ -69,15 +70,10 @@ export function TeamModal({
                       : 'bg-white border-gray-200'
                   }`}
                 >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-sm ${
-                      team.team_colour.includes('bg-')
-                        ? team.team_colour
-                        : 'bg-gray-400'
-                    }`}
-                  >
-                    {team.team_name.charAt(0)}
-                  </div>
+                  <TeamAvatar
+                    teamName={team.team_name}
+                    teamColor={team.team_colour}
+                  />
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900 truncate">
                       {team.team_name}
