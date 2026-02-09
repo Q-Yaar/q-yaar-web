@@ -58,8 +58,22 @@ export default function AppRouter(): JSX.Element {
           path={ROOT_ROUTE}
           element={<Navigate to={LOGIN_ROUTE} replace />}
         />
-        <Route path={LOGIN_ROUTE} element={<Login />} />
-        <Route path={SIGNUP_ROUTE} element={<SignUp />} />
+        <Route
+          path={LOGIN_ROUTE}
+          element={
+            <AuthGuard requireAuth={false}>
+              <Login />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path={SIGNUP_ROUTE}
+          element={
+            <AuthGuard requireAuth={false}>
+              <SignUp />
+            </AuthGuard>
+          }
+        />
 
         <Route path="*" element={<ProtectedRoutes />} />
       </Routes>
