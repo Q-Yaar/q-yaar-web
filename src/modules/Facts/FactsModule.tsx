@@ -27,10 +27,15 @@ export function FactsModule() {
   const [editFactText, setEditFactText] = useState('');
 
   // API Hooks
+
   const { data: factsData, isLoading: isFactsLoading } = useGetFactsQuery(
-    { game_id: gameId! },
+    {
+      game_id: gameId!,
+      team_id: selectedTeam === 'all' ? undefined : selectedTeam,
+    },
     { skip: !gameId },
   );
+
   const [createFact, { isLoading: isCreating }] = useCreateFactMutation();
   const [deleteFact, { isLoading: isDeleting }] = useDeleteFactMutation();
   const [updateFact, { isLoading: isUpdating }] = useUpdateFactMutation();
@@ -120,14 +125,7 @@ export function FactsModule() {
     }
   };
 
-  const filteredFacts = facts.filter((fact) => {
-    const info = fact.fact_info;
-    const matchTeam = selectedTeam === 'all' || info.teamId === selectedTeam;
-    // We filter by playerId stored in fact_info
-    const matchPlayer =
-      selectedPlayer === 'all' || info.playerId === selectedPlayer;
-    return matchTeam && matchPlayer;
-  });
+  const filteredFacts = facts;
 
   const TEAMS = [
     { id: 'all', name: 'All Teams' },
