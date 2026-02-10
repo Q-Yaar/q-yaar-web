@@ -312,6 +312,7 @@ export default function DiceRoller() {
         isOpen={isConfigModalOpen}
         onClose={() => setIsConfigModalOpen(false)}
         title="Customize Dice"
+        className="max-h-[85vh] overflow-y-auto"
       >
         <div className="space-y-6">
           <div>
