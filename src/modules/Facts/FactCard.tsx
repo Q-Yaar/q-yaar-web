@@ -1,4 +1,4 @@
-import React from 'react';
+import { formatDate } from 'utils/dateUtils';
 import { Calendar, Edit2, Trash2, Check, X } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -38,15 +38,6 @@ export function FactCard({
   onDelete,
   setEditFactText,
 }: FactCardProps) {
-  const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   return (
     <div className="relative flex items-start gap-6 group">
       {/* Timeline Icon/Dot with Time */}
