@@ -28,10 +28,7 @@ export function AddFactCard({
 }: AddFactCardProps) {
   return (
     <Card className="border-indigo-100 shadow-md">
-      <CardHeader className="bg-gradient-to-r from-indigo-50 to-white pb-4">
-        <CardTitle className="text-indigo-900 flex items-center gap-2 text-left">
-          <Plus className="w-5 h-5" /> Add New Fact
-        </CardTitle>
+      <CardHeader className="bg-gradient-to-r from-indigo-50 to-white">
         <CardDescription className="text-left">
           Share a new event or discovery with the game history.
         </CardDescription>
