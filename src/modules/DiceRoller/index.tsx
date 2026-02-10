@@ -99,7 +99,8 @@ export default function DiceRoller() {
     // Simulate short delay for "rolling" feel
     setTimeout(() => {
       const newRoll: RollResult = {
-        id: crypto.randomUUID(),
+        id:
+          Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
         dieType: die.label,
         value: rollValue,
         timestamp: Date.now(),
