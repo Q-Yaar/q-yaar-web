@@ -5,6 +5,7 @@ import { Header } from '../../components/ui/header';
 import { Button } from '../../components/ui/button';
 import { CustomizeDiceModal } from './CustomizeDiceModal';
 import { DieConfig, RollResult } from './types';
+import { storage, STORAGE_KEYS } from '../../utils/storage';
 
 // Fixed set of 9 colors
 const COLOR_CONFIGS = [
@@ -48,33 +49,25 @@ export default function DiceRoller() {
 
   // Restore history from local storage
   useEffect(() => {
-    const saved = localStorage.getItem(`dice_history_${gameId}`);
+    const key = `${STORAGE_KEYS.DICE_HISTORY_PREFIX}${gameId}`;
+    const saved = storage.get<RollResult[]>(key);
     if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse dice history');
-      }
+      setHistory(saved);
     }
   }, [gameId]);
 
   // Load dice config from local storage
   useEffect(() => {
-    const savedConfig = localStorage.getItem('dice_configurations');
+    const savedConfig = storage.get<any[]>(STORAGE_KEYS.DICE_CONFIGURATIONS);
     if (savedConfig) {
-      try {
-        const parsed = JSON.parse(savedConfig);
-        if (Array.isArray(parsed) && parsed.length === 9) {
-          // Merge saved config with color configs to ensure colors stay fixed if we ever change them in code
-          const merged = parsed.map((die: any, index: number) => ({
-            ...die,
-            ...COLOR_CONFIGS[index],
-            id: `die-${index}`, // Ensure IDs are consistent
-          }));
-          setDiceConfigs(merged);
-        }
-      } catch (e) {
-        console.error('Failed to parse dice configurations');
+      if (Array.isArray(savedConfig) && savedConfig.length === 9) {
+        // Merge saved config with color configs to ensure colors stay fixed if we ever change them in code
+        const merged = savedConfig.map((die: any, index: number) => ({
+          ...die,
+          ...COLOR_CONFIGS[index],
+          id: `die-${index}`, // Ensure IDs are consistent
+        }));
+        setDiceConfigs(merged);
       }
     }
   }, []);
@@ -82,13 +75,14 @@ export default function DiceRoller() {
   // Save history to local storage
   useEffect(() => {
     if (gameId) {
-      localStorage.setItem(`dice_history_${gameId}`, JSON.stringify(history));
+      const key = `${STORAGE_KEYS.DICE_HISTORY_PREFIX}${gameId}`;
+      storage.set(key, history);
     }
   }, [history, gameId]);
 
   // Save dice config to local storage whenever it changes
   useEffect(() => {
-    localStorage.setItem('dice_configurations', JSON.stringify(diceConfigs));
+    storage.set(STORAGE_KEYS.DICE_CONFIGURATIONS, diceConfigs);
   }, [diceConfigs]);
 
   const handleRoll = (die: DieConfig) => {

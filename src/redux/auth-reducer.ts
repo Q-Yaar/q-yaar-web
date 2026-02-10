@@ -3,15 +3,15 @@ import type { GlobalState } from './store';
 import { AUTH_MODULE } from '../constants/modules';
 import { LoginResponse } from '../models/Login';
 
-const savedAuth = localStorage.getItem('auth');
+import { storage, STORAGE_KEYS } from '../utils/storage';
+
+const savedAuth = storage.get<LoginResponse>(STORAGE_KEYS.AUTH);
 
 export interface AuthState {
   authData?: LoginResponse;
 }
 
-const initialState: AuthState = savedAuth
-  ? { authData: JSON.parse(savedAuth) }
-  : {};
+const initialState: AuthState = savedAuth ? { authData: savedAuth } : {};
 
 export const authSlice = createSlice({
   name: AUTH_MODULE,
@@ -19,11 +19,11 @@ export const authSlice = createSlice({
   reducers: {
     setToken: (state: AuthState, { payload: { authData } }) => {
       state.authData = authData;
-      localStorage.setItem('auth', JSON.stringify(authData));
+      storage.set(STORAGE_KEYS.AUTH, authData);
     },
     clearToken: (state: AuthState) => {
       state.authData = undefined;
-      localStorage.removeItem('auth');
+      storage.remove(STORAGE_KEYS.AUTH);
     },
   },
 });
