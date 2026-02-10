@@ -41,7 +41,13 @@ export function QuestionCard({
             <span className="bg-gray-100 px-2 py-0.5 rounded">
               {question.category.category_name}
             </span>
-            <span>{new Date(question.created).toLocaleDateString()}</span>
+            <span>
+              {new Date(question.created).toLocaleDateString()}{' '}
+              {new Date(question.created).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
           </div>
         </div>
 
