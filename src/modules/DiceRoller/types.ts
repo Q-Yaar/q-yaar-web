@@ -10,6 +10,8 @@ export interface DieConfig {
 export interface RollResult {
   id: string; // Unique ID for key
   dieType: string;
+  color: string;
+  rings: string;
   value: number;
   timestamp: number;
 }

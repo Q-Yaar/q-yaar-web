@@ -98,6 +98,8 @@ export default function DiceRoller() {
         dieType: die.label,
         value: rollValue,
         timestamp: Date.now(),
+        color: die.color,
+        rings: die.rings,
       };
 
       setLastRoll(newRoll);
@@ -187,7 +189,7 @@ export default function DiceRoller() {
               >
                 <div
                   className={`
-                         w-12 h-12 mb-2 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-inner
+                         w-12 h-12 mb-2 rounded-xl flex items-center justify-center text-white font-bold text-md shadow-inner
                          ${die.color}
                     `}
                 >
@@ -227,7 +229,7 @@ export default function DiceRoller() {
                   >
                     <div className="flex items-center">
                       <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white mr-3 ${diceConfigs.find((d) => d.label === roll.dieType)?.color || 'bg-gray-500'}`}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white mr-3 text-[10px] ${roll.color || 'bg-gray-500'}`}
                       >
                         {roll.dieType}
                       </div>
