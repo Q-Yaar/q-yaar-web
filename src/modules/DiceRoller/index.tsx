@@ -2,25 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { RotateCcw, History, Dices, Settings2 } from 'lucide-react';
 import { Header } from '../../components/ui/header';
-import { Modal } from '../../components/ui/modal';
 import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-
-interface RollResult {
-  id: string; // Unique ID for key
-  dieType: string;
-  value: number;
-  timestamp: number;
-}
-
-interface DieConfig {
-  id: string; // Unique ID for the die slot (e.g., 'die-0', 'die-1')
-  type: string; // 'd4', 'd6', etc. (derived from max)
-  label: string; // Display label
-  max: number;
-  color: string;
-  rings: string;
-}
+import { CustomizeDiceModal } from './CustomizeDiceModal';
+import { DieConfig, RollResult } from './types';
 
 // Fixed set of 9 colors
 const COLOR_CONFIGS = [
@@ -61,8 +45,6 @@ export default function DiceRoller() {
 
   // Edit State
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [selectedConfigIndex, setSelectedConfigIndex] = useState<number>(0);
-  const [editMax, setEditMax] = useState<string>('');
 
   // Restore history from local storage
   useEffect(() => {
@@ -137,37 +119,7 @@ export default function DiceRoller() {
   };
 
   const openConfigModal = () => {
-    // initialize with the first die or currently selected
-    const initialIndex = 0;
-    setSelectedConfigIndex(initialIndex);
-    setEditMax(diceConfigs[initialIndex].max.toString());
     setIsConfigModalOpen(true);
-  };
-
-  const handleColorSelect = (index: number) => {
-    setSelectedConfigIndex(index);
-    setEditMax(diceConfigs[index].max.toString());
-  };
-
-  const saveDieConfig = () => {
-    const max = parseInt(editMax);
-    if (isNaN(max) || max < 2) {
-      alert('Please enter a valid max value (2 or greater)');
-      return;
-    }
-
-    const updatedConfigs = [...diceConfigs];
-    const currentConfig = updatedConfigs[selectedConfigIndex];
-
-    updatedConfigs[selectedConfigIndex] = {
-      ...currentConfig,
-      max: max,
-      type: `d${max}`,
-      label: `D${max}`,
-    };
-
-    setDiceConfigs(updatedConfigs);
-    setIsConfigModalOpen(false);
   };
 
   return (
@@ -308,60 +260,12 @@ export default function DiceRoller() {
         )}
       </div>
 
-      <Modal
+      <CustomizeDiceModal
         isOpen={isConfigModalOpen}
         onClose={() => setIsConfigModalOpen(false)}
-        title="Customize Dice"
-        className="max-h-[85vh] overflow-y-auto"
-      >
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Die to Edit
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {diceConfigs.map((die, index) => (
-                <button
-                  key={die.id}
-                  type="button"
-                  onClick={() => handleColorSelect(index)}
-                  className={`
-                    w-full aspect-square rounded-lg ${die.color} flex items-center justify-center text-white text-xs font-bold
-                    ${selectedConfigIndex === index ? 'ring-2 ring-offset-2 ring-indigo-500 scale-105' : 'opacity-80 hover:opacity-100'}
-                    transition-all
-                  `}
-                  title={die.label}
-                >
-                  {die.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Max Value for {diceConfigs[selectedConfigIndex]?.label}
-            </label>
-            <Input
-              type="number"
-              value={editMax}
-              onChange={(e) => setEditMax(e.target.value)}
-              placeholder="e.g. 20"
-              min={2}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              This die will roll a number between 1 and {editMax || '...'}.
-            </p>
-          </div>
-
-          <div className="pt-2 flex justify-end space-x-2">
-            <Button variant="ghost" onClick={() => setIsConfigModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={saveDieConfig}>Save Changes</Button>
-          </div>
-        </div>
-      </Modal>
+        diceConfigs={diceConfigs}
+        onSave={setDiceConfigs}
+      />
     </div>
   );
 }
