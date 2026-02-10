@@ -169,7 +169,7 @@ export default function DiceRoller() {
               className="text-xs h-8"
             >
               <Settings2 className="w-3 h-3 mr-1.5" />
-              Customize Dice
+              Customize
             </Button>
           </div>
 
