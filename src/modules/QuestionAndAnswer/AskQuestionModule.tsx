@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CategoryCard } from './CategoryCard';
+import { QuestionCard } from './QuestionCard';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -19,12 +20,9 @@ import {
   Send,
   ChevronRight,
   AlertCircle,
-  ArrowLeft,
   HelpCircle,
   Clock,
-  CheckCircle,
-  XCircle,
-  MapPin,
+  LayoutGrid,
 } from 'lucide-react';
 
 import { Header } from '../../components/ui/header';
@@ -321,7 +319,7 @@ export function AskQuestionModule() {
           <>
             <div className="space-y-4">
               <h2 className="text-lg font-semibold text-gray-900 px-1 text-left">
-                <HelpCircle className="w-5 h-5 mr-2 text-indigo-600 inline" />
+                <LayoutGrid className="w-5 h-5 mr-2 text-indigo-600 inline" />
                 Choose a Category
               </h2>
               {isLoadingCategories ? (
@@ -383,82 +381,13 @@ export function AskQuestionModule() {
               ) : (
                 <div className="space-y-4">
                   {myAskedQuestions.map((q) => (
-                    <Card
+                    <QuestionCard
                       key={q.question_id}
-                      className="relative overflow-hidden"
-                    >
-                      <CardContent className="p-5">
-                        {/* Status Badge */}
-                        {q.accepted ? (
-                          <div className="absolute top-0 right-0 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
-                            ACCEPTED
-                          </div>
-                        ) : q.answered ? (
-                          <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
-                            ANSWERED
-                          </div>
-                        ) : (
-                          <div className="absolute top-0 right-0 bg-gray-400 text-white text-xs font-bold px-3 py-1 rounded-bl-xl">
-                            PENDING
-                          </div>
-                        )}
-
-                        <div className="pr-16">
-                          <p className="font-semibold text-gray-900 text-lg mb-1 text-left">
-                            {q.rendered_question}
-                          </p>
-                          <div className="flex items-center text-xs text-gray-500 space-x-2">
-                            <span className="bg-gray-100 px-2 py-0.5 rounded">
-                              {q.category.category_name}
-                            </span>
-                            <span>
-                              {new Date(q.created).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Action / Result */}
-                        {q.answered && (
-                          <>
-                            <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                              <div className="flex items-center">
-                                <span className="text-sm text-gray-600 mr-2">
-                                  Answer:
-                                </span>
-                                {q?.answer_meta?.result ? (
-                                  <span className="flex items-center font-bold text-green-600">
-                                    Yes
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center font-bold text-red-600">
-                                    No
-                                  </span>
-                                )}
-                              </div>
-
-                              {!q.accepted && (
-                                <Button
-                                  onClick={() => handleAccept(q)}
-                                  disabled={isAccepting}
-                                  variant="outline"
-                                  size="sm"
-                                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                >
-                                  {isAccepting && acceptingId === q.question_id
-                                    ? 'Accepting...'
-                                    : 'Accept Answer'}
-                                </Button>
-                              )}
-                            </div>
-                            {q?.answer_meta?.metadata?.text && (
-                              <p className="text-sm text-gray-600 text-left border-l-2 border-indigo-500 pl-2">
-                                {q?.answer_meta?.metadata?.text}
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
+                      question={q}
+                      onAccept={handleAccept}
+                      isAccepting={isAccepting}
+                      acceptingId={acceptingId}
+                    />
                   ))}
                 </div>
               )}
@@ -469,7 +398,7 @@ export function AskQuestionModule() {
         {/* Step 2: Template Selection */}
         {selectedCategory && !selectedTemplateBasic && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 px-1">
+            <h2 className="text-left text-lg font-semibold text-gray-900 px-1">
               Select a Question
             </h2>
             {isLoadingTemplates ? (

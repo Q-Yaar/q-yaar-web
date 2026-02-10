@@ -16,16 +16,11 @@ import {
   MapPin,
 } from 'lucide-react';
 
+import { QuestionCard } from './QuestionCard';
+
 import { Header } from '../../components/ui/header';
 import { Button } from 'components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from 'components/ui/card';
+import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
 
 export function AnswerQuestionModule() {
@@ -121,7 +116,7 @@ export function AnswerQuestionModule() {
         {/* Pending Questions Section */}
         <div>
           <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 flex items-center">
-            <Clock className="w-4 h-4 mr-2" />
+            <MessageCircle className="w-4 h-4 mr-2" />
             Pending Questions
           </h2>
 
@@ -244,42 +239,13 @@ export function AnswerQuestionModule() {
         {/* History Section */}
         {answeredQuestions.length > 0 && (
           <div>
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 pt-6 border-t border-gray-200">
+            <h2 className="flex items-center text-left text-sm font-bold text-gray-500 uppercase tracking-wide mb-4 pt-6 border-t border-gray-200">
+              <Clock className="w-4 h-4 mr-2" />
               History
             </h2>
             <div className="space-y-3">
-              {answeredQuestions.map((question) => (
-                <Card
-                  key={question.question_id}
-                  className="opacity-80 hover:opacity-100 transition-opacity"
-                >
-                  <CardContent className="p-4 flex justify-between items-center">
-                    <div className="min-w-0 pr-4">
-                      <p className="text-gray-900 font-medium truncate">
-                        {question.rendered_question}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <span className="text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded">
-                          {question.category.category_name}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(question.modified).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex-shrink-0">
-                      {question.accepted ? (
-                        <span className="whitespace-nowrap inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                          <CheckCircle className="w-3 h-3 mr-1" /> Accepted
-                        </span>
-                      ) : (
-                        <span className="whitespace-nowrap inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                          <XCircle className="w-3 h-3 mr-1" /> Not Accepted
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+              {answeredQuestions.map((q) => (
+                <QuestionCard key={q.question_id} question={q} />
               ))}
             </div>
           </div>
