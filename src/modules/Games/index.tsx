@@ -98,7 +98,7 @@ export default function GameList() {
       />
 
       {/* Grid Layout */}
-      <div className="max-w-5xl mx-auto grid gap-6 md:grid-cols-2 lg:grid-cols-3 py-4">
+      <div className="max-w-5xl mx-auto grid gap-6 md:grid-cols-2 lg:grid-cols-3 py-4 px-4">
         {games.length === 0 ? (
           <div className="col-span-full text-center py-12 bg-white rounded-2xl shadow-sm border border-dashed border-gray-300">
             <Gamepad2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
