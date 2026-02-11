@@ -1,24 +1,39 @@
-import { useState, useRef, useEffect } from "react";
-import { Flame, MoreVertical, RotateCcw, Trash2, Zap, Skull, Info, ScanEye, X } from "lucide-react";
-import { createPortal } from "react-dom";
-import { Card } from "../../models/Deck";
+import { useState, useRef, useEffect } from 'react';
+import {
+  Flame,
+  MoreVertical,
+  RotateCcw,
+  Trash2,
+  Zap,
+  Skull,
+  Info,
+  ScanEye,
+  X,
+  Hand,
+} from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Card } from '../../models/Deck';
 
 interface PlayingCardProps {
   card: Card;
   onDiscard?: () => void;
   onReturn?: () => void;
+  onDraw?: () => void; // Add onDraw prop
   defaultFaceDown?: boolean;
   forceFaceUp?: boolean;
   disabled?: boolean;
+  variant?: 'standard' | 'peek'; // Add variant prop
 }
 
 export const PlayingCard = ({
   card,
   onDiscard,
   onReturn,
+  onDraw,
   defaultFaceDown = false,
   forceFaceUp,
-  disabled = false
+  disabled = false,
+  variant = 'standard',
 }: PlayingCardProps) => {
   const [isRevealed, setIsRevealed] = useState(!defaultFaceDown);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -37,7 +52,7 @@ export const PlayingCard = ({
           textBg: 'bg-purple-50',
           accent: 'text-purple-900',
           icon: <Skull size={14} className="text-purple-300" />,
-          costBg: 'bg-red-100 text-red-800 border-t border-red-200'
+          costBg: 'bg-red-100 text-red-800 border-t border-red-200',
         };
       case 'POWERUP':
         return {
@@ -48,7 +63,7 @@ export const PlayingCard = ({
           textBg: 'bg-amber-50',
           accent: 'text-amber-900',
           icon: <Zap size={14} className="text-amber-300" />,
-          costBg: 'bg-red-100 text-red-800 border-t border-red-200'
+          costBg: 'bg-red-100 text-red-800 border-t border-red-200',
         };
       default:
         return {
@@ -59,7 +74,7 @@ export const PlayingCard = ({
           textBg: 'bg-white',
           accent: 'text-slate-800',
           icon: <Info size={14} className="text-slate-300" />,
-          costBg: 'bg-red-100 text-red-800 border-t border-red-200'
+          costBg: 'bg-red-100 text-red-800 border-t border-red-200',
         };
     }
   };
@@ -77,14 +92,29 @@ export const PlayingCard = ({
         setShowMenu(false);
       }
     };
-    if (showMenu) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    if (showMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMenu]);
 
   // --- HANDLERS ---
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.interactive-btn')) return;
     if (disabled) return;
+
+    // In "peek" mode
+    if (variant === 'peek') {
+      // If it has onDraw (Draw Pile), allow Click -> Zoom directly
+      if (onDraw) {
+        setIsZoomed(true);
+        return;
+      }
+      // If it's a Hand card (no onDraw), Click -> Flip
+      setIsRevealed(!isRevealed);
+      if (showMenu) setShowMenu(false);
+      return;
+    }
+
+    // Standard mode toggles reveal
     setIsRevealed(!isRevealed);
     if (showMenu) setShowMenu(false);
   };
@@ -95,145 +125,262 @@ export const PlayingCard = ({
     setShowMenu(false);
   };
 
-  const handleAction = (action: 'return' | 'discard', e?: React.MouseEvent) => {
+  const handleAction = (
+    action: 'return' | 'discard' | 'draw',
+    e?: React.MouseEvent,
+  ) => {
     e?.stopPropagation();
     setIsZoomed(false);
     setShowMenu(false);
     if (action === 'return' && onReturn) onReturn();
     if (action === 'discard' && onDiscard) onDiscard();
+    if (action === 'draw' && onDraw) onDraw();
   };
 
   // --- RENDERERS ---
 
-  const CardContent = ({ mode }: { mode: 'mini' | 'zoom' }) => (
-    <div className={`w-full h-full flex flex-col bg-gray-900 overflow-hidden ${mode === 'zoom' ? 'rounded-2xl' : 'rounded-xl'}`}>
+  const CardContent = ({ mode }: { mode: 'mini' | 'zoom' | 'peek' }) => {
+    const isPeek = mode === 'peek';
+    const isZoom = mode === 'zoom';
+    const isMini = mode === 'mini';
 
-      {/* 1. Header & Art (Reduced height to 35% to give text more room) */}
-      <div className={`${mode === 'zoom' ? 'h-[40%]' : 'h-[35%]'} relative bg-gradient-to-b ${theme.headerGradient} p-1 shrink-0`}>
-        {/* Type Badge */}
-        <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
-          {theme.icon}
-          {card.card_type}
-        </div>
+    return (
+      <div
+        className={`w-full h-full flex flex-col bg-gray-900 overflow-hidden ${isZoom ? 'rounded-2xl' : 'rounded-xl'}`}
+      >
+        {/* 1. Header & Art */}
+        <div
+          className={`${isZoom ? 'h-[40%]' : isPeek ? 'h-[50%]' : 'h-[35%]'} relative bg-gradient-to-b ${theme.headerGradient} p-1 shrink-0`}
+        >
+          {/* Type Badge */}
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
+            {theme.icon}
+            {card.card_type}
+          </div>
 
-        {/* Menu (Only in Mini mode) */}
-        {mode === 'mini' && (onDiscard || onReturn) && (
-          <div className="absolute top-1 right-1 z-20" ref={menuRef}>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-              className="interactive-btn p-1.5 rounded-full hover:bg-black/40 text-white/80 hover:text-white transition-colors"
-            >
-              <MoreVertical size={18} />
-            </button>
-            {showMenu && (
-              <div className="absolute right-0 top-full mt-1 w-36 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden text-sm z-30 text-gray-200">
-                {onReturn && (
-                  <button onClick={(e) => handleAction('return', e)} className="w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700">
-                    <RotateCcw size={14} /> Return
-                  </button>
+          {/* View / Menu Buttons */}
+          <div
+            className="absolute top-2 right-2 z-20 flex flex-col gap-2"
+            ref={menuRef}
+          >
+            {/* View/Zoom Button (For Peek Hand Cards that Flip on click) */}
+            {isPeek && !onDraw && (
+              <button
+                onClick={handleZoom}
+                className="interactive-btn p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
+              >
+                <ScanEye size={16} />
+              </button>
+            )}
+
+            {/* Actions Menu */}
+            {(isMini || isPeek) && (onDiscard || onReturn) && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMenu(!showMenu);
+                  }}
+                  className="interactive-btn p-1.5 rounded-full hover:bg-black/40 text-white/80 hover:text-white transition-colors"
+                >
+                  <MoreVertical size={18} />
+                </button>
+                {showMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-36 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden text-sm z-30 text-gray-200">
+                    {onReturn && (
+                      <button
+                        onClick={(e) => handleAction('return', e)}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700"
+                      >
+                        <RotateCcw size={14} /> Return
+                      </button>
+                    )}
+                    {onDiscard && (
+                      <button
+                        onClick={(e) => handleAction('discard', e)}
+                        className="w-full px-4 py-3 text-left hover:bg-red-900/50 text-red-400 hover:text-red-300 flex items-center gap-2"
+                      >
+                        <Trash2 size={14} /> Discard
+                      </button>
+                    )}
+                  </div>
                 )}
-                {onDiscard && (
-                  <button onClick={(e) => handleAction('discard', e)} className="w-full px-4 py-3 text-left hover:bg-red-900/50 text-red-400 hover:text-red-300 flex items-center gap-2">
-                    <Trash2 size={14} /> Discard
-                  </button>
-                )}
+              </>
+            )}
+          </div>
+
+          {/* Image */}
+          <div className="w-full h-full rounded-t-lg overflow-hidden border-b border-white/10 relative bg-black/20">
+            {card.image ? (
+              <img
+                src={card.image}
+                alt={card.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center opacity-20">
+                <span className="text-5xl">🃏</span>
+              </div>
+            )}
+            <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"></div>
+
+            {/* Peek Overlay: "Click to View Details" */}
+            {isPeek && (
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 flex justify-center">
+                <span className="text-[10px] text-white/80 font-medium uppercase tracking-widest border border-white/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  Preview
+                </span>
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Image */}
-        <div className="w-full h-full rounded-t-lg overflow-hidden border-b border-white/10 relative bg-black/20">
-          {card.image ? (
-            <img src={card.image} alt={card.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center opacity-20">
-              <span className="text-5xl">🃏</span>
+        {/* 2. Text Body */}
+        <div
+          className={`flex-1 relative ${theme.textBg} p-1 md:p-2 flex flex-col justify-start`}
+        >
+          {/* Title */}
+          <div
+            className={`border-b border-black/5 pb-2 shrink-0 ${isPeek ? 'text-center mt-2' : 'mb-2'}`}
+          >
+            <h4
+              className={`font-black uppercase leading-tight ${theme.accent} ${isPeek ? 'text-lg line-clamp-2' : 'text-sm sm:text-base line-clamp-2'}`}
+            >
+              {card.title}
+            </h4>
+          </div>
+
+          {/* Description: Hidden in Peek mode, visible in others */}
+          {!isPeek && (
+            <div className="relative flex-1 overflow-hidden">
+              <p
+                className={`text-xs sm:text-sm text-gray-800 font-serif leading-relaxed font-medium ${isMini ? 'line-clamp-3' : ''}`}
+              >
+                {card.description}
+              </p>
+              {/* Metadata in Zoom */}
+              {isZoom && card.metadata && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  {Object.entries(card.metadata).map(
+                    ([key, value]) =>
+                      key !== 'casting_cost' && (
+                        <div
+                          key={key}
+                          className="flex justify-between text-xs py-1"
+                        >
+                          <span className="text-gray-500 font-medium uppercase">
+                            {key.replace(/_/g, ' ')}
+                          </span>
+                          <span className="font-bold text-gray-800">
+                            {String(value)}
+                          </span>
+                        </div>
+                      ),
+                  )}
+                </div>
+              )}
             </div>
           )}
-          <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"></div>
-        </div>
-      </div>
 
-      {/* 2. Text Body (Takes remaining space) */}
-      <div className={`flex-1 relative ${theme.textBg} p-1 flex flex-col justify-start`}>
-        {/* Title */}
-        <div className="mb-2 border-b border-black/5 pb-2 shrink-0">
-          <h4 className={`font-black text-sm sm:text-base uppercase leading-tight ${theme.accent} line-clamp-2`}>
-            {card.title}
-          </h4>
+          {/* Peek mode "Click Action" Hint */}
+          {isPeek && (
+            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-60">
+              <ScanEye size={24} className="mb-2 text-indigo-900" />
+              <span className="text-xs font-bold text-indigo-900 uppercase">
+                Click to view details
+              </span>
+            </div>
+          )}
+
+          {/* 3. Footer: Casting Cost (Standard/Mini only) */}
+          {!isPeek && card.metadata?.casting_cost && (
+            <div
+              className={`shrink-0 min-h-[30px] flex items-center px-2 py-1 gap-2 ${theme.costBg} mt-2 rounded`}
+            >
+              <Flame size={10} className="text-red-600" fill="currentColor" />
+              <span className="text-[8px] sm:text-xxs font-bold uppercase tracking-wide leading-tight line-clamp-1">
+                {card.metadata.casting_cost}
+              </span>
+            </div>
+          )}
+
+          {/* Action Button Row (View / Tags) */}
+          {!isPeek && (
+            <div className="mt-auto pt-3 flex items-center justify-between gap-2 shrink-0">
+              {/* Tags (Right side) */}
+              <div className="flex gap-1 overflow-hidden justify-end flex-1">
+                {card.tags?.slice(0, 2).map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[9px] px-1.5 py-0.5 bg-black/5 text-black/50 rounded uppercase font-bold tracking-tight truncate"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              {/* View Button for Mini */}
+              {isMini && (
+                <button
+                  onClick={handleZoom}
+                  className="interactive-btn flex items-center gap-1.5 px-3 py-1 bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wide transition-colors"
+                >
+                  <ScanEye size={12} /> View
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Description: High line clamp for tall cards */}
-        <div className="relative flex-1 overflow-hidden">
-          <p className={`text-xs sm:text-sm text-gray-800 font-serif leading-relaxed font-medium ${mode === 'mini' ? 'line-clamp-2' : ''}`}>
-            {card.description}
-          </p>
-        </div>
-        {/* 3. Footer: FULL WIDTH Casting Cost */}
-        {/* This ensures the cost text has maximum space available */}
-        {card.metadata?.casting_cost && (
-          <div className={`shrink-0 min-h-[36px] flex items-center px-2 py-1 gap-2 ${theme.costBg}`}>
-            <Flame size={10} className="text-red-600" fill="currentColor" />
-            <span className="text-[8px] sm:text-xxs font-bold uppercase tracking-wide leading-tight line-clamp-2">
-              {card.metadata.casting_cost}
-            </span>
+        {/* Zoom Mode Actions */}
+        {isZoom && (
+          <div className="bg-gray-50 p-4 border-t border-gray-100 flex gap-3">
+            {onDraw && (
+              <button
+                onClick={() => handleAction('draw')}
+                className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
+              >
+                <Hand size={18} /> Draw this Card
+              </button>
+            )}
+            {onDiscard && (
+              <button
+                onClick={() => handleAction('discard')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-bold transition-colors"
+              >
+                <Trash2 size={18} /> Discard
+              </button>
+            )}
+            {!onDraw && !onDiscard && onReturn && (
+              <button
+                onClick={() => handleAction('return')}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
+              >
+                <RotateCcw size={18} /> Return
+              </button>
+            )}
           </div>
         )}
-
-        {/* Action Button Row (View / Tags) */}
-        <div className="mt-auto pt-3 flex items-center justify-between gap-2 shrink-0">
-          {/* Tags (Right side) */}
-          <div className="flex gap-1 overflow-hidden justify-end flex-1">
-            {card.tags?.slice(0, 1).map(tag => (
-              <span key={tag} className="text-[9px] px-1.5 py-0.5 bg-black/5 text-black/50 rounded uppercase font-bold tracking-tight truncate">
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* View Button */}
-          {mode === 'mini' && (
-            <button
-              onClick={handleZoom}
-              className="interactive-btn flex items-center gap-1.5 px-3 py-1 bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wide transition-colors"
-            >
-              <ScanEye size={12} /> View
-            </button>
-          )}
-
-
-        </div>
       </div>
-
-
-
-      {/* Zoom Mode Actions (Replaces Cost footer if you want actions there, but we keep cost and overlay buttons) */}
-      {mode === 'zoom' && (
-        <div className="absolute bottom-4 right-4 flex gap-2">
-          {onDiscard && (
-            <button onClick={() => handleAction('discard')} className="px-4 py-2 bg-red-600 text-white rounded-lg shadow-lg text-sm font-bold hover:bg-red-700">
-              Discard
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <>
-      {/* === MINI CARD (Taller Aspect Ratio 9/16) === */}
+      {/* === CARD CONTAINER === */}
       <div
         className={`relative w-full aspect-[9/16] group perspective-1000 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         onClick={handleCardClick}
         style={{ zIndex: showMenu ? 40 : 'auto' }}
       >
-        <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${isRevealed ? 'rotate-y-0' : 'rotate-y-180'}`}>
-
+        <div
+          className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${isRevealed ? 'rotate-y-0' : 'rotate-y-180'}`}
+        >
           {/* Front */}
-          <div className={`absolute inset-0 backface-hidden rounded-xl shadow-lg border-[3px] ${theme.border} ${theme.outerShadow}`}>
-            <CardContent mode="mini" />
+          <div
+            className={`absolute inset-0 backface-hidden rounded-xl shadow-lg border-[3px] ${theme.border} ${theme.outerShadow}`}
+          >
+            <CardContent mode={variant === 'peek' ? 'peek' : 'mini'} />
           </div>
 
           {/* Back */}
@@ -247,26 +394,29 @@ export const PlayingCard = ({
       </div>
 
       {/* === ZOOM MODAL === */}
-      {isZoomed && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div
-            className="relative w-full max-w-[340px] aspect-[9/16] animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setIsZoomed(false)}
-              className="absolute -top-12 right-0 sm:-right-12 p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+      {isZoomed &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div
+              className="relative w-full max-w-[380px] sm:max-w-[400px] h-auto max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X size={24} />
-            </button>
+              <button
+                onClick={() => setIsZoomed(false)}
+                className="absolute -top-12 right-0 sm:-right-12 p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors z-50"
+              >
+                <X size={24} />
+              </button>
 
-            <div className={`w-full h-full rounded-2xl shadow-2xl border-[4px] ${theme.border}`}>
-              <CardContent mode="zoom" />
+              <div
+                className={`w-full flex-1 rounded-2xl shadow-2xl border-[4px] bg-white overflow-hidden flex flex-col ${theme.border}`}
+              >
+                <CardContent mode="zoom" />
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
 
       <style>{`
         .perspective-1000 { perspective: 1000px; }
