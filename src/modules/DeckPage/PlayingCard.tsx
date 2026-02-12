@@ -14,6 +14,7 @@ import {
 import { createPortal } from 'react-dom';
 import { Card } from '../../models/Deck';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
+import { getLabel } from 'utils/utils';
 
 export enum PlayingCardUIType {
   DRAW_PILE = 'DRAW_PILE',
@@ -301,7 +302,7 @@ export const PlayingCard = ({
                     key={tag}
                     className="text-[9px] px-1.5 py-0.5 bg-black/5 text-black/50 rounded uppercase font-bold tracking-tight truncate"
                   >
-                    {tag}
+                    {getLabel(tag)}
                   </span>
                 ))}
               </div>
