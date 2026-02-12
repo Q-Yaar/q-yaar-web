@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Flame,
-  MoreVertical,
   RotateCcw,
   Trash2,
   Zap,
@@ -10,32 +9,44 @@ import {
   ScanEye,
   X,
   Hand,
+  Eye,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Card } from '../../models/Deck';
 
+export type PlayingCardUIType = 'DRAW_PILE' | 'HAND_PILE' | 'DISCARD_PILE';
+
 interface PlayingCardProps {
   card: Card;
+  uiType: PlayingCardUIType;
   onDiscard?: () => void;
   onReturn?: () => void;
-  onDraw?: () => void; // Add onDraw prop
+  onDraw?: () => void;
   defaultFaceDown?: boolean;
   forceFaceUp?: boolean;
   disabled?: boolean;
-  variant?: 'standard' | 'peek'; // Add variant prop
 }
 
 export const PlayingCard = ({
   card,
+  uiType,
   onDiscard,
   onReturn,
   onDraw,
   defaultFaceDown = false,
   forceFaceUp,
   disabled = false,
-  variant = 'standard',
 }: PlayingCardProps) => {
-  const [isRevealed, setIsRevealed] = useState(!defaultFaceDown);
+  // Determine initial revealed state based on uiType and props
+  // DRAW_PILE (Peek Modal): Always revealed
+  // HAND_PILE: Default determined by props (usually hidden until clicked or "Reveal All" used)
+  // DISCARD_PILE: Always revealed
+  const getInitialRevealedState = () => {
+    if (uiType === 'DISCARD_PILE' || uiType === 'DRAW_PILE') return true;
+    return !defaultFaceDown;
+  };
+
+  const [isRevealed, setIsRevealed] = useState(getInitialRevealedState());
   const [isZoomed, setIsZoomed] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -83,8 +94,15 @@ export const PlayingCard = ({
 
   // --- EFFECTS ---
   useEffect(() => {
-    if (forceFaceUp !== undefined) setIsRevealed(forceFaceUp);
-  }, [forceFaceUp]);
+    // If logic:
+    // DRAW_PILE/DISCARD_PILE: Always revealed.
+    // HAND_PILE: Follows forceFaceUp if provided.
+    if (uiType === 'HAND_PILE' && forceFaceUp !== undefined) {
+      setIsRevealed(forceFaceUp);
+    } else if (uiType === 'DISCARD_PILE' || uiType === 'DRAW_PILE') {
+      setIsRevealed(true);
+    }
+  }, [forceFaceUp, uiType]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -101,28 +119,19 @@ export const PlayingCard = ({
     if ((e.target as HTMLElement).closest('.interactive-btn')) return;
     if (disabled) return;
 
-    // In "peek" mode
-    if (variant === 'peek') {
-      // If it has onDraw (Draw Pile), allow Click -> Zoom directly
-      if (onDraw) {
+    // Logic based on UI Type
+    if (uiType === 'HAND_PILE') {
+      if (!isRevealed) {
+        // First click reveals
+        setIsRevealed(true);
+      } else {
+        // Second click zooms
         setIsZoomed(true);
-        return;
       }
-      // If it's a Hand card (no onDraw), Click -> Flip
-      setIsRevealed(!isRevealed);
-      if (showMenu) setShowMenu(false);
-      return;
+    } else {
+      // DRAW_PILE and DISCARD_PILE: Click -> Zoom
+      setIsZoomed(true);
     }
-
-    // Standard mode toggles reveal
-    setIsRevealed(!isRevealed);
-    if (showMenu) setShowMenu(false);
-  };
-
-  const handleZoom = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsZoomed(true);
-    setShowMenu(false);
   };
 
   const handleAction = (
@@ -163,49 +172,17 @@ export const PlayingCard = ({
             className="absolute top-2 right-2 z-20 flex flex-col gap-2"
             ref={menuRef}
           >
-            {/* View/Zoom Button (For Peek Hand Cards that Flip on click) */}
-            {isPeek && !onDraw && (
+            {/* Eye Icon to Conceal (Only for HAND_PILE and when revealed) */}
+            {uiType === 'HAND_PILE' && isRevealed && !isZoom && (
               <button
-                onClick={handleZoom}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsRevealed(false);
+                }}
                 className="interactive-btn p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
               >
-                <ScanEye size={16} />
+                <Eye size={16} />
               </button>
-            )}
-
-            {/* Actions Menu */}
-            {(isMini || isPeek) && (onDiscard || onReturn) && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMenu(!showMenu);
-                  }}
-                  className="interactive-btn p-1.5 rounded-full hover:bg-black/40 text-white/80 hover:text-white transition-colors"
-                >
-                  <MoreVertical size={18} />
-                </button>
-                {showMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-36 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden text-sm z-30 text-gray-200">
-                    {onReturn && (
-                      <button
-                        onClick={(e) => handleAction('return', e)}
-                        className="w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700"
-                      >
-                        <RotateCcw size={14} /> Return
-                      </button>
-                    )}
-                    {onDiscard && (
-                      <button
-                        onClick={(e) => handleAction('discard', e)}
-                        className="w-full px-4 py-3 text-left hover:bg-red-900/50 text-red-400 hover:text-red-300 flex items-center gap-2"
-                      >
-                        <Trash2 size={14} /> Discard
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
             )}
           </div>
 
@@ -223,15 +200,6 @@ export const PlayingCard = ({
               </div>
             )}
             <div className="absolute inset-0 shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"></div>
-
-            {/* Peek Overlay: "Click to View Details" */}
-            {isPeek && (
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 flex justify-center">
-                <span className="text-[10px] text-white/80 font-medium uppercase tracking-widest border border-white/20 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                  Preview
-                </span>
-              </div>
-            )}
           </div>
         </div>
 
@@ -287,7 +255,9 @@ export const PlayingCard = ({
             <div className="flex-1 flex flex-col items-center justify-center text-center opacity-60">
               <ScanEye size={24} className="mb-2 text-indigo-900" />
               <span className="text-xs font-bold text-indigo-900 uppercase">
-                Click to view details
+                {uiType === 'HAND_PILE' && !isZoom
+                  ? 'Click for details'
+                  : 'Click to view details'}
               </span>
             </div>
           )}
@@ -319,10 +289,13 @@ export const PlayingCard = ({
                 ))}
               </div>
 
-              {/* View Button for Mini */}
-              {isMini && (
+              {/* View Button for Mini - Discard Pile */}
+              {isMini && uiType === 'DISCARD_PILE' && (
                 <button
-                  onClick={handleZoom}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsZoomed(true);
+                  }}
                   className="interactive-btn flex items-center gap-1.5 px-3 py-1 bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 rounded text-[10px] font-bold uppercase tracking-wide transition-colors"
                 >
                   <ScanEye size={12} /> View
@@ -335,23 +308,44 @@ export const PlayingCard = ({
         {/* Zoom Mode Actions */}
         {isZoom && (
           <div className="bg-gray-50 p-4 border-t border-gray-100 flex gap-3">
-            {onDraw && (
-              <button
-                onClick={() => handleAction('draw')}
-                className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
-              >
-                <Hand size={18} /> Draw this Card
-              </button>
+            {/* DRAW_PILE: "Draw this card" */}
+            {uiType === 'DRAW_PILE' && (
+              <>
+                {onDraw && (
+                  <button
+                    onClick={() => handleAction('draw')}
+                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
+                  >
+                    <Hand size={18} /> Draw this Card
+                  </button>
+                )}
+              </>
             )}
-            {onDiscard && (
-              <button
-                onClick={() => handleAction('discard')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-bold transition-colors"
-              >
-                <Trash2 size={18} /> Discard
-              </button>
+
+            {/* HAND_PILE: Discard, Return */}
+            {uiType === 'HAND_PILE' && (
+              <>
+                {onDiscard && (
+                  <button
+                    onClick={() => handleAction('discard')}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-bold transition-colors"
+                  >
+                    <Trash2 size={18} /> Discard
+                  </button>
+                )}
+                {onReturn && (
+                  <button
+                    onClick={() => handleAction('return')}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
+                  >
+                    <RotateCcw size={18} /> Return
+                  </button>
+                )}
+              </>
             )}
-            {!onDraw && !onDiscard && onReturn && (
+
+            {/* DISCARD_PILE: Return */}
+            {uiType === 'DISCARD_PILE' && onReturn && (
               <button
                 onClick={() => handleAction('return')}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
@@ -364,6 +358,10 @@ export const PlayingCard = ({
       </div>
     );
   };
+
+  // Determine styles for card content based on uiType
+  // All types now use 'peek' style for consistency, per user request "Dicard pile shoul look eactly like hand card"
+  const contentMode = 'peek';
 
   return (
     <>
@@ -380,7 +378,7 @@ export const PlayingCard = ({
           <div
             className={`absolute inset-0 backface-hidden rounded-xl shadow-lg border-[3px] ${theme.border} ${theme.outerShadow}`}
           >
-            <CardContent mode={variant === 'peek' ? 'peek' : 'mini'} />
+            <CardContent mode={contentMode} />
           </div>
 
           {/* Back */}
@@ -411,6 +409,7 @@ export const PlayingCard = ({
               <div
                 className={`w-full flex-1 rounded-2xl shadow-2xl border-[4px] bg-white overflow-hidden flex flex-col ${theme.border}`}
               >
+                {/* Always zoom mode in modal */}
                 <CardContent mode="zoom" />
               </div>
             </div>

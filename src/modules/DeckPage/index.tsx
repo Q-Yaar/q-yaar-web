@@ -30,7 +30,7 @@ export default function DeckPage() {
   const { teamId } = useParams();
 
   // --- STATE ---
-  const [allHandFaceUp, setAllHandFaceUp] = useState(true); // Controls flip state
+  const [allHandFaceUp, setAllHandFaceUp] = useState(false); // Controls flip state
   const [showAllDiscard, setShowAllDiscard] = useState(false); // Keeps discard collapsible
 
   // Peek Modal State
@@ -238,8 +238,7 @@ export default function DeckPage() {
                 <PlayingCard
                   key={card.card_id}
                   card={card}
-                  variant="peek"
-                  defaultFaceDown={false}
+                  uiType="HAND_PILE"
                   forceFaceUp={allHandFaceUp} // Pass the state down
                   onDiscard={() => handleDiscard(card.card_id)}
                   onReturn={() => handleReturn(card.card_id)}
@@ -278,7 +277,7 @@ export default function DeckPage() {
               <div className="w-32 opacity-75 grayscale hover:grayscale-0 transition-all duration-300">
                 <PlayingCard
                   card={discardCards[0]}
-                  defaultFaceDown={false}
+                  uiType="DISCARD_PILE"
                   disabled={true}
                 />
                 <p className="text-center text-[10px] text-gray-500 mt-2">
@@ -302,7 +301,7 @@ export default function DeckPage() {
                   >
                     <PlayingCard
                       card={card}
-                      defaultFaceDown={false}
+                      uiType="DISCARD_PILE"
                       onReturn={() => handleReturn(card.card_id)}
                     />
                   </div>
@@ -349,8 +348,7 @@ export default function DeckPage() {
                   >
                     <PlayingCard
                       card={card}
-                      variant="peek"
-                      defaultFaceDown={false}
+                      uiType="DRAW_PILE"
                       onDraw={() => handleDrawSpecific(card.card_id)}
                     />
                     <button
