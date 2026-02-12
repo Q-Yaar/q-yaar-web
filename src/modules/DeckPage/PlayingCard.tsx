@@ -47,7 +47,11 @@ export const PlayingCard = ({
   // HAND_PILE: Default determined by props (usually hidden until clicked or "Reveal All" used)
   // DISCARD_PILE: Always revealed
   const getInitialRevealedState = () => {
-    if (uiType === PlayingCardUIType.DISCARD_PILE || uiType === PlayingCardUIType.DRAW_PILE) return true;
+    if (
+      uiType === PlayingCardUIType.DISCARD_PILE ||
+      uiType === PlayingCardUIType.DRAW_PILE
+    )
+      return true;
     return !defaultFaceDown;
   };
 
@@ -107,7 +111,10 @@ export const PlayingCard = ({
     // HAND_PILE: Follows forceFaceUp if provided.
     if (uiType === PlayingCardUIType.HAND_PILE && forceFaceUp !== undefined) {
       setIsRevealed(forceFaceUp);
-    } else if (uiType === PlayingCardUIType.DISCARD_PILE || uiType === PlayingCardUIType.DRAW_PILE) {
+    } else if (
+      uiType === PlayingCardUIType.DISCARD_PILE ||
+      uiType === PlayingCardUIType.DRAW_PILE
+    ) {
       setIsRevealed(true);
     }
   }, [forceFaceUp, uiType]);
@@ -128,7 +135,7 @@ export const PlayingCard = ({
     if (disabled) return;
 
     // Logic based on UI Type
-    if (uiType ===  PlayingCardUIType.HAND_PILE) {
+    if (uiType === PlayingCardUIType.HAND_PILE) {
       if (!isRevealed) {
         // First click reveals
         setIsRevealed(true);
@@ -181,17 +188,19 @@ export const PlayingCard = ({
             ref={menuRef}
           >
             {/* Eye Icon to Conceal (Only for HAND_PILE and when revealed) */}
-            {uiType === PlayingCardUIType.HAND_PILE && isRevealed && !isZoom && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsRevealed(false);
-                }}
-                className="interactive-btn p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
-              >
-                <Eye size={16} />
-              </button>
-            )}
+            {uiType === PlayingCardUIType.HAND_PILE &&
+              isRevealed &&
+              !isZoom && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsRevealed(false);
+                  }}
+                  className="interactive-btn p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
+                >
+                  <Eye size={16} />
+                </button>
+              )}
           </div>
 
           {/* Image */}
@@ -404,12 +413,12 @@ export const PlayingCard = ({
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
             <div
-              className="relative w-full max-w-[380px] sm:max-w-[400px] h-full max-h-[75vh] flex flex-col animate-in zoom-in-95 duration-200"
+              className="relative w-full max-w-[380px] sm:max-w-[400px] h-full max-h-[100vh] flex flex-col animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => setIsZoomed(false)}
-                className="absolute -top-12 right-0 sm:-right-12 p-2 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors z-50"
+                className="absolute top-2 right-2 sm:right-2 p-2 text-white/70 hover:text-white bg-gray-100/5 hover:bg-white/20 rounded-full transition-colors z-50"
               >
                 <X size={24} />
               </button>
