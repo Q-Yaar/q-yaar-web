@@ -29,7 +29,6 @@ export default function DeckPage() {
 
   // --- STATE ---
   const [allHandFaceUp, setAllHandFaceUp] = useState(false); // Controls flip state
-  const [showAllDiscard, setShowAllDiscard] = useState(false); // Keeps discard collapsible
 
   // Peek Modal State
   const [isPeekModalOpen, setIsPeekModalOpen] = useState(false);
@@ -260,53 +259,25 @@ export default function DeckPage() {
                 {discardCards.length}
               </span>
             </div>
-
-            <button
-              onClick={() => setShowAllDiscard(!showAllDiscard)}
-              className="text-xs font-medium text-gray-500 hover:text-gray-800 flex items-center gap-1 bg-white border border-gray-200 px-3 py-1.5 rounded-full"
-            >
-              {showAllDiscard ? <EyeOff size={12} /> : <Eye size={12} />}
-              {showAllDiscard ? 'Collapse' : 'View All'}
-            </button>
           </div>
 
-          {!showAllDiscard && discardCards.length > 0 && (
-            <div className="flex justify-center sm:justify-start">
-              <div className="w-32 opacity-75 grayscale hover:grayscale-0 transition-all duration-300">
-                <PlayingCard
-                  card={discardCards[0]}
-                  uiType={PlayingCardUIType.DISCARD_PILE}
-                  disabled={true}
-                />
-                <p className="text-center text-[10px] text-gray-500 mt-2">
-                  Most Recent
-                </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 animate-in slide-in-from-top-4 duration-300">
+            {discardCards.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
+                Discard pile is empty
               </div>
-            </div>
-          )}
-
-          {showAllDiscard && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 animate-in slide-in-from-top-4 duration-300">
-              {discardCards.length === 0 ? (
-                <div className="col-span-full py-8 text-center text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-xl">
-                  Discard pile is empty
+            ) : (
+              discardCards.map((card) => (
+                <div key={card.card_id}>
+                  <PlayingCard
+                    card={card}
+                    uiType={PlayingCardUIType.DISCARD_PILE}
+                    onReturn={() => handleReturn(card.card_id)}
+                  />
                 </div>
-              ) : (
-                discardCards.map((card) => (
-                  <div
-                    key={card.card_id}
-                    className="opacity-80 hover:opacity-100 transition-opacity"
-                  >
-                    <PlayingCard
-                      card={card}
-                      uiType={PlayingCardUIType.DISCARD_PILE}
-                      onReturn={() => handleReturn(card.card_id)}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </section>
       </div>
 
