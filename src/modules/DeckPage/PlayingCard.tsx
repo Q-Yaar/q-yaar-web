@@ -181,7 +181,7 @@ export const PlayingCard = ({
             ref={menuRef}
           >
             {/* Eye Icon to Conceal (Only for HAND_PILE and when revealed) */}
-            {uiType === 'HAND_PILE' && isRevealed && !isZoom && (
+            {uiType === PlayingCardUIType.HAND_PILE && isRevealed && !isZoom && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -298,7 +298,7 @@ export const PlayingCard = ({
               </div>
 
               {/* View Button for Mini - Discard Pile */}
-              {isMini && uiType === 'DISCARD_PILE' && (
+              {isMini && uiType === PlayingCardUIType.DISCARD_PILE && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -317,7 +317,7 @@ export const PlayingCard = ({
         {isZoom && (
           <div className="bg-gray-50 p-4 border-t border-gray-100 flex gap-3">
             {/* DRAW_PILE: "Draw this card" */}
-            {uiType === 'DRAW_PILE' && (
+            {uiType === PlayingCardUIType.DRAW_PILE && (
               <>
                 {onDraw && (
                   <button
@@ -331,7 +331,7 @@ export const PlayingCard = ({
             )}
 
             {/* HAND_PILE: Discard, Return */}
-            {uiType === 'HAND_PILE' && (
+            {uiType === PlayingCardUIType.HAND_PILE && (
               <>
                 {onDiscard && (
                   <button
@@ -353,7 +353,7 @@ export const PlayingCard = ({
             )}
 
             {/* DISCARD_PILE: Return */}
-            {uiType === 'DISCARD_PILE' && onReturn && (
+            {uiType === PlayingCardUIType.DISCARD_PILE && onReturn && (
               <button
                 onClick={() => handleAction('return')}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
