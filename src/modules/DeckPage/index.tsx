@@ -24,6 +24,7 @@ import {
 } from '../../apis/deckApi';
 import { PlayingCard } from './PlayingCard';
 import { Card } from '../../models/Deck';
+import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 export default function DeckPage() {
   const navigate = useNavigate();
@@ -36,6 +37,9 @@ export default function DeckPage() {
   // Peek Modal State
   const [isPeekModalOpen, setIsPeekModalOpen] = useState(false);
   const [peekCount, setPeekCount] = useState(0);
+
+  // Lock body scroll when Peek Modal is open
+  useLockBodyScroll(isPeekModalOpen);
 
   // --- API HOOKS ---
   const { data: stats } = useGetDeckStatsQuery(teamId!);

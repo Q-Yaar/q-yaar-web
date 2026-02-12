@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Card } from '../../models/Deck';
+import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 export type PlayingCardUIType = 'DRAW_PILE' | 'HAND_PILE' | 'DISCARD_PILE';
 
@@ -50,6 +51,9 @@ export const PlayingCard = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Lock body scroll when Zoomed
+  useLockBodyScroll(isZoomed);
 
   // --- THEME ENGINE ---
   const getTheme = (type: string) => {
