@@ -1,14 +1,7 @@
-import {
-  ChevronRight,
-  RotateCw,
-  Layers,
-  History,
-  Hand,
-  Eye,
-  EyeOff,
-} from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { RotateCw, Layers, History, Hand, Eye, EyeOff } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 import { useState } from 'react';
+import { Header } from '../../components/ui/header';
 import { PeekModal } from './PeekModal';
 import {
   useGetDeckStatsQuery,
@@ -24,7 +17,6 @@ import { PlayingCard, PlayingCardUIType } from './PlayingCard';
 import { Card } from '../../models/Deck';
 
 export default function DeckPage() {
-  const navigate = useNavigate();
   const { teamId } = useParams();
 
   // --- STATE ---
@@ -116,41 +108,36 @@ export default function DeckPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
       {/* Sticky Header */}
-      <div className="bg-gradient-to-r from-indigo-900 to-purple-900 text-white p-3 sm:p-4 shadow-lg sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <Header
+        title="Card Deck"
+        icon={<span className="text-3xl">🃏</span>}
+        action={
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <ChevronRight className="w-5 h-5 rotate-180" />
-            </button>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-left">
-                Card Deck
-              </h1>
-              <div className="text-[10px] sm:text-xs text-indigo-200 flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <Layers size={12} /> {deckSize} Deck
-                </span>
-                <span className="w-px h-3 bg-indigo-400/30"></span>
-                <span className="flex items-center gap-1">
-                  <History size={12} /> {stats?.discard_cards ?? 0} Discard
-                </span>
-              </div>
+            <div className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-3 mr-2">
+              <span className="flex items-center gap-1">
+                <Layers size={14} className="text-indigo-600" />
+                <span className="font-medium">{deckSize}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <History size={14} className="text-gray-600" />
+                <span className="font-medium">{stats?.discard_cards ?? 0}</span>
+              </span>
             </div>
-          </div>
 
-          <button
-            onClick={() => shuffleDeck(teamId!)}
-            disabled={isShuffling}
-            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors disabled:opacity-50"
-          >
-            <RotateCw size={14} className={isShuffling ? 'animate-spin' : ''} />
-            <span>Shuffle</span>
-          </button>
-        </div>
-      </div>
+            <button
+              onClick={() => shuffleDeck(teamId!)}
+              disabled={isShuffling}
+              className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-colors disabled:opacity-50 font-medium"
+            >
+              <RotateCw
+                size={14}
+                className={isShuffling ? 'animate-spin' : ''}
+              />
+              <span className="hidden sm:inline">Shuffle</span>
+            </button>
+          </div>
+        }
+      />
 
       <div className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-6 space-y-8">
         {/* === SECTION 1: DRAW PILE (HIDDEN) === */}
