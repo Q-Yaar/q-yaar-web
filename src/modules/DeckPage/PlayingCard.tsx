@@ -15,7 +15,11 @@ import { createPortal } from 'react-dom';
 import { Card } from '../../models/Deck';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
-export type PlayingCardUIType = 'DRAW_PILE' | 'HAND_PILE' | 'DISCARD_PILE';
+export enum PlayingCardUIType {
+  DRAW_PILE = 'DRAW_PILE',
+  HAND_PILE = 'HAND_PILE',
+  DISCARD_PILE = 'DISCARD_PILE',
+}
 
 interface PlayingCardProps {
   card: Card;
@@ -43,7 +47,7 @@ export const PlayingCard = ({
   // HAND_PILE: Default determined by props (usually hidden until clicked or "Reveal All" used)
   // DISCARD_PILE: Always revealed
   const getInitialRevealedState = () => {
-    if (uiType === 'DISCARD_PILE' || uiType === 'DRAW_PILE') return true;
+    if (uiType === PlayingCardUIType.DISCARD_PILE || uiType === PlayingCardUIType.DRAW_PILE) return true;
     return !defaultFaceDown;
   };
 
@@ -101,9 +105,9 @@ export const PlayingCard = ({
     // If logic:
     // DRAW_PILE/DISCARD_PILE: Always revealed.
     // HAND_PILE: Follows forceFaceUp if provided.
-    if (uiType === 'HAND_PILE' && forceFaceUp !== undefined) {
+    if (uiType === PlayingCardUIType.HAND_PILE && forceFaceUp !== undefined) {
       setIsRevealed(forceFaceUp);
-    } else if (uiType === 'DISCARD_PILE' || uiType === 'DRAW_PILE') {
+    } else if (uiType === PlayingCardUIType.DISCARD_PILE || uiType === PlayingCardUIType.DRAW_PILE) {
       setIsRevealed(true);
     }
   }, [forceFaceUp, uiType]);
@@ -124,7 +128,7 @@ export const PlayingCard = ({
     if (disabled) return;
 
     // Logic based on UI Type
-    if (uiType === 'HAND_PILE') {
+    if (uiType ===  PlayingCardUIType.HAND_PILE) {
       if (!isRevealed) {
         // First click reveals
         setIsRevealed(true);

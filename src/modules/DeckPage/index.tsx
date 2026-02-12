@@ -6,12 +6,10 @@ import {
   Hand,
   Eye,
   EyeOff,
-  X,
-  Plus,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
+import { PeekModal } from './PeekModal';
 import {
   useGetDeckStatsQuery,
   useGetHandQuery,
@@ -22,9 +20,8 @@ import {
   useShuffleDeckMutation,
   useReturnCardMutation,
 } from '../../apis/deckApi';
-import { PlayingCard } from './PlayingCard';
+import { PlayingCard, PlayingCardUIType } from './PlayingCard';
 import { Card } from '../../models/Deck';
-import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 export default function DeckPage() {
   const navigate = useNavigate();
@@ -37,9 +34,6 @@ export default function DeckPage() {
   // Peek Modal State
   const [isPeekModalOpen, setIsPeekModalOpen] = useState(false);
   const [peekCount, setPeekCount] = useState(0);
-
-  // Lock body scroll when Peek Modal is open
-  useLockBodyScroll(isPeekModalOpen);
 
   // --- API HOOKS ---
   const { data: stats } = useGetDeckStatsQuery(teamId!);
@@ -242,7 +236,7 @@ export default function DeckPage() {
                 <PlayingCard
                   key={card.card_id}
                   card={card}
-                  uiType="HAND_PILE"
+                  uiType={PlayingCardUIType.HAND_PILE}
                   forceFaceUp={allHandFaceUp} // Pass the state down
                   onDiscard={() => handleDiscard(card.card_id)}
                   onReturn={() => handleReturn(card.card_id)}
@@ -281,7 +275,7 @@ export default function DeckPage() {
               <div className="w-32 opacity-75 grayscale hover:grayscale-0 transition-all duration-300">
                 <PlayingCard
                   card={discardCards[0]}
-                  uiType="DISCARD_PILE"
+                  uiType={PlayingCardUIType.DISCARD_PILE}
                   disabled={true}
                 />
                 <p className="text-center text-[10px] text-gray-500 mt-2">
@@ -305,7 +299,7 @@ export default function DeckPage() {
                   >
                     <PlayingCard
                       card={card}
-                      uiType="DISCARD_PILE"
+                      uiType={PlayingCardUIType.DISCARD_PILE}
                       onReturn={() => handleReturn(card.card_id)}
                     />
                   </div>
@@ -317,78 +311,17 @@ export default function DeckPage() {
       </div>
 
       {/* === PEEK MODAL === */}
-      {isPeekModalOpen &&
-        createPortal(
-          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-end sm:justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            {/* Header */}
-            <div className="w-full max-w-5xl mx-auto p-4 flex items-center justify-between text-white/90">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/20 rounded-lg backdrop-blur">
-                  <Eye size={20} className="text-indigo-300" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">Peek Deck</h3>
-                  <p className="text-xs text-white/50">
-                    Revealing top {peekCount} cards
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleClosePeekModal}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            {/* Cards Container */}
-            <div className="flex-1 w-full max-w-6xl overflow-y-auto overflow-x-hidden p-4 sm:p-8">
-              <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
-                {peekedCards.map((card, index) => (
-                  <div
-                    key={card.card_id}
-                    className="w-40 sm:w-48 animate-in zoom-in-50 duration-300 fill-mode-backwards"
-                    style={{ animationDelay: `${index * 100}ms` }}
-                  >
-                    <PlayingCard
-                      card={card}
-                      uiType="DRAW_PILE"
-                      onDraw={() => handleDrawSpecific(card.card_id)}
-                    />
-                    <button
-                      onClick={() => handleDrawSpecific(card.card_id)}
-                      disabled={isDrawing}
-                      className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                    >
-                      <Hand size={14} /> Draw
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Footer Actions */}
-            <div className="w-full bg-gray-900/90 border-t border-white/10 p-4 sm:p-6 backdrop-blur-md">
-              <div className="max-w-2xl mx-auto flex gap-4">
-                <button
-                  onClick={handlePeekOneMore}
-                  disabled={!deckData || peekCount >= deckData.length}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <Plus size={18} /> Peek One More
-                </button>
-                <button
-                  onClick={handleDrawAllPeeked}
-                  disabled={isDrawing || peekedCards.length === 0}
-                  className="flex-1 bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-                >
-                  <Hand size={18} /> Draw All ({peekedCards.length})
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      <PeekModal
+        isOpen={isPeekModalOpen}
+        onClose={handleClosePeekModal}
+        peekCount={peekCount}
+        peekedCards={peekedCards}
+        totalDeckCount={deckData?.length ?? 0}
+        onPeekMore={handlePeekOneMore}
+        onDraw={handleDrawSpecific}
+        onDrawAll={handleDrawAllPeeked}
+        isDrawing={isDrawing}
+      />
     </div>
   );
 }
