@@ -404,7 +404,7 @@ export const PlayingCard = ({
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
             <div
-              className="relative w-full max-w-[380px] sm:max-w-[400px] h-full max-h-[75∏vh] flex flex-col animate-in zoom-in-95 duration-200"
+              className="relative w-full max-w-[380px] sm:max-w-[400px] h-full max-h-[75vh] flex flex-col animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               <button
