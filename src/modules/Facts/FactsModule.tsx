@@ -14,6 +14,8 @@ import {
 import { useFetchMyTeamQuery, useFetchTeamsQuery } from '../../apis/gameApi';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
+import LoadingScreen from 'components/LoadingScreen';
+import ErrorScreen from 'components/ErrorScreen';
 
 export function FactsModule() {
   const navigate = useNavigate();
@@ -28,7 +30,12 @@ export function FactsModule() {
 
   // API Hooks
 
-  const { data: factsData, isLoading: isFactsLoading } = useGetFactsQuery(
+  const {
+    data: factsData,
+    isLoading: isFactsLoading,
+    isError: isFactsError,
+    refetch: refetchFacts,
+  } = useGetFactsQuery(
     {
       game_id: gameId!,
       team_id: selectedTeam === 'all' ? undefined : selectedTeam,
@@ -147,6 +154,17 @@ export function FactsModule() {
     .filter((p) => p.id && p.name);
 
   const PLAYERS = [{ id: 'all', name: 'All Players' }, ...uniquePlayers];
+
+  if (isFactsLoading) return <LoadingScreen />;
+
+  if (isFactsError)
+    return (
+      <ErrorScreen
+        title="Failed to load facts"
+        description="Something went wrong while fetching the facts."
+        action={refetchFacts}
+      />
+    );
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12">

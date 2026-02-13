@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  Gamepad2,
-  RefreshCcw,
-  LogOut,
-} from 'lucide-react';
+import { Gamepad2, RefreshCcw, LogOut } from 'lucide-react';
 import { GameCard } from './GameCard';
 import { Header } from '../../components/ui/header';
 import { Button } from '../../components/ui/button';
@@ -14,6 +10,8 @@ import { getRoute } from '../../utils/getRoute';
 import { GAME_DETAIL_ROUTE, LOGIN_ROUTE } from '../../constants/routes';
 import { useDispatch } from 'react-redux';
 import { clearToken } from '../../redux/auth-reducer';
+import LoadingScreen from 'components/LoadingScreen';
+import ErrorScreen from 'components/ErrorScreen';
 
 export default function GameList() {
   const { data, isLoading, isError, refetch } = useFetchGamesQuery(null);
@@ -30,38 +28,17 @@ export default function GameList() {
     navigate(getRoute(GAME_DETAIL_ROUTE, { gameId: game.game_id }));
   };
 
-
-
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-          <p className="text-gray-500 text-sm">Loading games...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (isError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-6 max-w-sm bg-white rounded-xl shadow-lg border border-red-100">
-          <div className="text-red-500 mb-3">⚠️</div>
-          <h3 className="text-lg font-medium text-gray-900">
-            Failed to load games
-          </h3>
-          <p className="text-gray-500 text-sm mt-2 mb-4">
-            Something went wrong while fetching the game list.
-          </p>
-          <button
-            onClick={refetch}
-            className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
+      <ErrorScreen
+        title="Failed to load games"
+        description="Something went wrong while fetching the game list."
+        action={refetch}
+      />
     );
   }
 

@@ -15,6 +15,8 @@ import {
 } from '../../apis/deckApi';
 import { PlayingCard, PlayingCardUIType } from './PlayingCard';
 import { Card } from '../../models/Deck';
+import LoadingScreen from 'components/LoadingScreen';
+import ErrorScreen from 'components/ErrorScreen';
 
 export default function DeckPage() {
   const { teamId } = useParams();
@@ -27,20 +29,40 @@ export default function DeckPage() {
   const [peekCount, setPeekCount] = useState(0);
 
   // --- API HOOKS ---
-  const { data: stats } = useGetDeckStatsQuery(teamId!);
+  const {
+    data: stats,
+    isError: isStatsError,
+    refetch: refetchStats,
+    isLoading: isStatsLoading,
+  } = useGetDeckStatsQuery(teamId!);
 
   // Fetch actual card objects for the Deck (Draw Pile)
-  const { data: deckData } = usePeekDeckQuery({
+  const {
+    data: deckData,
+    isError: isDeckError,
+    refetch: refetchDeck,
+    isLoading: isDeckLoading,
+  } = usePeekDeckQuery({
     teamId: teamId!,
     numberOfCards: stats?.deck_cards ?? 0,
   });
 
-  const { data: handCards = [] } = useGetHandQuery(teamId!);
-  const { data: discardCards = [] } = useGetDiscardPileQuery(teamId!);
+  const {
+    data: handCards = [],
+    isError: isHandError,
+    refetch: refetchHand,
+    isLoading: isHandLoading,
+  } = useGetHandQuery(teamId!);
+  const {
+    data: discardCards = [],
+    isError: isDiscardError,
+    refetch: refetchDiscard,
+    isLoading: isDiscardLoading,
+  } = useGetDiscardPileQuery(teamId!);
 
   const [drawCard, { isLoading: isDrawing }] = useDrawCardMutation();
-  const [discardCard] = useDiscardCardMutation();
-  const [returnCard] = useReturnCardMutation();
+  const [discardCard, { isLoading: isDiscarding }] = useDiscardCardMutation();
+  const [returnCard, { isLoading: isReturning }] = useReturnCardMutation();
   const [shuffleDeck, { isLoading: isShuffling }] = useShuffleDeckMutation();
 
   // --- LOGIC ---
@@ -104,6 +126,33 @@ export default function DeckPage() {
   const handleReturn = async (cardId: string) => {
     await returnCard({ cardId, teamId: teamId! });
   };
+
+  if (
+    isShuffling ||
+    isDrawing ||
+    isDiscarding ||
+    isReturning ||
+    isDeckLoading ||
+    isHandLoading ||
+    isDiscardLoading ||
+    isStatsLoading
+  )
+    return <LoadingScreen />;
+
+  if (isStatsError || isDeckError || isHandError || isDiscardError) {
+    return (
+      <ErrorScreen
+        title="Failed to load deck"
+        description="Something went wrong while fetching the deck."
+        action={() => {
+          if (isStatsError) refetchStats();
+          if (isDeckError) refetchDeck();
+          if (isHandError) refetchHand();
+          if (isDiscardError) refetchDiscard();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
