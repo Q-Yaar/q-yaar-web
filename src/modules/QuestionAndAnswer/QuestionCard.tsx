@@ -2,6 +2,7 @@ import { AskedQuestion } from '../../models/QnA';
 import { Card, CardContent } from 'components/ui/card';
 import { Button } from 'components/ui/button';
 import { formatDate } from 'utils/dateUtils';
+import { Gift } from 'lucide-react';
 
 interface QuestionCardProps {
   question: AskedQuestion;
@@ -42,6 +43,18 @@ export function QuestionCard({
             <span className="bg-gray-100 px-2 py-0.5 rounded">
               {question.category.category_name}
             </span>
+            {question.reward && (
+              <span
+                className={`flex items-center px-2 py-0.5 rounded font-medium ${
+                  question.accepted
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                <Gift className="w-3 h-3 mr-1" />
+                {question.reward.reward_name}
+              </span>
+            )}
             <span>{formatDate(question.created)}</span>
           </div>
         </div>
