@@ -92,24 +92,11 @@ export default function DeckPage() {
       cardId,
       teamId: teamId!,
     });
-    // If we draw a card, we should probably close the modal or update the peek view
-    // Since drawing modifies the deck, the query will invalidate and refetch.
-    // However, the "peekCount" might need adjustment or we might want to close.
-    // Let's close the modal for "Draw One" as it's a primary action.
-    // OR we can keep it open if we want to "Draw Another".
-    // User goal: "Draw One" -> "Verify Card A disappears from modal... Modal stays open (if Card B remains)."
-
-    // We don't need to manually remove it from `peekedCards` because `deckData` will update from the server.
-    // BUT there is a race condition where `deckData` updates and `peekCount` stays high.
-    // If we draw index 0, everything shifts.
-    // Let's keep `peekCount` as is (or decrement if we are at the end).
+    if (peekCount === 1) handleClosePeekModal();
     if (peekCount > 0) setPeekCount((c) => c - 1);
   };
 
   const handleDrawAllPeeked = async () => {
-    // Draw all currently peeked cards
-    // We can do this serially or parallel.
-    // Serial is safer for order.
     for (const card of peekedCards) {
       await drawCard({
         cardId: card.card_id,
