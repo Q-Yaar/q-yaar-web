@@ -57,6 +57,7 @@ export function AskQuestionModule() {
 
   const [locationErrorOpen, setLocationErrorOpen] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<any>(null);
+  const [isAskingForLocation, setIsAskingForLocation] = useState(false);
 
   // Queries
   const { data: categoriesData, isLoading: isLoadingCategories } =
@@ -190,6 +191,8 @@ export function AskQuestionModule() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!gameId || !fullTemplate) return;
 
+    setIsAskingForLocation(true);
+
     const basePayload = {
       target_team_id: values.target_team_id,
       chosen_placeholders: values.placeholders,
@@ -213,17 +216,20 @@ export function AskQuestionModule() {
               ],
             },
           };
+          setIsAskingForLocation(false);
           sendQuestion(payload);
         },
         (error) => {
           console.error('Error getting location', error);
           setPendingPayload(basePayload);
+          setIsAskingForLocation(false);
           setLocationErrorOpen(true);
         },
       );
     } else {
       console.warn('Geolocation not available');
       setPendingPayload(basePayload);
+      setIsAskingForLocation(false);
       setLocationErrorOpen(true);
     }
   };
@@ -565,10 +571,10 @@ export function AskQuestionModule() {
 
                         <Button
                           type="submit"
-                          disabled={isAsking}
+                          disabled={isAsking || isAskingForLocation}
                           className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 py-6 text-lg shadow-lg shadow-indigo-200"
                         >
-                          {isAsking ? (
+                          {isAsking || isAskingForLocation ? (
                             <Loader className="w-6 h-6 animate-spin" />
                           ) : (
                             <>
