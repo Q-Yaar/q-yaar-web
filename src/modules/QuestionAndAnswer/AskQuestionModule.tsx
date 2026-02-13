@@ -616,6 +616,7 @@ export function AskQuestionModule() {
                 <Button
                   onClick={handleLocationErrorProceed}
                   className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  disabled={isAsking}
                 >
                   Ask Without Location
                 </Button>
