@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   MessageCircle,
   MapPin,
+  Gift,
 } from 'lucide-react';
 
 import { QuestionCard } from './QuestionCard';
@@ -141,9 +142,15 @@ export function AnswerQuestionModule() {
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                           {question.category.category_name}
                         </span>
+                        {question.reward && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            <Gift className="w-3 h-3 mr-1" />
+                            {question.reward.reward_name}
+                          </span>
+                        )}
                         {question.question_meta?.location_points?.[0] && (
                           <Button
                             variant="ghost"
