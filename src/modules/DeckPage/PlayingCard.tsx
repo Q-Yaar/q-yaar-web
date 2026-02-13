@@ -178,7 +178,7 @@ export const PlayingCard = ({
           className={`${isZoom ? 'h-[40%]' : isPeek ? 'h-[50%]' : 'h-[35%]'} relative bg-gradient-to-b ${theme.headerGradient} p-1 shrink-0`}
         >
           {/* Type Badge */}
-          <div className="absolute top-2 left-2 z-5 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
             {theme.icon}
             {card.card_type}
           </div>

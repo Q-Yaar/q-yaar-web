@@ -147,7 +147,7 @@ export default function DeckPage() {
           </div>
 
           <div
-            className={`relative group perspective-1000 z-10 w-48 sm:w-56 aspect-[9/16] ${deckSize > 0 ? 'cursor-pointer hover:scale-[1.02] transition-transform' : ''}`}
+            className={`relative group perspective-1000 z-5 w-48 sm:w-56 aspect-[9/16] ${deckSize > 0 ? 'cursor-pointer hover:scale-[1.02] transition-transform' : ''}`}
             onClick={handlePeekDeck}
           >
             {/* Visual Stack Effect */}
