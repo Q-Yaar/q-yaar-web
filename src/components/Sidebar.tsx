@@ -164,6 +164,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
+  const [textFactContent, setTextFactContent] = useState<string>('');
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
@@ -194,6 +195,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     setSelectedOption('');
     onSelectOption('');
     setPoints([]);
+    setTextFactContent('');
   };
 
   const handleOptionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -203,22 +205,35 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (value === 'areas') {
       setPoints([]);
     }
+    if (value !== 'text') {
+      setTextFactContent('');
+    }
   };
 
   const handleSaveOperation = () => {
     if (!selectedOption) return;
-    if (
-      selectedOption !== 'areas' &&
-      selectedOption !== 'closer-to-line' &&
-      points.length === 0
-    )
-      return;
-    if (
-      selectedOption === 'closer-to-line' &&
-      (!multiLineStringForOp || points.length === 0)
-    )
-      return;
-    if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
+    
+    // For text facts, we don't need points or other geo data
+    if (selectedOption === 'text') {
+      if (!textFactContent.trim()) {
+        alert('Please enter some text content.');
+        return;
+      }
+    } else {
+      // For geo operations, check the usual requirements
+      if (
+        selectedOption !== 'areas' &&
+        selectedOption !== 'closer-to-line' &&
+        points.length === 0
+      )
+        return;
+      if (
+        selectedOption === 'closer-to-line' &&
+        (!multiLineStringForOp || points.length === 0)
+      )
+        return;
+      if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
+    }
 
     const newOp: Operation = {
       id: Date.now().toString(),
@@ -235,6 +250,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       selectedLineIndex,
       polygonGeoJSON: polygonGeoJSONForOp,
       timestamp: Date.now(),
+      textContent: selectedOption === 'text' ? textFactContent : undefined,
     };
 
     setOperations([...operations, newOp]);
@@ -412,6 +428,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
           {selectedCategory === 'facts' && (
             <>
+              <option value="text">Text Fact</option>
               <option value="draw-circle">Draw Circle</option>
               <option value="split-by-direction">Split by Direction</option>
               <option value="hotter-colder">Hotter / Colder</option>
@@ -805,6 +822,28 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
+          {selectedOption === 'text' && (
+            <div className="tool-section">
+              <label>Text Content</label>
+              <textarea
+                value={textFactContent}
+                onChange={(e) => setTextFactContent(e.target.value)}
+                placeholder="Enter your text fact..."
+                style={{
+                  width: '100%',
+                  height: '100px',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                  fontSize: '0.9rem',
+                  resize: 'vertical',
+                  minHeight: '60px',
+                  maxHeight: '150px',
+                }}
+              />
+            </div>
+          )}
+
           {selectedOption === 'polygon-location' && (
             <div className="tool-section">
               <label style={{ marginTop: '10px' }}>Select Polygons Asset</label>
@@ -877,6 +916,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               onClick={handleSaveOperation}
               disabled={
                 !selectedOption ||
+                (selectedOption === 'text' && !textFactContent.trim()) ||
                 (selectedOption === 'areas' && !uploadedAreaForOp) ||
                 (selectedOption === 'closer-to-line' &&
                   (!multiLineStringForOp || points.length === 0)) ||
@@ -913,9 +953,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 if (!createFactMutation || !gameId) return;
                 
                 try {
-                  // Convert operation to fact info
-                  const factInfo = convertOperationToFactInfo(op);
-                  
                   // Use the selected team from the dropdown as the target team
                   if (teamsData.length === 0) {
                     alert('No teams available. Please try again later.');
@@ -950,21 +987,43 @@ const Sidebar: React.FC<SidebarProps> = ({
                   const currentUserTeamId = currentUserTeam.team_id;
                   const currentUserTeamName = currentUserTeam.team_name;
                   
-                  // Create the fact with the correct format including player and team info
-                  await createFactMutation({
-                    game_id: gameId,
-                    fact_type: 'GEO',
-                    team_id: targetTeamId,  // Target team ID from dropdown
-                    fact_info: {
-                      op_type: op.type,
-                      op_meta: {
-                        ...factInfo,
-                        team_id: currentUserTeamId,  // Current user's team ID
-                        team_name: currentUserTeamName,  // Current user's team name
-                        player_name: currentUserEmail
+                  // Handle different fact types
+                  if (op.type === 'text') {
+                    // Create TEXT fact
+                    await createFactMutation({
+                      game_id: gameId,
+                      fact_type: 'TEXT',
+                      team_id: targetTeamId,
+                      fact_info: {
+                        op_type: 'plain_text',
+                        op_meta: {
+                          text: op.textContent || '',
+                          team_id: currentUserTeamId,
+                          team_name: currentUserTeamName,
+                          player_name: currentUserEmail
+                        }
                       }
-                    }
-                  });
+                    });
+                  } else {
+                    // Convert operation to fact info for GEO facts
+                    const factInfo = convertOperationToFactInfo(op);
+                    
+                    // Create GEO fact
+                    await createFactMutation({
+                      game_id: gameId,
+                      fact_type: 'GEO',
+                      team_id: targetTeamId,  // Target team ID from dropdown
+                      fact_info: {
+                        op_type: op.type,
+                        op_meta: {
+                          ...factInfo,
+                          team_id: currentUserTeamId,  // Current user's team ID
+                          team_name: currentUserTeamName,  // Current user's team name
+                          player_name: currentUserEmail
+                        }
+                      }
+                    });
+                  }
                   
                   // Remove the draft from local operations since it's now saved
                   removeOperation(op.id);
@@ -983,14 +1042,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <li key={op.id} className="operation-card">
                   <strong>
                     {index + 1}.{' '}
-                    {op.type === 'areas'
-                      ? 'Area Operations'
-                      : op.type === 'closer-to-line'
-                        ? 'Distance from Metro Line'
-                        : op.type.replace(/-/g, ' ')}
+                    {op.type === 'text'
+                      ? 'Text Fact'
+                      : op.type === 'areas'
+                        ? 'Area Operations'
+                        : op.type === 'closer-to-line'
+                          ? 'Distance from Metro Line'
+                          : op.type.replace(/-/g, ' ')}
                     {' (Draft)'}
                   </strong>
                   <div className="help-text">
+                    {op.type === 'text' && op.textContent}
                     {op.type === 'draw-circle' &&
                       `${op.radius}km · Hider ${op.hiderLocation}`}
                     {op.type === 'split-by-direction' &&
@@ -1127,6 +1189,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               // Helper function to render operation details like saved operations
               const renderOperationDetails = (opType: string, opMeta: any) => {
                 switch (opType) {
+                  case 'plain_text':
+                    return opMeta.text || 'No text content';
                   case 'draw-circle':
                     return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
                   case 'split-by-direction':
@@ -1153,7 +1217,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                           ? (fact.fact_info.op_type 
                               ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
                               : 'Map Operation')
-                          : (fact.fact_info.op_meta?.text || 'Text Fact')
+                          : 'Text Fact'
                       }</strong>
                       <div className="help-text" style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#333' }}>
                         {fact.fact_type === 'GEO' 
