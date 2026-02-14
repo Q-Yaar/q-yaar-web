@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
 import { Fact } from '../models/Fact';
+import { formatDate } from '../utils/dateUtils';
 
 const PUBLIC_ASSETS = [
   {
@@ -65,6 +66,9 @@ interface SidebarProps {
   onClearReferencePoints?: () => void;
   onToggleSidebar?: () => void;
   textFacts?: Fact[];
+  selectedTeamFilter?: string;
+  setSelectedTeamFilter?: (teamId: string) => void;
+  teamsData?: any[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -105,6 +109,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClearReferencePoints,
   onToggleSidebar,
   textFacts = [],
+  selectedTeamFilter = 'all',
+  setSelectedTeamFilter = () => {},
+  teamsData = [],
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -257,6 +264,50 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
         <h2>Map Tools</h2>
       </header>
+
+      {/* Team Filter Dropdown - moved to top */}
+      {(textFacts && textFacts.length > 0) && (
+        <div style={{ margin: '15px 0', padding: '10px 0', borderBottom: '1px solid #eee' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '5px', color: '#555' }}>
+            Filter Facts by Team
+          </label>
+          <select
+            value={selectedTeamFilter}
+            onChange={(e) => setSelectedTeamFilter(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '0.9rem',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="all">All Teams</option>
+            {teamsData && teamsData.length > 0 ? (
+              teamsData.map((team) => (
+                <option key={team.team_id} value={team.team_id}>
+                  {team.team_name}
+                </option>
+              ))
+            ) : (
+              // Fallback: get all unique team IDs from facts
+              Array.from(new Set((textFacts || []).map((fact: Fact) => fact.fact_info.op_meta?.team_id)))
+                .filter((teamId): teamId is string => !!teamId)
+                .map((teamId) => {
+                  const teamFact = textFacts?.find((fact: Fact) => fact.fact_info.op_meta?.team_id === teamId);
+                  const teamName = teamFact?.fact_info.op_meta?.team_name || `Team ${teamId}`;
+                  return (
+                    <option key={teamId} value={teamId}>
+                      {teamName}
+                    </option>
+                  );
+                })
+            )}
+          </select>
+        </div>
+      )}
 
       <section className="tool-section">
         <label>Play Area (Optional)</label>
@@ -941,6 +992,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
                   {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}
+                </div>
+                <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
+                  {formatDate(fact.created)}
                 </div>
               </li>
             ))}

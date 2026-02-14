@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Header } from '../../components/ui/header';
 import { useGetFactsQuery } from '../../apis/api';
+import { useFetchTeamsQuery } from '../../apis/gameApi';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
 import { Fact } from '../../models/Fact';
 
@@ -76,9 +77,14 @@ const MapPage: React.FC = () => {
     { skip: !gameId },
   );
 
+  // Fetch teams for the game
+  const { data: teamsData } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+
   // Separate GEO facts (operations) from TEXT facts
   const [operations, setOperations] = useState<Operation[]>([]);
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
+  const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
 
   useEffect(() => {
     if (factsData?.results) {
@@ -89,6 +95,11 @@ const MapPage: React.FC = () => {
 
       const serverTextFacts = factsData.results.filter(
         (fact) => fact.fact_type === 'TEXT',
+      );
+
+      // Sort text facts by creation time (newest first)
+      const sortedTextFacts = [...serverTextFacts].sort((a, b) => 
+        new Date(b.created).getTime() - new Date(a.created).getTime()
       );
 
       // Merge server operations with local operations
@@ -102,12 +113,24 @@ const MapPage: React.FC = () => {
       ];
 
       setOperations(mergedOps);
-      setTextFacts(serverTextFacts);
+      setTextFacts(sortedTextFacts);
     } else {
       setOperations(localOperations);
       setTextFacts([]);
     }
   }, [factsData, localOperations]);
+
+  // Filter facts based on selected team
+  useEffect(() => {
+    if (selectedTeamFilter === 'all') {
+      setFilteredFacts(textFacts);
+    } else {
+      const filtered = textFacts.filter((fact) => 
+        fact.fact_info.op_meta?.team_id === selectedTeamFilter
+      );
+      setFilteredFacts(filtered);
+    }
+  }, [textFacts, selectedTeamFilter]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -213,7 +236,10 @@ const MapPage: React.FC = () => {
             referencePoints={referencePoints}
             onClearReferencePoints={handleClearReferencePoints}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            textFacts={textFacts}
+            textFacts={filteredFacts}
+            selectedTeamFilter={selectedTeamFilter}
+            setSelectedTeamFilter={setSelectedTeamFilter}
+            teamsData={teamsData}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
