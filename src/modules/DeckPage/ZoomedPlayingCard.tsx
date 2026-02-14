@@ -191,19 +191,6 @@ export const ZoomedPlayingCard = ({
             )}
           </>
         )}
-
-        {/* DISCARD_PILE Actions */}
-        {uiType === PlayingCardUIType.DISCARD_PILE && onReturn && (
-          <button
-            onClick={() => {
-              onClose();
-              onReturn();
-            }}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl font-bold font-display uppercase tracking-wide text-sm transition-colors"
-          >
-            <RotateCcw size={18} /> Return to Deck
-          </button>
-        )}
       </div>
     </div>
   );
