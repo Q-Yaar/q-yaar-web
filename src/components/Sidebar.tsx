@@ -213,27 +213,31 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleSaveOperation = () => {
     if (!selectedOption) return;
     
-    // For text facts, we don't need points or other geo data
+    // Handle text facts separately from geo operations
     if (selectedOption === 'text') {
       if (!textFactContent.trim()) {
         alert('Please enter some text content.');
         return;
       }
-    } else {
-      // For geo operations, check the usual requirements
-      if (
-        selectedOption !== 'areas' &&
-        selectedOption !== 'closer-to-line' &&
-        points.length === 0
-      )
-        return;
-      if (
-        selectedOption === 'closer-to-line' &&
-        (!multiLineStringForOp || points.length === 0)
-      )
-        return;
-      if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
+      
+      // For text facts, we'll handle them directly as facts
+      // No need to create an Operation object
+      return;
     }
+    
+    // For geo operations, check the usual requirements
+    if (
+      selectedOption !== 'areas' &&
+      selectedOption !== 'closer-to-line' &&
+      points.length === 0
+    )
+      return;
+    if (
+      selectedOption === 'closer-to-line' &&
+      (!multiLineStringForOp || points.length === 0)
+    )
+      return;
+    if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
 
     const newOp: Operation = {
       id: Date.now().toString(),
@@ -250,7 +254,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       selectedLineIndex,
       polygonGeoJSON: polygonGeoJSONForOp,
       timestamp: Date.now(),
-      textContent: selectedOption === 'text' ? textFactContent : undefined,
     };
 
     setOperations([...operations, newOp]);
@@ -987,43 +990,24 @@ const Sidebar: React.FC<SidebarProps> = ({
                   const currentUserTeamId = currentUserTeam.team_id;
                   const currentUserTeamName = currentUserTeam.team_name;
                   
-                  // Handle different fact types
-                  if (op.type === 'text') {
-                    // Create TEXT fact
-                    await createFactMutation({
-                      game_id: gameId,
-                      fact_type: 'TEXT',
-                      team_id: targetTeamId,
-                      fact_info: {
-                        op_type: 'plain_text',
-                        op_meta: {
-                          text: op.textContent || '',
-                          team_id: currentUserTeamId,
-                          team_name: currentUserTeamName,
-                          player_name: currentUserEmail
-                        }
+                  // Convert operation to fact info for GEO facts
+                  const factInfo = convertOperationToFactInfo(op);
+                  
+                  // Create GEO fact
+                  await createFactMutation({
+                    game_id: gameId,
+                    fact_type: 'GEO',
+                    team_id: targetTeamId,  // Target team ID from dropdown
+                    fact_info: {
+                      op_type: op.type,
+                      op_meta: {
+                        ...factInfo,
+                        team_id: currentUserTeamId,  // Current user's team ID
+                        team_name: currentUserTeamName,  // Current user's team name
+                        player_name: currentUserEmail
                       }
-                    });
-                  } else {
-                    // Convert operation to fact info for GEO facts
-                    const factInfo = convertOperationToFactInfo(op);
-                    
-                    // Create GEO fact
-                    await createFactMutation({
-                      game_id: gameId,
-                      fact_type: 'GEO',
-                      team_id: targetTeamId,  // Target team ID from dropdown
-                      fact_info: {
-                        op_type: op.type,
-                        op_meta: {
-                          ...factInfo,
-                          team_id: currentUserTeamId,  // Current user's team ID
-                          team_name: currentUserTeamName,  // Current user's team name
-                          player_name: currentUserEmail
-                        }
-                      }
-                    });
-                  }
+                    }
+                  });
                   
                   // Remove the draft from local operations since it's now saved
                   removeOperation(op.id);
@@ -1042,17 +1026,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <li key={op.id} className="operation-card">
                   <strong>
                     {index + 1}.{' '}
-                    {op.type === 'text'
-                      ? 'Text Fact'
-                      : op.type === 'areas'
-                        ? 'Area Operations'
-                        : op.type === 'closer-to-line'
-                          ? 'Distance from Metro Line'
-                          : op.type.replace(/-/g, ' ')}
+                    {op.type === 'areas'
+                      ? 'Area Operations'
+                      : op.type === 'closer-to-line'
+                        ? 'Distance from Metro Line'
+                        : op.type.replace(/-/g, ' ')}
                     {' (Draft)'}
                   </strong>
                   <div className="help-text">
-                    {op.type === 'text' && op.textContent}
                     {op.type === 'draw-circle' &&
                       `${op.radius}km · Hider ${op.hiderLocation}`}
                     {op.type === 'split-by-direction' &&

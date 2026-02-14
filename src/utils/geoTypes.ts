@@ -3,7 +3,7 @@ export interface Heading {
     lon: string;
 }
 
-export type OperationType = 'draw-circle' | 'split-by-direction' | 'hotter-colder' | 'areas' | 'closer-to-line' | 'polygon-location' | 'play-area' | 'text';
+export type OperationType = 'draw-circle' | 'split-by-direction' | 'hotter-colder' | 'areas' | 'closer-to-line' | 'polygon-location' | 'play-area';
 
 export interface Operation {
     id: string;
@@ -20,7 +20,6 @@ export interface Operation {
     selectedLineIndex?: number;
     polygonGeoJSON?: any;
     timestamp?: number;
-    textContent?: string;
 }
 
 
