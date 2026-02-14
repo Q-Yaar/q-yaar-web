@@ -25,6 +25,26 @@ interface FactCardProps {
   setEditFactText: (text: string) => void;
 }
 
+// Helper function to render operation details like saved operations
+const renderOperationDetails = (opType: string, opMeta: any) => {
+  switch (opType) {
+    case 'draw-circle':
+      return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
+    case 'split-by-direction':
+      return `Hider is ${opMeta.splitDirection}`;
+    case 'hotter-colder':
+      return `Closer to ${opMeta.preferredPoint}`;
+    case 'areas':
+      return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
+    case 'closer-to-line':
+      return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
+    case 'polygon-location':
+      return `In polygon`;
+    default:
+      return opType.replace(/-/g, ' ');
+  }
+};
+
 export function FactCard({
   fact,
   currentUserId,
@@ -137,9 +157,54 @@ export function FactCard({
               autoFocus
             />
           ) : (
-            <p className="text-gray-800 text-base leading-relaxed text-left">
-              {fact.fact_info.op_meta.text}
-            </p>
+            <div>
+              {fact.fact_type === 'GEO' ? (
+                <div>
+                  <p className="text-gray-800 text-base leading-relaxed text-left font-medium">
+                    {fact.fact_info.op_type 
+                      ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
+                      : 'Map Operation'}
+                  </p>
+                  <p className="text-gray-800 text-base leading-relaxed text-left mt-1 font-normal">
+                    {renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {})}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-800 text-base leading-relaxed text-left">
+                  {fact.fact_info.op_meta.text}
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+=======
+        <CardContent className="py-4 px-4">
+          {editingFactId === fact.fact_id ? (
+            <Input
+              value={editFactText}
+              onChange={(e) => setEditFactText(e.target.value)}
+              className="w-full"
+              autoFocus
+            />
+          ) : (
+            <div>
+              {fact.fact_type === 'GEO' ? (
+                <div>
+                  <p className="text-gray-800 text-base leading-relaxed text-left font-medium">
+                    {fact.fact_info.op_meta?.op_type 
+                      ? fact.fact_info.op_meta.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
+                      : 'Map Operation'}
+                  </p>
+                  <p className="text-gray-600 text-sm leading-relaxed text-left mt-1">
+                    {renderOperationDetails(fact.fact_info.op_meta?.op_type || '', fact.fact_info.op_meta || {})}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-800 text-base leading-relaxed text-left">
+                  {fact.fact_info.op_meta.text}
+                </p>
+              )}
+            </div>
           )}
         </CardContent>
         <CardFooter className="py-2 px-4 bg-gray-50/30 border-t flex justify-between items-center">

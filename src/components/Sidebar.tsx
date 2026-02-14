@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
+import { Fact } from '../models/Fact';
+import { formatDate } from '../utils/dateUtils';
+import { convertOperationToFactInfo } from '../utils/factUtils';
 
 const PUBLIC_ASSETS = [
   {
@@ -16,10 +19,46 @@ const PUBLIC_ASSETS = [
     path: '/assets/geojsons/bengaluru/metro_lines.geojson',
   },
   {
-    name: 'Metro Nearest Regions',
+    name: 'Nearest Metro Line',
     path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
   },
 ];
+
+// Define asset lists for different operations
+const OPERATION_ASSETS = {
+  'play-area': [
+    {
+      name: 'Bengaluru Urban District',
+      path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson',
+    }
+  ],
+  'areas': [
+    {
+      name: 'Bengaluru Corporations',
+      path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson',
+    },
+    {
+      name: 'Nearest Metro Line',
+      path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
+    },
+  ],
+  'closer-to-line': [
+    {
+      name: 'Metro Lines',
+      path: '/assets/geojsons/bengaluru/metro_lines.geojson',
+    }
+  ],
+  'polygon-location': [
+    {
+      name: 'Bengaluru Corporations',
+      path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson',
+    },
+    {
+      name: 'Nearest Metro Line',
+      path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
+    },
+  ]
+};
 
 interface Heading {
   lat: string;
@@ -58,11 +97,21 @@ interface SidebarProps {
   setOperations: (ops: Operation[]) => void;
   setPoints: (points: number[][]) => void;
   currentLocation?: number[] | null;
-  gameId?: string;
   teamId?: string;
   referencePoints?: number[][];
   onClearReferencePoints?: () => void;
   onToggleSidebar?: () => void;
+  textFacts?: Fact[];
+  selectedTeamFilter?: string;
+  setSelectedTeamFilter?: (teamId: string) => void;
+  teamsData?: any[];
+  serverOperations?: any[];
+  gameId?: string;
+  createFactMutation?: ((arg: any) => Promise<any>) | null;
+  refetchFacts?: () => void;
+  allFacts?: Fact[];
+  currentUserEmail?: string;
+  deleteFactMutation?: ((factId: string) => Promise<any>) | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -102,9 +151,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   referencePoints = [],
   onClearReferencePoints,
   onToggleSidebar,
+  textFacts = [],
+  teamsData = [],
+  selectedTeamFilter = 'all',
+  setSelectedTeamFilter = () => {},
+  serverOperations = [],
+  createFactMutation = null,
+  refetchFacts = () => {},
+  allFacts = [],
+  currentUserEmail = 'Unknown Player',
+  deleteFactMutation = null,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
+  const [textFactContent, setTextFactContent] = useState<string>('');
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
@@ -120,6 +180,13 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // Automatically load Bengaluru Urban District play area on mount
+  useEffect(() => {
+    if (OPERATION_ASSETS['play-area'].length > 0 && !playArea) {
+      fetchGeoJSON(OPERATION_ASSETS['play-area'][0].path, setPlayArea);
+    }
+  }, [playArea, setPlayArea]);
+
   const handleCategoryChange = (
     event: React.ChangeEvent<HTMLSelectElement>,
   ) => {
@@ -128,6 +195,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     setSelectedOption('');
     onSelectOption('');
     setPoints([]);
+    setTextFactContent('');
   };
 
   const handleOptionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -137,22 +205,35 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (value === 'areas') {
       setPoints([]);
     }
+    if (value !== 'text') {
+      setTextFactContent('');
+    }
   };
 
   const handleSaveOperation = () => {
     if (!selectedOption) return;
-    if (
-      selectedOption !== 'areas' &&
-      selectedOption !== 'closer-to-line' &&
-      points.length === 0
-    )
-      return;
-    if (
-      selectedOption === 'closer-to-line' &&
-      (!multiLineStringForOp || points.length === 0)
-    )
-      return;
-    if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
+    
+    // For text facts, we don't need points or other geo data
+    if (selectedOption === 'text') {
+      if (!textFactContent.trim()) {
+        alert('Please enter some text content.');
+        return;
+      }
+    } else {
+      // For geo operations, check the usual requirements
+      if (
+        selectedOption !== 'areas' &&
+        selectedOption !== 'closer-to-line' &&
+        points.length === 0
+      )
+        return;
+      if (
+        selectedOption === 'closer-to-line' &&
+        (!multiLineStringForOp || points.length === 0)
+      )
+        return;
+      if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
+    }
 
     const newOp: Operation = {
       id: Date.now().toString(),
@@ -169,6 +250,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       selectedLineIndex,
       polygonGeoJSON: polygonGeoJSONForOp,
       timestamp: Date.now(),
+      textContent: selectedOption === 'text' ? textFactContent : undefined,
     };
 
     setOperations([...operations, newOp]);
@@ -255,22 +337,51 @@ const Sidebar: React.FC<SidebarProps> = ({
         <h2>Map Tools</h2>
       </header>
 
+      {/* Team Filter Dropdown - moved to top */}
+      {(teamsData && teamsData.length > 0) && (
+        <div style={{ margin: '15px 0', padding: '10px 0', borderBottom: '1px solid #eee' }}>
+          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '5px', color: '#555' }}>
+            Filter Facts by Team
+          </label>
+          <select
+            value={selectedTeamFilter}
+            onChange={(e) => setSelectedTeamFilter(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #ddd',
+              fontSize: '0.9rem',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            {teamsData.length === 0 ? (
+              <option value="all">No Teams Available</option>
+            ) : (
+              teamsData.map((team) => (
+                <option key={team.team_id} value={team.team_id}>
+                  {team.team_name}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      )}
+
       <section className="tool-section">
-        <label>Play Area (Optional)</label>
+        <label>Play Area</label>
         <div className="file-input-wrapper">
           <select
             onChange={(e) => {
               const path = e.target.value;
               if (path) {
                 fetchGeoJSON(path, setPlayArea);
-              } else {
-                setPlayArea(null);
               }
             }}
-            value={playArea?._source_path || ''}
+            value={playArea?._source_path || OPERATION_ASSETS['play-area'][0].path}
           >
-            <option value="">Default (Viewport)</option>
-            {PUBLIC_ASSETS.map((asset) => (
+            {OPERATION_ASSETS['play-area'].map((asset) => (
               <option key={asset.path} value={asset.path}>
                 {asset.name}
               </option>
@@ -281,14 +392,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-start',
                 marginTop: '4px',
               }}
             >
-              <div className="success-badge">✓ Area Loaded</div>
-              <button onClick={() => setPlayArea(null)} className="clear-btn">
-                Clear
-              </button>
+              <div className="success-badge">✓ Bengaluru Urban District Applied</div>
             </div>
           )}
         </div>
@@ -320,6 +428,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           )}
           {selectedCategory === 'facts' && (
             <>
+              <option value="text">Text Fact</option>
               <option value="draw-circle">Draw Circle</option>
               <option value="split-by-direction">Split by Direction</option>
               <option value="hotter-colder">Hotter / Colder</option>
@@ -582,7 +691,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   value={uploadedAreaForOp?._source_path || ''}
                 >
                   <option value="">Select Asset</option>
-                  {PUBLIC_ASSETS.map((asset) => (
+                  {OPERATION_ASSETS['areas'].map((asset) => (
                     <option key={asset.path} value={asset.path}>
                       {asset.name}
                     </option>
@@ -666,7 +775,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   value={multiLineStringForOp?._source_path || ''}
                 >
                   <option value="">Select Asset</option>
-                  {PUBLIC_ASSETS.map((asset) => (
+                  {OPERATION_ASSETS['closer-to-line'].map((asset) => (
                     <option key={asset.path} value={asset.path}>
                       {asset.name}
                     </option>
@@ -713,6 +822,28 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
+          {selectedOption === 'text' && (
+            <div className="tool-section">
+              <label>Text Content</label>
+              <textarea
+                value={textFactContent}
+                onChange={(e) => setTextFactContent(e.target.value)}
+                placeholder="Enter your text fact..."
+                style={{
+                  width: '100%',
+                  height: '100px',
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                  fontSize: '0.9rem',
+                  resize: 'vertical',
+                  minHeight: '60px',
+                  maxHeight: '150px',
+                }}
+              />
+            </div>
+          )}
+
           {selectedOption === 'polygon-location' && (
             <div className="tool-section">
               <label style={{ marginTop: '10px' }}>Select Polygons Asset</label>
@@ -729,7 +860,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   value={polygonGeoJSONForOp?._source_path || ''}
                 >
                   <option value="">Select Asset</option>
-                  {PUBLIC_ASSETS.map((asset) => (
+                  {OPERATION_ASSETS['polygon-location'].map((asset) => (
                     <option key={asset.path} value={asset.path}>
                       {asset.name}
                     </option>
@@ -785,6 +916,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               onClick={handleSaveOperation}
               disabled={
                 !selectedOption ||
+                (selectedOption === 'text' && !textFactContent.trim()) ||
                 (selectedOption === 'areas' && !uploadedAreaForOp) ||
                 (selectedOption === 'closer-to-line' &&
                   (!multiLineStringForOp || points.length === 0)) ||
@@ -798,57 +930,165 @@ const Sidebar: React.FC<SidebarProps> = ({
                   points.length === 0)
               }
             >
-              Save Operation
+              Save as Draft
             </button>
           )}
         </div>
       )}
 
-      {operations.length > 0 && (
+      {/* Draft Operations - Local only */}
+      {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).length > 0 && (
         <div
           className="operations-container"
           style={{
-            marginTop: 'auto',
-            borderTop: '2px solid #eee',
-            paddingTop: '20px',
+            marginTop: '20px',
+            borderTop: '1px solid #eee',
+            paddingTop: '15px',
           }}
         >
-          <h3>Saved Operations</h3>
+          <h3>Draft Operations</h3>
           <ul className="operations-list">
-            {operations.map((op, index) => (
-              <li key={op.id} className="operation-card">
-                <strong>
-                  {index + 1}.{' '}
-                  {op.type === 'areas'
-                    ? 'Area Operations'
-                    : op.type === 'closer-to-line'
-                      ? 'Distance from Metro Line'
-                      : op.type.replace(/-/g, ' ')}
-                </strong>
-                <div className="help-text">
-                  {op.type === 'draw-circle' &&
-                    `${op.radius}km · Hider ${op.hiderLocation}`}
-                  {op.type === 'split-by-direction' &&
-                    `Hider is ${op.splitDirection}`}
-                  {op.type === 'hotter-colder' &&
-                    `Closer to ${op.preferredPoint}`}
-                  {op.type === 'areas' &&
-                    `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
-                  {op.type === 'closer-to-line' &&
-                    `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
-                  {op.type === 'polygon-location' && `In polygon`}
-                </div>
-                <button
-                  className="remove-op"
-                  onClick={() => removeOperation(op.id)}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
+            {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).map((op, index) => {
+              const handleSaveDraft = async () => {
+                if (!createFactMutation || !gameId) return;
+                
+                try {
+                  // Use the selected team from the dropdown as the target team
+                  if (teamsData.length === 0) {
+                    alert('No teams available. Please try again later.');
+                    return;
+                  }
+                  
+                  // Check if a specific team is selected (not "all")
+                  if (selectedTeamFilter === 'all') {
+                    alert('Please select a specific team from the dropdown.');
+                    return;
+                  }
+                  
+                  // Find the selected team (target team)
+                  const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
+                  
+                  if (!targetTeam) {
+                    alert('Selected team not found. Please try again.');
+                    return;
+                  }
+                  
+                  // Find the current user's team for op_meta
+                  const currentUserTeam = teamsData.find(team => 
+                    team.players.some((player: any) => player.user_profile.email === currentUserEmail)
+                  );
+                  
+                  if (!currentUserTeam) {
+                    alert('Could not determine your team. Please try again.');
+                    return;
+                  }
+                  
+                  const targetTeamId = targetTeam.team_id;
+                  const currentUserTeamId = currentUserTeam.team_id;
+                  const currentUserTeamName = currentUserTeam.team_name;
+                  
+                  // Handle different fact types
+                  if (op.type === 'text') {
+                    // Create TEXT fact
+                    await createFactMutation({
+                      game_id: gameId,
+                      fact_type: 'TEXT',
+                      team_id: targetTeamId,
+                      fact_info: {
+                        op_type: 'plain_text',
+                        op_meta: {
+                          text: op.textContent || '',
+                          team_id: currentUserTeamId,
+                          team_name: currentUserTeamName,
+                          player_name: currentUserEmail
+                        }
+                      }
+                    });
+                  } else {
+                    // Convert operation to fact info for GEO facts
+                    const factInfo = convertOperationToFactInfo(op);
+                    
+                    // Create GEO fact
+                    await createFactMutation({
+                      game_id: gameId,
+                      fact_type: 'GEO',
+                      team_id: targetTeamId,  // Target team ID from dropdown
+                      fact_info: {
+                        op_type: op.type,
+                        op_meta: {
+                          ...factInfo,
+                          team_id: currentUserTeamId,  // Current user's team ID
+                          team_name: currentUserTeamName,  // Current user's team name
+                          player_name: currentUserEmail
+                        }
+                      }
+                    });
+                  }
+                  
+                  // Remove the draft from local operations since it's now saved
+                  removeOperation(op.id);
+                  
+                  // Refetch facts to update the list
+                  refetchFacts();
+                  console.log('Fact saved successfully, refetching facts...');
+                  alert('Fact saved successfully!');
+                } catch (error) {
+                  console.error('Failed to save fact:', error);
+                  alert('Failed to save fact. Please try again.');
+                }
+              };
+              
+              return (
+                <li key={op.id} className="operation-card">
+                  <strong>
+                    {index + 1}.{' '}
+                    {op.type === 'text'
+                      ? 'Text Fact'
+                      : op.type === 'areas'
+                        ? 'Area Operations'
+                        : op.type === 'closer-to-line'
+                          ? 'Distance from Metro Line'
+                          : op.type.replace(/-/g, ' ')}
+                    {' (Draft)'}
+                  </strong>
+                  <div className="help-text">
+                    {op.type === 'text' && op.textContent}
+                    {op.type === 'draw-circle' &&
+                      `${op.radius}km · Hider ${op.hiderLocation}`}
+                    {op.type === 'split-by-direction' &&
+                      `Hider is ${op.splitDirection}`}
+                    {op.type === 'hotter-colder' &&
+                      `Closer to ${op.preferredPoint}`}
+                    {op.type === 'areas' &&
+                      `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
+                    {op.type === 'closer-to-line' &&
+                      `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
+                    {op.type === 'polygon-location' && `In polygon`}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button
+                      className="save-draft-btn"
+                      onClick={handleSaveDraft}
+                    >
+                      Save
+                    </button>
+                    <button
+                      className="remove-op"
+                      onClick={() => removeOperation(op.id)}
+                      style={{ position: 'relative', right: 'auto', top: 'auto' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
+
+      {/* Saved Facts - From backend */}
+
       {referencePoints && referencePoints.length > 0 && (
         <div
           className="operations-container"
@@ -916,6 +1156,91 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </li>
             ))}
+          </ul>
+        </div>
+      )}
+      {allFacts && allFacts.length > 0 && (
+        <div
+          className="operations-container"
+          style={{
+            marginTop: '10px',
+            borderTop: '2px solid #eee',
+            paddingTop: '20px',
+          }}
+        >
+          <h3>Saved Facts</h3>
+          <ul className="operations-list" style={{ marginTop: '10px' }}>
+            {allFacts.map((fact: Fact, index: number) => {
+              const handleDeleteFact = async () => {
+                if (!deleteFactMutation) return;
+                
+                if (window.confirm('Are you sure you want to delete this fact?')) {
+                  try {
+                    await deleteFactMutation(fact.fact_id);
+                    console.log('Fact deleted successfully');
+                    refetchFacts();
+                  } catch (error) {
+                    console.error('Failed to delete fact:', error);
+                    alert('Failed to delete fact. Please try again.');
+                  }
+                }
+              };
+              
+              // Helper function to render operation details like saved operations
+              const renderOperationDetails = (opType: string, opMeta: any) => {
+                switch (opType) {
+                  case 'plain_text':
+                    return opMeta.text || 'No text content';
+                  case 'draw-circle':
+                    return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
+                  case 'split-by-direction':
+                    return `Hider is ${opMeta.splitDirection}`;
+                  case 'hotter-colder':
+                    return `Closer to ${opMeta.preferredPoint}`;
+                  case 'areas':
+                    return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
+                  case 'closer-to-line':
+                    return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
+                  case 'polygon-location':
+                    return `In polygon`;
+                  default:
+                    return opType.replace(/-/g, ' ');
+                }
+              };
+
+              return (
+                <li key={fact.fact_id} className="operation-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{index + 1}. {
+                        fact.fact_type === 'GEO' 
+                          ? (fact.fact_info.op_type 
+                              ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
+                              : 'Map Operation')
+                          : 'Text Fact'
+                      }</strong>
+                      <div className="help-text" style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#333' }}>
+                        {fact.fact_type === 'GEO' 
+                          ? renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {})
+                          : (fact.fact_info.op_meta?.text || 'No text content')}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
+                        {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
+                        {formatDate(fact.created)}
+                      </div>
+                    </div>
+                    <button
+                      className="delete-fact-btn"
+                      onClick={handleDeleteFact}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

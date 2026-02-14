@@ -184,6 +184,28 @@
     transform: scale(1.02);
 }
 
+.save-draft-btn {
+    padding: 4px 8px;
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(76, 175, 80, 0.2);
+}
+
+.save-draft-btn:hover {
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+    transform: translateY(-1px);
+}
+
+.save-draft-btn:active {
+    transform: translateY(0);
+}
+
 .remove-op {
     position: absolute;
     right: 8px;
@@ -245,6 +267,29 @@
 
 .clear-btn:hover {
     opacity: 1;
+}
+
+.delete-fact-btn {
+    padding: 4px 8px;
+    background: linear-gradient(135deg, #ff4444 0%, #d32f2f 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(255, 68, 68, 0.2);
+    flex-shrink: 0;
+}
+
+.delete-fact-btn:hover {
+    box-shadow: 0 4px 8px rgba(255, 68, 68, 0.3);
+    transform: translateY(-1px);
+}
+
+.delete-fact-btn:active {
+    transform: translateY(0);
 }
 
 .divider {

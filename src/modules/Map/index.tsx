@@ -5,8 +5,12 @@ import { Heading, Operation } from '../../utils/geoTypes';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Header } from '../../components/ui/header';
-import { useGetFactsQuery } from '../../apis/api';
+import { useGetFactsQuery, useCreateFactMutation, useDeleteFactMutation } from '../../apis/api';
+import { useFetchTeamsQuery } from '../../apis/gameApi';
+import { useSelector } from 'react-redux';
+import { selectAuthState } from '../../redux/auth-reducer';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
+import { Fact } from '../../models/Fact';
 
 // Simple in-memory cache for the last known location
 let lastKnownLocation: number[] | null = null;
@@ -69,20 +73,63 @@ const MapPage: React.FC = () => {
     lastKnownLocation,
   );
 
+  // Get auth state to access current user information
+  const authState = useSelector(selectAuthState);
+  const currentUser = authState.authData?.user.data;
+  const currentUserEmail = currentUser?.email || 'Unknown Player';
+
   // Fetch facts from the server
-  const { data: factsData } = useGetFactsQuery(
-    { game_id: gameId!, fact_type: 'GEO' },
+  const { data: factsData, refetch: refetchFacts } = useGetFactsQuery(
+    { game_id: gameId! },
     { skip: !gameId },
   );
 
-  // Merge server facts with local operations
+  // Fetch teams for the game
+  const { data: teamsData } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+  
+  // Create fact mutation for saving drafts
+  const [createFactMutation] = useCreateFactMutation();
+  
+  // Delete fact mutation
+  const [deleteFactMutation] = useDeleteFactMutation();
+
+  // Separate GEO facts (operations) from TEXT facts
   const [operations, setOperations] = useState<Operation[]>([]);
+  const [serverOperations, setServerOperations] = useState<Operation[]>([]);
+  const [textFacts, setTextFacts] = useState<Fact[]>([]);
+  const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
+
+  // Set initial team filter when teamsData is available
+  useEffect(() => {
+    if (teamsData && teamsData.length > 0) {
+      setSelectedTeamFilter(teamsData[0].team_id);
+    }
+  }, [teamsData]);
 
   useEffect(() => {
     if (factsData?.results) {
+      console.log('All received facts:', factsData.results);
+      
       const serverOperations = factsData.results
+        .filter((fact) => fact.fact_type === 'GEO')
         .map((fact) => convertBackendFactToOperation(fact))
         .filter((op): op is Operation => op !== null);
+
+      const serverTextFacts = factsData.results.filter(
+        (fact) => fact.fact_type === 'TEXT',
+      );
+      
+      console.log('GEO facts (operations):', serverOperations);
+      console.log('TEXT facts:', serverTextFacts);
+
+      // Sort text facts by creation time (newest first)
+      const sortedTextFacts = [...serverTextFacts].sort((a, b) => 
+        new Date(b.created).getTime() - new Date(a.created).getTime()
+      );
+
+      // Store server operations for draft detection
+      setServerOperations(serverOperations);
 
       // Merge server operations with local operations
       // Server operations take precedence for existing IDs
@@ -94,11 +141,29 @@ const MapPage: React.FC = () => {
         ),
       ];
 
+      console.log('Server operations:', serverOperations);
+      console.log('Local operations:', localOperations);
+      console.log('Merged operations:', mergedOps);
+
       setOperations(mergedOps);
+      setTextFacts(sortedTextFacts);
     } else {
       setOperations(localOperations);
+      setServerOperations([]);
+      setTextFacts([]);
     }
   }, [factsData, localOperations]);
+
+  // Filter facts based on selected team
+  useEffect(() => {
+    const filtered = selectedTeamFilter === 'all' 
+      ? textFacts
+      : textFacts.filter((fact) => 
+          fact.fact_info.op_meta?.team_id === selectedTeamFilter
+        );
+    setFilteredFacts(filtered);
+    console.log('Filtered facts for team', selectedTeamFilter, ':', filtered);
+  }, [textFacts, selectedTeamFilter]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -204,6 +269,16 @@ const MapPage: React.FC = () => {
             referencePoints={referencePoints}
             onClearReferencePoints={handleClearReferencePoints}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            textFacts={filteredFacts}
+            allFacts={factsData?.results || []}
+            selectedTeamFilter={selectedTeamFilter}
+            setSelectedTeamFilter={setSelectedTeamFilter}
+            teamsData={teamsData}
+            serverOperations={serverOperations}
+            createFactMutation={createFactMutation}
+            refetchFacts={refetchFacts}
+            currentUserEmail={currentUserEmail}
+            deleteFactMutation={deleteFactMutation}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
