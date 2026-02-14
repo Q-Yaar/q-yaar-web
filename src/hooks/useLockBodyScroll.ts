@@ -1,18 +1,29 @@
 import { useEffect } from 'react';
 
+// Global state to track lock count and original style to handle nested modals
+let lockCount = 0;
+let originalStyle = '';
+
 export function useLockBodyScroll(isLocked = true) {
   useEffect(() => {
     if (!isLocked) return;
 
-    // Save initial body style
-    const originalStyle = window.getComputedStyle(document.body).overflow;
+    // Increment lock count
+    lockCount++;
 
-    // Prevent scrolling on mount
-    document.body.style.overflow = 'hidden';
+    // Only lock and save style if this is the first lock
+    if (lockCount === 1) {
+      originalStyle = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
 
-    // Re-enable scrolling when component unmounts
     return () => {
-      document.body.style.overflow = originalStyle;
+      lockCount--;
+
+      // Only unlock if there are no more locks
+      if (lockCount === 0) {
+        document.body.style.overflow = originalStyle;
+      }
     };
-  }, [isLocked]); // Re-run effect if lock state changes
+  }, [isLocked]);
 }
