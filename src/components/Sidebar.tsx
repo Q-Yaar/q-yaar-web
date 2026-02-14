@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
+import { Fact } from '../models/Fact';
 
 const PUBLIC_ASSETS = [
   {
@@ -63,6 +64,7 @@ interface SidebarProps {
   referencePoints?: number[][];
   onClearReferencePoints?: () => void;
   onToggleSidebar?: () => void;
+  textFacts?: Fact[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -102,6 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   referencePoints = [],
   onClearReferencePoints,
   onToggleSidebar,
+  textFacts = [],
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -913,6 +916,31 @@ const Sidebar: React.FC<SidebarProps> = ({
                       {point[1].toFixed(5)}, {point[0].toFixed(5)}
                     </div>
                   </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {textFacts && textFacts.length > 0 && (
+        <div
+          className="operations-container"
+          style={{
+            marginTop: '10px',
+            borderTop: '2px solid #eee',
+            paddingTop: '20px',
+          }}
+        >
+          <h3>Saved Facts</h3>
+          <ul className="operations-list" style={{ marginTop: '10px' }}>
+            {textFacts.map((fact: Fact, index: number) => (
+              <li key={fact.fact_id} className="operation-card">
+                <strong>{index + 1}. Fact</strong>
+                <div className="help-text">
+                  {fact.fact_info.op_meta?.text || 'No text content'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
+                  {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}
                 </div>
               </li>
             ))}

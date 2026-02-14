@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Header } from '../../components/ui/header';
 import { useGetFactsQuery } from '../../apis/api';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
+import { Fact } from '../../models/Fact';
 
 // Simple in-memory cache for the last known location
 let lastKnownLocation: number[] | null = null;
@@ -71,18 +72,24 @@ const MapPage: React.FC = () => {
 
   // Fetch facts from the server
   const { data: factsData } = useGetFactsQuery(
-    { game_id: gameId!, fact_type: 'GEO' },
+    { game_id: gameId! },
     { skip: !gameId },
   );
 
-  // Merge server facts with local operations
+  // Separate GEO facts (operations) from TEXT facts
   const [operations, setOperations] = useState<Operation[]>([]);
+  const [textFacts, setTextFacts] = useState<Fact[]>([]);
 
   useEffect(() => {
     if (factsData?.results) {
       const serverOperations = factsData.results
+        .filter((fact) => fact.fact_type === 'GEO')
         .map((fact) => convertBackendFactToOperation(fact))
         .filter((op): op is Operation => op !== null);
+
+      const serverTextFacts = factsData.results.filter(
+        (fact) => fact.fact_type === 'TEXT',
+      );
 
       // Merge server operations with local operations
       // Server operations take precedence for existing IDs
@@ -95,8 +102,10 @@ const MapPage: React.FC = () => {
       ];
 
       setOperations(mergedOps);
+      setTextFacts(serverTextFacts);
     } else {
       setOperations(localOperations);
+      setTextFacts([]);
     }
   }, [factsData, localOperations]);
 
@@ -204,6 +213,7 @@ const MapPage: React.FC = () => {
             referencePoints={referencePoints}
             onClearReferencePoints={handleClearReferencePoints}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+            textFacts={textFacts}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
