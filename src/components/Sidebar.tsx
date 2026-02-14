@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
 import { Fact } from '../models/Fact';
@@ -9,18 +9,6 @@ const PUBLIC_ASSETS = [
   {
     name: 'Bengaluru Urban District',
     path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson',
-  },
-  {
-    name: 'Bengaluru Corporations',
-    path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson',
-  },
-  {
-    name: 'Metro Lines',
-    path: '/assets/geojsons/bengaluru/metro_lines.geojson',
-  },
-  {
-    name: 'Metro Nearest Regions',
-    path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
   },
 ];
 
@@ -142,6 +130,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       alert('Failed to load GeoJSON asset');
     }
   };
+
+  // Automatically load Bengaluru Urban District play area on mount
+  useEffect(() => {
+    if (PUBLIC_ASSETS.length > 0 && !playArea) {
+      fetchGeoJSON(PUBLIC_ASSETS[0].path, setPlayArea);
+    }
+  }, [playArea, setPlayArea]);
 
   const handleCategoryChange = (
     event: React.ChangeEvent<HTMLSelectElement>,
@@ -308,20 +303,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <section className="tool-section">
-        <label>Play Area (Optional)</label>
+        <label>Play Area</label>
         <div className="file-input-wrapper">
-          <select
-            onChange={(e) => {
-              const path = e.target.value;
-              if (path) {
-                fetchGeoJSON(path, setPlayArea);
-              } else {
-                setPlayArea(null);
-              }
-            }}
-            value={playArea?._source_path || ''}
-          >
-            <option value="">Default (Viewport)</option>
+          <select disabled value={playArea?._source_path || PUBLIC_ASSETS[0].path}>
             {PUBLIC_ASSETS.map((asset) => (
               <option key={asset.path} value={asset.path}>
                 {asset.name}
@@ -333,14 +317,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-start',
                 marginTop: '4px',
               }}
             >
-              <div className="success-badge">✓ Area Loaded</div>
-              <button onClick={() => setPlayArea(null)} className="clear-btn">
-                Clear
-              </button>
+              <div className="success-badge">✓ Bengaluru Urban District Loaded</div>
             </div>
           )}
         </div>
@@ -1061,15 +1042,41 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }
               };
               
+              // Helper function to render operation details like saved operations
+              const renderOperationDetails = (opType: string, opMeta: any) => {
+                switch (opType) {
+                  case 'draw-circle':
+                    return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
+                  case 'split-by-direction':
+                    return `Hider is ${opMeta.splitDirection}`;
+                  case 'hotter-colder':
+                    return `Closer to ${opMeta.preferredPoint}`;
+                  case 'areas':
+                    return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
+                  case 'closer-to-line':
+                    return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
+                  case 'polygon-location':
+                    return `In polygon`;
+                  default:
+                    return opType.replace(/-/g, ' ');
+                }
+              };
+
               return (
                 <li key={fact.fact_id} className="operation-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div style={{ flex: 1 }}>
-                      <strong>{index + 1}. {fact.fact_type === 'GEO' ? 'Map Fact' : 'Fact'}</strong>
-                      <div className="help-text">
-                        {fact.fact_type === 'TEXT' 
-                          ? (fact.fact_info.op_meta?.text || 'No text content')
-                          : (fact.fact_info.op_meta?.op_type || 'Map operation')}
+                      <strong>{index + 1}. {
+                        fact.fact_type === 'GEO' 
+                          ? (fact.fact_info.op_type 
+                              ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
+                              : 'Map Operation')
+                          : (fact.fact_info.op_meta?.text || 'Text Fact')
+                      }</strong>
+                      <div className="help-text" style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#333' }}>
+                        {fact.fact_type === 'GEO' 
+                          ? renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {})
+                          : (fact.fact_info.op_meta?.text || 'No text content')}
                       </div>
                       <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
                         {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}

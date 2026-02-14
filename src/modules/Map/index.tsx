@@ -134,6 +134,10 @@ const MapPage: React.FC = () => {
         ),
       ];
 
+      console.log('Server operations:', serverOperations);
+      console.log('Local operations:', localOperations);
+      console.log('Merged operations:', mergedOps);
+
       setOperations(mergedOps);
       setTextFacts(sortedTextFacts);
     } else {
