@@ -14,7 +14,6 @@ import {
   useReturnCardMutation,
 } from '../../apis/deckApi';
 import { PlayingCard, PlayingCardUIType } from './PlayingCard';
-import { Card } from '../../models/Deck';
 import LoadingScreen from 'components/LoadingScreen';
 import ErrorScreen from 'components/ErrorScreen';
 
@@ -87,23 +86,22 @@ export default function DeckPage() {
     setPeekCount(0);
   };
 
-  const handleDrawSpecific = async (cardId: string) => {
-    await drawCard({
-      cardId,
-      teamId: teamId!,
-    });
-    if (peekCount === 1) handleClosePeekModal();
-    if (peekCount > 0) setPeekCount((c) => c - 1);
-  };
-
-  const handleDrawAllPeeked = async () => {
-    for (const card of peekedCards) {
+  const handleDrawMultiple = async (cardIds: string[]) => {
+    for (const cardId of cardIds) {
       await drawCard({
-        cardId: card.card_id,
+        cardId,
         teamId: teamId!,
       });
     }
     handleClosePeekModal();
+  };
+
+  const handleDrawAllPeeked = async () => {
+    await handleDrawMultiple(peekedCards.map((c) => c.card_id));
+  };
+
+  const handleDrawSpecific = async (cardId: string) => {
+    await handleDrawMultiple([cardId]);
   };
 
   const handleDiscard = async (cardId: string) => {
@@ -313,6 +311,7 @@ export default function DeckPage() {
         totalDeckCount={deckData?.length ?? 0}
         onPeekMore={handlePeekOneMore}
         onDraw={handleDrawSpecific}
+        onDrawMultiple={handleDrawMultiple}
         onDrawAll={handleDrawAllPeeked}
         isDrawing={isDrawing}
       />
