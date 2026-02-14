@@ -73,6 +73,23 @@ export const qnaApi = api.injectEndpoints({
       }),
       providesTags: [QNA_MODULE],
     }),
+    updateAskedQuestion: builder.mutation<
+      AskedQuestion,
+      {
+        gameId: string;
+        askedQuestionId: string;
+        body: {
+          question_meta: { location_points: { lat: string; lon: string }[] };
+        };
+      }
+    >({
+      query: ({ gameId, askedQuestionId, body }) => ({
+        url: `${QNA_API}game/${gameId}/asked-questions/${askedQuestionId}/update`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: [QNA_MODULE],
+    }),
     acceptAnswer: builder.mutation<
       AskedQuestion,
       { gameId: string; askedQuestionId: string }
@@ -94,4 +111,5 @@ export const {
   useAskQuestionMutation,
   useAnswerQuestionMutation,
   useAcceptAnswerMutation,
+  useUpdateAskedQuestionMutation,
 } = qnaApi;

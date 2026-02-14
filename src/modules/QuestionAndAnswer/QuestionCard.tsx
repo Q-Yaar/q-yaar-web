@@ -2,13 +2,16 @@ import { AskedQuestion } from '../../models/QnA';
 import { Card, CardContent } from 'components/ui/card';
 import { Button } from 'components/ui/button';
 import { formatDate } from 'utils/dateUtils';
-import { Gift, Map } from 'lucide-react';
+import { Gift, Map, MapPin, Loader, CheckCircle } from 'lucide-react';
 
 interface QuestionCardProps {
   question: AskedQuestion;
   onAccept?: (question: AskedQuestion) => void;
   isAccepting?: boolean;
   acceptingId?: string | null;
+  onAddLocation?: (question: AskedQuestion) => void;
+  isUpdatingLocation?: boolean;
+  updatingLocationId?: string | null;
 }
 
 export function QuestionCard({
@@ -16,6 +19,9 @@ export function QuestionCard({
   onAccept,
   isAccepting = false,
   acceptingId = null,
+  onAddLocation,
+  isUpdatingLocation = false,
+  updatingLocationId = null,
 }: QuestionCardProps) {
   return (
     <Card className="relative overflow-hidden">
@@ -78,6 +84,47 @@ export function QuestionCard({
               )}
           </div>
         </div>
+
+        {/* Location Update Section */}
+        {question.geo && question.geo.count > 0 && onAddLocation && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Required Locations
+              </span>
+              <span className="text-xs font-medium text-indigo-600">
+                {question.question_meta?.location_points?.length || 0}/
+                {question.geo.count}
+              </span>
+            </div>
+            {(question.question_meta?.location_points?.length || 0) <
+            question.geo.count ? (
+              <Button
+                onClick={() => onAddLocation(question)}
+                disabled={
+                  isUpdatingLocation &&
+                  updatingLocationId === question.question_id
+                }
+                variant="outline"
+                size="sm"
+                className="w-full border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+              >
+                {isUpdatingLocation &&
+                updatingLocationId === question.question_id ? (
+                  <Loader className="w-3.5 h-3.5 animate-spin mr-2" />
+                ) : (
+                  <MapPin className="w-3.5 h-3.5 mr-2" />
+                )}
+                Add Current Location
+              </Button>
+            ) : (
+              <div className="w-full py-1.5 bg-green-50 text-green-700 text-center text-xs font-medium rounded border border-green-200 flex items-center justify-center">
+                <CheckCircle className="w-3.5 h-3.5 mr-2" />
+                Locations Captured
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Action / Result */}
         {question.answered && (

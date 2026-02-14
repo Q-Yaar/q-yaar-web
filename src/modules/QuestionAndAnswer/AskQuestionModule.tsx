@@ -12,6 +12,7 @@ import {
   useAskQuestionMutation,
   useFetchAskedQuestionsQuery,
   useAcceptAnswerMutation,
+  useUpdateAskedQuestionMutation,
 } from '../../apis/qnaApi';
 import { useFetchTeamsQuery, useFetchMyTeamQuery } from '../../apis/gameApi';
 import { Category, QuestionTemplate, AskedQuestion } from '../../models/QnA';
@@ -113,6 +114,63 @@ export function AskQuestionModule() {
 
   const [acceptAnswer, { isLoading: isAccepting }] = useAcceptAnswerMutation();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
+  const [updateAskedQuestion, { isLoading: isUpdatingLocation }] =
+    useUpdateAskedQuestionMutation();
+  const [updatingLocationId, setUpdatingLocationId] = useState<string | null>(
+    null,
+  );
+
+  const handleAddLocation = (question: AskedQuestion) => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    setUpdatingLocationId(question.question_id);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const newPoint = {
+          lat: latitude.toString(),
+          lon: longitude.toString(),
+        };
+
+        const currentPoints = question.question_meta?.location_points || [];
+        const updatedPoints = [...currentPoints, newPoint];
+
+        try {
+          await updateAskedQuestion({
+            gameId: gameId || '',
+            askedQuestionId: question.question_id,
+            body: {
+              question_meta: {
+                location_points: updatedPoints,
+              },
+            },
+          }).unwrap();
+        } catch (err) {
+          console.error('Failed to update location', err);
+          alert('Failed to update location.');
+        } finally {
+          setUpdatingLocationId(null);
+        }
+      },
+      (err) => {
+        console.error('Geolocation error:', err);
+        setUpdatingLocationId(null);
+        alert(
+          'Failed to get location. Please ensure location services are enabled.',
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    );
+  };
 
   // Form handling
   // Form handling
@@ -393,6 +451,9 @@ export function AskQuestionModule() {
                       onAccept={handleAccept}
                       isAccepting={isAccepting}
                       acceptingId={acceptingId}
+                      onAddLocation={handleAddLocation}
+                      isUpdatingLocation={isUpdatingLocation}
+                      updatingLocationId={updatingLocationId}
                     />
                   ))}
                 </div>

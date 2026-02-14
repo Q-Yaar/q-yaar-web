@@ -40,6 +40,9 @@ export interface AskedQuestion {
   rendered_question: string;
   template: string;
   category: Category;
+  geo?: {
+    count: number;
+  };
   question_meta: {
     myLocation?: string;
     location_points?: { lat: string; lon: string }[];
