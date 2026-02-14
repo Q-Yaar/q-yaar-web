@@ -62,6 +62,7 @@ interface SidebarProps {
   teamId?: string;
   referencePoints?: number[][];
   onClearReferencePoints?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -100,6 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   teamId = 'default-team',
   referencePoints = [],
   onClearReferencePoints,
+  onToggleSidebar,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -221,7 +223,35 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className="sidebar">
-      <header>
+      <header style={{ display: 'flex', alignItems: 'center' }}>
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              marginRight: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              padding: 0,
+            }}
+            title="Hide Sidebar"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+        )}
         <h2>Map Tools</h2>
       </header>
 

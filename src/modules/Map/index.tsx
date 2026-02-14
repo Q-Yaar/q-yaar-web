@@ -203,30 +203,33 @@ const MapPage: React.FC = () => {
             gameId={gameId}
             referencePoints={referencePoints}
             onClearReferencePoints={handleClearReferencePoints}
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            style={{
-              position: 'absolute',
-              top: '10px',
-              left: '10px',
-              zIndex: 1000,
-              backgroundColor: 'white',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              padding: '5px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            }}
-            title={isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-          >
-            {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
-          </button>
+          {!isSidebarOpen && (
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                left: '10px',
+                zIndex: 1000,
+                backgroundColor: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
+              title={isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
+            >
+              {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+            </button>
+          )}
           <Map
             action={action}
             points={points}
