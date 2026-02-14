@@ -152,9 +152,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClearReferencePoints,
   onToggleSidebar,
   textFacts = [],
+  teamsData = [],
   selectedTeamFilter = 'all',
   setSelectedTeamFilter = () => {},
-  teamsData = [],
   serverOperations = [],
   createFactMutation = null,
   refetchFacts = () => {},
@@ -340,12 +340,15 @@ const Sidebar: React.FC<SidebarProps> = ({
               cursor: 'pointer',
             }}
           >
-            <option value="all">All Teams</option>
-            {teamsData.map((team) => (
-              <option key={team.team_id} value={team.team_id}>
-                {team.team_name}
-              </option>
-            ))}
+            {teamsData.length === 0 ? (
+              <option value="all">No Teams Available</option>
+            ) : (
+              teamsData.map((team) => (
+                <option key={team.team_id} value={team.team_id}>
+                  {team.team_name}
+                </option>
+              ))
+            )}
           </select>
         </div>
       )}
@@ -913,28 +916,51 @@ const Sidebar: React.FC<SidebarProps> = ({
                   // Convert operation to fact info
                   const factInfo = convertOperationToFactInfo(op);
                   
-                  // Get the selected team ID for the fact
-                  const teamId = selectedTeamFilter === 'all' ? teamsData[0]?.team_id : selectedTeamFilter;
-                  
-                  if (!teamId) {
-                    alert('Please select a team before saving.');
+                  // Use the selected team from the dropdown as the target team
+                  if (teamsData.length === 0) {
+                    alert('No teams available. Please try again later.');
                     return;
                   }
                   
-                  // Get team name for display
-                  const teamName = teamsData.find(team => team.team_id === teamId)?.team_name || 'Unknown Team';
+                  // Check if a specific team is selected (not "all")
+                  if (selectedTeamFilter === 'all') {
+                    alert('Please select a specific team from the dropdown.');
+                    return;
+                  }
+                  
+                  // Find the selected team (target team)
+                  const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
+                  
+                  if (!targetTeam) {
+                    alert('Selected team not found. Please try again.');
+                    return;
+                  }
+                  
+                  // Find the current user's team for op_meta
+                  const currentUserTeam = teamsData.find(team => 
+                    team.players.some((player: any) => player.user_profile.email === currentUserEmail)
+                  );
+                  
+                  if (!currentUserTeam) {
+                    alert('Could not determine your team. Please try again.');
+                    return;
+                  }
+                  
+                  const targetTeamId = targetTeam.team_id;
+                  const currentUserTeamId = currentUserTeam.team_id;
+                  const currentUserTeamName = currentUserTeam.team_name;
                   
                   // Create the fact with the correct format including player and team info
                   await createFactMutation({
                     game_id: gameId,
                     fact_type: 'GEO',
-                    team_id: teamId,
+                    team_id: targetTeamId,  // Target team ID from dropdown
                     fact_info: {
                       op_type: op.type,
                       op_meta: {
                         ...factInfo,
-                        team_id: teamId,
-                        team_name: teamName,
+                        team_id: currentUserTeamId,  // Current user's team ID
+                        team_name: currentUserTeamName,  // Current user's team name
                         player_name: currentUserEmail
                       }
                     }

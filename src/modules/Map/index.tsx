@@ -100,6 +100,13 @@ const MapPage: React.FC = () => {
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
 
+  // Set initial team filter when teamsData is available
+  useEffect(() => {
+    if (teamsData && teamsData.length > 0) {
+      setSelectedTeamFilter(teamsData[0].team_id);
+    }
+  }, [teamsData]);
+
   useEffect(() => {
     if (factsData?.results) {
       console.log('All received facts:', factsData.results);
@@ -149,15 +156,13 @@ const MapPage: React.FC = () => {
 
   // Filter facts based on selected team
   useEffect(() => {
-    if (selectedTeamFilter === 'all') {
-      setFilteredFacts(textFacts);
-    } else {
-      const filtered = textFacts.filter((fact) => 
-        fact.fact_info.op_meta?.team_id === selectedTeamFilter
-      );
-      setFilteredFacts(filtered);
-      console.log('Filtered facts for team', selectedTeamFilter, ':', filtered);
-    }
+    const filtered = selectedTeamFilter === 'all' 
+      ? textFacts
+      : textFacts.filter((fact) => 
+          fact.fact_info.op_meta?.team_id === selectedTeamFilter
+        );
+    setFilteredFacts(filtered);
+    console.log('Filtered facts for team', selectedTeamFilter, ':', filtered);
   }, [textFacts, selectedTeamFilter]);
 
   useEffect(() => {
