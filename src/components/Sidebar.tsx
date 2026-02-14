@@ -869,11 +869,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                   // Convert operation to fact info
                   const factInfo = convertOperationToFactInfo(op);
                   
-                  // Create the fact
+                  // Get the selected team ID for the fact
+                  const teamId = selectedTeamFilter === 'all' ? teamsData[0]?.team_id : selectedTeamFilter;
+                  
+                  if (!teamId) {
+                    alert('Please select a team before saving.');
+                    return;
+                  }
+                  
+                  // Create the fact with the correct format
                   await createFactMutation({
                     game_id: gameId,
                     fact_type: 'GEO',
-                    fact_info: factInfo
+                    team_id: teamId,
+                    fact_info: {
+                      op_type: op.type,
+                      op_meta: factInfo
+                    }
                   });
                   
                   // Remove the draft from local operations since it's now saved

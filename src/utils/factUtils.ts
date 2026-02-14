@@ -45,7 +45,6 @@ export const convertOperationToFactInfo = (op: Operation, isPlayArea: boolean = 
     }
 
     return {
-        operation: op.type,
         points: op.points,
         radius: op.radius,
         hiderLocation: op.hiderLocation,
