@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Heading, Operation } from '../utils/geoTypes';
 import { applySingleOperation, calculateDistance, computeHiderArea, globalWorld, getRelativeHeading, differencePolygons, getPerpendicularBisectorLine } from '../utils/geoUtils';
+import { LocateFixed } from 'lucide-react';
 
 interface MapProps {
     action: string;
@@ -355,9 +356,81 @@ const Map: React.FC<MapProps> = ({
         }
     }, [points, action, setDistance, setHeading]);
 
+    const handleLocateUser = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by this browser.');
+            return;
+        }
+
+        // Request current position and zoom to it
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                const userLocation = [longitude, latitude];
+
+                if (map.current) {
+                    map.current.flyTo({
+                        center: userLocation as [number, number],
+                        zoom: 18,
+                        essential: true
+                    });
+                }
+            },
+            (err) => {
+                console.warn('Geolocation request failed:', err);
+                let message = `Failed to get location: ${err.message}`;
+                if (err.code === err.PERMISSION_DENIED) {
+                    message += '\n\nPlease enable location services for this site in your browser settings.';
+                } else if (err.code === err.TIMEOUT) {
+                    message = 'Location request timed out. Please try again.';
+                } else if (err.code === err.POSITION_UNAVAILABLE) {
+                    message = 'Location information is unavailable.';
+                }
+                alert(message);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    };
+
     return (
         <div style={{ display: 'flex', flex: 1, position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mapContainerRef} style={{ flex: 1, width: '100%', height: '100%' }} />
+            <button
+                onClick={handleLocateUser}
+                style={{
+                    position: 'absolute',
+                    bottom: '40px',
+                    right: '40px',
+                    zIndex: 1000,
+                    backgroundColor: 'white',
+                    border: '2px solid #007cbf',
+                    borderRadius: '50%',
+                    padding: '10px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    width: '44px',
+                    height: '44px',
+                    transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f0f0f0';
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'white';
+                    e.currentTarget.style.transform = 'scale(1)';
+                }}
+                title="Go to my location"
+            >
+                <LocateFixed size={22} color="#007cbf" />
+            </button>
         </div>
     );
 };
