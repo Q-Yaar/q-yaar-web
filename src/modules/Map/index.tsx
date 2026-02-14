@@ -4,7 +4,9 @@ import Sidebar from '../../components/Sidebar';
 import { Heading, Operation } from '../../utils/geoTypes';
 import { useParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
-import { Header } from 'components/ui/header';
+import { Header } from '../../components/ui/header';
+import { useGetFactsQuery } from '../../apis/api';
+import { convertBackendFactToOperation } from '../../utils/factUtils';
 
 // Simple in-memory cache for the last known location
 let lastKnownLocation: number[] | null = null;
@@ -19,9 +21,7 @@ const MapPage: React.FC = () => {
   const [distance, setDistance] = useState<number | null>(null);
   const [heading, setHeading] = useState<Heading | null>(null);
   const [radius, setRadius] = useState<number>(5);
-  const [hiderLocation, setHiderLocation] = useState<'inside' | 'outside'>(
-    'inside',
-  );
+  const [hiderLocation, setHiderLocation] = useState<'inside' | 'outside'>('inside');
   const [playArea, setPlayArea] = useState<any>(null);
   const [splitDirection, setSplitDirection] = useState<
     'North' | 'South' | 'East' | 'West'
@@ -30,17 +30,42 @@ const MapPage: React.FC = () => {
   const [areaOpType, setAreaOpType] = useState<'inside' | 'outside'>('inside');
   const [uploadedAreaForOp, setUploadedAreaForOp] = useState<any>(null);
   const [multiLineStringForOp, setMultiLineStringForOp] = useState<any>(null);
-  const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>(
-    'closer',
-  );
+  const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>('closer');
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
   const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
-  const [operations, setOperations] = useState<Operation[]>([]);
+  const [localOperations, setLocalOperations] = useState<Operation[]>([]);
 
   // Initialize with cached location if available
   const [currentLocation, setCurrentLocation] = useState<number[] | null>(
     lastKnownLocation,
   );
+
+  // Fetch facts from the server
+  const { data: factsData } = useGetFactsQuery(
+    { game_id: gameId!, fact_type: 'GEO' },
+    { skip: !gameId }
+  );
+
+  // Merge server facts with local operations
+  const [operations, setOperations] = useState<Operation[]>([]);
+
+  useEffect(() => {
+    if (factsData?.results) {
+      const serverOperations = factsData.results
+        .map(fact => convertBackendFactToOperation(fact))
+        .filter((op): op is Operation => op !== null);
+
+      // Merge server operations with local operations
+      // Server operations take precedence for existing IDs
+      const mergedOps = [...serverOperations, ...localOperations.filter(
+        localOp => !serverOperations.some(serverOp => serverOp.id === localOp.id)
+      )];
+
+      setOperations(mergedOps);
+    } else {
+      setOperations(localOperations);
+    }
+  }, [factsData, localOperations]);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -65,11 +90,7 @@ const MapPage: React.FC = () => {
       timeout: 10000,
     };
 
-    const watchId = navigator.geolocation.watchPosition(
-      success,
-      error,
-      options,
-    );
+    const watchId = navigator.geolocation.watchPosition(success, error, options);
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
@@ -101,7 +122,7 @@ const MapPage: React.FC = () => {
             zIndex: 10,
             transition: 'width 0.3s ease-in-out',
             borderRight: isSidebarOpen ? '1px solid #ddd' : 'none',
-            backgroundColor: 'white', // Ensure background is white so it covers anything behind if needed (though map is next to it)
+            backgroundColor: 'white',
             flexShrink: 0,
           }}
         >
@@ -133,9 +154,10 @@ const MapPage: React.FC = () => {
             polygonGeoJSONForOp={polygonGeoJSON}
             setPolygonGeoJSONForOp={setPolygonGeoJSON}
             operations={operations}
-            setOperations={setOperations}
+            setOperations={setLocalOperations}
             setPoints={setPoints}
             currentLocation={currentLocation}
+            gameId={gameId}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
