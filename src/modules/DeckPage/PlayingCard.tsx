@@ -1,20 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import {
-  Flame,
-  RotateCcw,
-  Trash2,
-  Zap,
-  Skull,
-  Info,
-  ScanEye,
-  X,
-  Hand,
-  Eye,
-} from 'lucide-react';
+import { Flame, Zap, Skull, Info, ScanEye, Eye } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Card } from '../../models/Deck';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 import { getLabel } from 'utils/utils';
+import { ZoomedPlayingCard } from './ZoomedPlayingCard';
 
 export enum PlayingCardUIType {
   DRAW_PILE = 'DRAW_PILE',
@@ -150,32 +140,19 @@ export const PlayingCard = ({
     }
   };
 
-  const handleAction = (
-    action: 'return' | 'discard' | 'draw',
-    e?: React.MouseEvent,
-  ) => {
-    e?.stopPropagation();
-    setIsZoomed(false);
-    setShowMenu(false);
-    if (action === 'return' && onReturn) onReturn();
-    if (action === 'discard' && onDiscard) onDiscard();
-    if (action === 'draw' && onDraw) onDraw();
-  };
-
   // --- RENDERERS ---
 
-  const CardContent = ({ mode }: { mode: 'mini' | 'zoom' | 'peek' }) => {
+  const CardContent = ({ mode }: { mode: 'mini' | 'peek' }) => {
     const isPeek = mode === 'peek';
-    const isZoom = mode === 'zoom';
     const isMini = mode === 'mini';
 
     return (
       <div
-        className={`w-full h-full flex flex-col bg-gray-900 overflow-hidden ${isZoom ? 'rounded-2xl' : 'rounded-xl'}`}
+        className={`w-full h-full flex flex-col bg-gray-900 overflow-hidden rounded-xl`}
       >
         {/* 1. Header & Art */}
         <div
-          className={`${isZoom ? 'h-[40%]' : isPeek ? 'h-[50%]' : 'h-[35%]'} relative bg-gradient-to-b ${theme.headerGradient} p-1 shrink-0`}
+          className={`${isPeek ? 'h-[50%]' : 'h-[35%]'} relative bg-gradient-to-b ${theme.headerGradient} p-1 shrink-0`}
         >
           {/* Type Badge */}
           <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
@@ -189,19 +166,17 @@ export const PlayingCard = ({
             ref={menuRef}
           >
             {/* Eye Icon to Conceal (Only for HAND_PILE and when revealed) */}
-            {uiType === PlayingCardUIType.HAND_PILE &&
-              isRevealed &&
-              !isZoom && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsRevealed(false);
-                  }}
-                  className="interactive-btn p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
-                >
-                  <Eye size={16} />
-                </button>
-              )}
+            {uiType === PlayingCardUIType.HAND_PILE && isRevealed && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsRevealed(false);
+                }}
+                className="interactive-btn p-1.5 rounded-full bg-black/40 hover:bg-black/60 text-white/80 hover:text-white transition-colors backdrop-blur-sm"
+              >
+                <Eye size={16} />
+              </button>
+            )}
           </div>
 
           {/* Image */}
@@ -244,27 +219,6 @@ export const PlayingCard = ({
               >
                 {card.description}
               </p>
-              {/* Metadata in Zoom */}
-              {isZoom && card.metadata && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  {Object.entries(card.metadata).map(
-                    ([key, value]) =>
-                      key !== 'casting_cost' && (
-                        <div
-                          key={key}
-                          className="flex justify-between text-xs py-1"
-                        >
-                          <span className="text-gray-500 font-medium uppercase">
-                            {key.replace(/_/g, ' ')}
-                          </span>
-                          <span className="font-bold text-gray-800">
-                            {String(value)}
-                          </span>
-                        </div>
-                      ),
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -273,7 +227,7 @@ export const PlayingCard = ({
             <div className="flex-1 flex flex-col items-center justify-center text-center opacity-60">
               <ScanEye size={24} className="mb-2 text-indigo-900" />
               <span className="text-xs font-bold text-indigo-900 uppercase">
-                {uiType === 'HAND_PILE' && !isZoom
+                {uiType === 'HAND_PILE'
                   ? 'Click for details'
                   : 'Click to view details'}
               </span>
@@ -322,57 +276,6 @@ export const PlayingCard = ({
             </div>
           )}
         </div>
-
-        {/* Zoom Mode Actions */}
-        {isZoom && (
-          <div className="bg-gray-50 p-4 border-t border-gray-100 flex gap-3">
-            {/* DRAW_PILE: "Draw this card" */}
-            {uiType === PlayingCardUIType.DRAW_PILE && (
-              <>
-                {onDraw && (
-                  <button
-                    onClick={() => handleAction('draw')}
-                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-lg font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
-                  >
-                    <Hand size={18} /> Draw this Card
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* HAND_PILE: Discard, Return */}
-            {uiType === PlayingCardUIType.HAND_PILE && (
-              <>
-                {onDiscard && (
-                  <button
-                    onClick={() => handleAction('discard')}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg font-bold transition-colors"
-                  >
-                    <Trash2 size={18} /> Discard
-                  </button>
-                )}
-                {onReturn && (
-                  <button
-                    onClick={() => handleAction('return')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
-                  >
-                    <RotateCcw size={18} /> Return
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* DISCARD_PILE: Return */}
-            {uiType === PlayingCardUIType.DISCARD_PILE && onReturn && (
-              <button
-                onClick={() => handleAction('return')}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
-              >
-                <RotateCcw size={18} /> Return
-              </button>
-            )}
-          </div>
-        )}
       </div>
     );
   };
@@ -413,24 +316,14 @@ export const PlayingCard = ({
       {isZoomed &&
         createPortal(
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div
-              className="relative w-full max-w-[380px] sm:max-w-[400px] h-full max-h-[100vh] flex flex-col animate-in zoom-in-95 duration-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={() => setIsZoomed(false)}
-                className="absolute top-2 right-2 sm:right-2 p-2 text-white/70 hover:text-white bg-gray-100/5 hover:bg-white/20 rounded-full transition-colors z-50"
-              >
-                <X size={24} />
-              </button>
-
-              <div
-                className={`w-full flex-1 rounded-2xl shadow-2xl border-[4px] bg-white overflow-hidden flex flex-col ${theme.border}`}
-              >
-                {/* Always zoom mode in modal */}
-                <CardContent mode="zoom" />
-              </div>
-            </div>
+            <ZoomedPlayingCard
+              card={card}
+              onClose={() => setIsZoomed(false)}
+              uiType={uiType}
+              onDiscard={onDiscard}
+              onReturn={onReturn}
+              onDraw={onDraw}
+            />
           </div>,
           document.body,
         )}
