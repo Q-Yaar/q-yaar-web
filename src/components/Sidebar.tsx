@@ -266,7 +266,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </header>
 
       {/* Team Filter Dropdown - moved to top */}
-      {(textFacts && textFacts.length > 0) && (
+      {(teamsData && teamsData.length > 0) && (
         <div style={{ margin: '15px 0', padding: '10px 0', borderBottom: '1px solid #eee' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '5px', color: '#555' }}>
             Filter Facts by Team
@@ -285,26 +285,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             }}
           >
             <option value="all">All Teams</option>
-            {teamsData && teamsData.length > 0 ? (
-              teamsData.map((team) => (
-                <option key={team.team_id} value={team.team_id}>
-                  {team.team_name}
-                </option>
-              ))
-            ) : (
-              // Fallback: get all unique team IDs from facts
-              Array.from(new Set((textFacts || []).map((fact: Fact) => fact.fact_info.op_meta?.team_id)))
-                .filter((teamId): teamId is string => !!teamId)
-                .map((teamId) => {
-                  const teamFact = textFacts?.find((fact: Fact) => fact.fact_info.op_meta?.team_id === teamId);
-                  const teamName = teamFact?.fact_info.op_meta?.team_name || `Team ${teamId}`;
-                  return (
-                    <option key={teamId} value={teamId}>
-                      {teamName}
-                    </option>
-                  );
-                })
-            )}
+            {teamsData.map((team) => (
+              <option key={team.team_id} value={team.team_id}>
+                {team.team_name}
+              </option>
+            ))}
           </select>
         </div>
       )}
