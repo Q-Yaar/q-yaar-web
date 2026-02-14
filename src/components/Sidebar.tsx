@@ -10,7 +10,55 @@ const PUBLIC_ASSETS = [
     name: 'Bengaluru Urban District',
     path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson',
   },
+  {
+    name: 'Bengaluru Corporations',
+    path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson',
+  },
+  {
+    name: 'Metro Lines',
+    path: '/assets/geojsons/bengaluru/metro_lines.geojson',
+  },
+  {
+    name: 'Nearest Metro Line',
+    path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
+  },
 ];
+
+// Define asset lists for different operations
+const OPERATION_ASSETS = {
+  'play-area': [
+    {
+      name: 'Bengaluru Urban District',
+      path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson',
+    }
+  ],
+  'areas': [
+    {
+      name: 'Bengaluru Corporations',
+      path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson',
+    },
+    {
+      name: 'Nearest Metro Line',
+      path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
+    },
+  ],
+  'closer-to-line': [
+    {
+      name: 'Metro Lines',
+      path: '/assets/geojsons/bengaluru/metro_lines.geojson',
+    }
+  ],
+  'polygon-location': [
+    {
+      name: 'Bengaluru Corporations',
+      path: '/assets/geojsons/bengaluru/bengaluru-corporations.geojson',
+    },
+    {
+      name: 'Nearest Metro Line',
+      path: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson',
+    },
+  ]
+};
 
 interface Heading {
   lat: string;
@@ -133,8 +181,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // Automatically load Bengaluru Urban District play area on mount
   useEffect(() => {
-    if (PUBLIC_ASSETS.length > 0 && !playArea) {
-      fetchGeoJSON(PUBLIC_ASSETS[0].path, setPlayArea);
+    if (OPERATION_ASSETS['play-area'].length > 0 && !playArea) {
+      fetchGeoJSON(OPERATION_ASSETS['play-area'][0].path, setPlayArea);
     }
   }, [playArea, setPlayArea]);
 
@@ -305,8 +353,16 @@ const Sidebar: React.FC<SidebarProps> = ({
       <section className="tool-section">
         <label>Play Area</label>
         <div className="file-input-wrapper">
-          <select disabled value={playArea?._source_path || PUBLIC_ASSETS[0].path}>
-            {PUBLIC_ASSETS.map((asset) => (
+          <select
+            onChange={(e) => {
+              const path = e.target.value;
+              if (path) {
+                fetchGeoJSON(path, setPlayArea);
+              }
+            }}
+            value={playArea?._source_path || OPERATION_ASSETS['play-area'][0].path}
+          >
+            {OPERATION_ASSETS['play-area'].map((asset) => (
               <option key={asset.path} value={asset.path}>
                 {asset.name}
               </option>
@@ -321,7 +377,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 marginTop: '4px',
               }}
             >
-              <div className="success-badge">✓ Bengaluru Urban District Loaded</div>
+              <div className="success-badge">✓ Bengaluru Urban District Applied</div>
             </div>
           )}
         </div>
@@ -615,7 +671,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   value={uploadedAreaForOp?._source_path || ''}
                 >
                   <option value="">Select Asset</option>
-                  {PUBLIC_ASSETS.map((asset) => (
+                  {OPERATION_ASSETS['areas'].map((asset) => (
                     <option key={asset.path} value={asset.path}>
                       {asset.name}
                     </option>
@@ -699,7 +755,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   value={multiLineStringForOp?._source_path || ''}
                 >
                   <option value="">Select Asset</option>
-                  {PUBLIC_ASSETS.map((asset) => (
+                  {OPERATION_ASSETS['closer-to-line'].map((asset) => (
                     <option key={asset.path} value={asset.path}>
                       {asset.name}
                     </option>
@@ -762,7 +818,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   value={polygonGeoJSONForOp?._source_path || ''}
                 >
                   <option value="">Select Asset</option>
-                  {PUBLIC_ASSETS.map((asset) => (
+                  {OPERATION_ASSETS['polygon-location'].map((asset) => (
                     <option key={asset.path} value={asset.path}>
                       {asset.name}
                     </option>
