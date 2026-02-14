@@ -5,7 +5,7 @@ import { Heading, Operation } from '../../utils/geoTypes';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Header } from '../../components/ui/header';
-import { useGetFactsQuery } from '../../apis/api';
+import { useGetFactsQuery, useCreateFactMutation } from '../../apis/api';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
 import { Fact } from '../../models/Fact';
@@ -79,9 +79,13 @@ const MapPage: React.FC = () => {
 
   // Fetch teams for the game
   const { data: teamsData } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+  
+  // Create fact mutation for saving drafts
+  const [createFactMutation] = useCreateFactMutation();
 
   // Separate GEO facts (operations) from TEXT facts
   const [operations, setOperations] = useState<Operation[]>([]);
+  const [serverOperations, setServerOperations] = useState<Operation[]>([]);
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
@@ -102,6 +106,9 @@ const MapPage: React.FC = () => {
         new Date(b.created).getTime() - new Date(a.created).getTime()
       );
 
+      // Store server operations for draft detection
+      setServerOperations(serverOperations);
+
       // Merge server operations with local operations
       // Server operations take precedence for existing IDs
       const mergedOps = [
@@ -116,6 +123,7 @@ const MapPage: React.FC = () => {
       setTextFacts(sortedTextFacts);
     } else {
       setOperations(localOperations);
+      setServerOperations([]);
       setTextFacts([]);
     }
   }, [factsData, localOperations]);
@@ -240,6 +248,8 @@ const MapPage: React.FC = () => {
             selectedTeamFilter={selectedTeamFilter}
             setSelectedTeamFilter={setSelectedTeamFilter}
             teamsData={teamsData}
+            serverOperations={serverOperations}
+            createFactMutation={createFactMutation}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>

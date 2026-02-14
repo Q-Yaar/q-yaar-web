@@ -3,6 +3,7 @@ import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
 import { Fact } from '../models/Fact';
 import { formatDate } from '../utils/dateUtils';
+import { convertOperationToFactInfo } from '../utils/factUtils';
 
 const PUBLIC_ASSETS = [
   {
@@ -60,7 +61,6 @@ interface SidebarProps {
   setOperations: (ops: Operation[]) => void;
   setPoints: (points: number[][]) => void;
   currentLocation?: number[] | null;
-  gameId?: string;
   teamId?: string;
   referencePoints?: number[][];
   onClearReferencePoints?: () => void;
@@ -69,6 +69,9 @@ interface SidebarProps {
   selectedTeamFilter?: string;
   setSelectedTeamFilter?: (teamId: string) => void;
   teamsData?: any[];
+  serverOperations?: any[];
+  gameId?: string;
+  createFactMutation?: ((arg: any) => Promise<any>) | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -112,6 +115,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   selectedTeamFilter = 'all',
   setSelectedTeamFilter = () => {},
   teamsData = [],
+  serverOperations = [],
+  createFactMutation = null,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -837,7 +842,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   points.length === 0)
               }
             >
-              Save Operation
+              Save as Draft
             </button>
           )}
         </div>
@@ -854,37 +859,75 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <h3>Saved Operations</h3>
           <ul className="operations-list">
-            {operations.map((op, index) => (
-              <li key={op.id} className="operation-card">
-                <strong>
-                  {index + 1}.{' '}
-                  {op.type === 'areas'
-                    ? 'Area Operations'
-                    : op.type === 'closer-to-line'
-                      ? 'Distance from Metro Line'
-                      : op.type.replace(/-/g, ' ')}
-                </strong>
-                <div className="help-text">
-                  {op.type === 'draw-circle' &&
-                    `${op.radius}km · Hider ${op.hiderLocation}`}
-                  {op.type === 'split-by-direction' &&
-                    `Hider is ${op.splitDirection}`}
-                  {op.type === 'hotter-colder' &&
-                    `Closer to ${op.preferredPoint}`}
-                  {op.type === 'areas' &&
-                    `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
-                  {op.type === 'closer-to-line' &&
-                    `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
-                  {op.type === 'polygon-location' && `In polygon`}
-                </div>
-                <button
-                  className="remove-op"
-                  onClick={() => removeOperation(op.id)}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
+            {operations.map((op, index) => {
+              const isDraft = !serverOperations.some(serverOp => serverOp.id === op.id);
+              
+              const handleSaveDraft = async () => {
+                if (!createFactMutation || !gameId) return;
+                
+                try {
+                  // Convert operation to fact info
+                  const factInfo = convertOperationToFactInfo(op);
+                  
+                  // Create the fact
+                  await createFactMutation({
+                    game_id: gameId,
+                    fact_type: 'GEO',
+                    fact_info: factInfo
+                  });
+                  
+                  // Remove the draft from local operations since it's now saved
+                  removeOperation(op.id);
+                } catch (error) {
+                  console.error('Failed to save fact:', error);
+                  alert('Failed to save fact. Please try again.');
+                }
+              };
+              
+              return (
+                <li key={op.id} className="operation-card">
+                  <strong>
+                    {index + 1}.{' '}
+                    {op.type === 'areas'
+                      ? 'Area Operations'
+                      : op.type === 'closer-to-line'
+                        ? 'Distance from Metro Line'
+                        : op.type.replace(/-/g, ' ')}
+                    {isDraft && ' (Draft)'}
+                  </strong>
+                  <div className="help-text">
+                    {op.type === 'draw-circle' &&
+                      `${op.radius}km · Hider ${op.hiderLocation}`}
+                    {op.type === 'split-by-direction' &&
+                      `Hider is ${op.splitDirection}`}
+                    {op.type === 'hotter-colder' &&
+                      `Closer to ${op.preferredPoint}`}
+                    {op.type === 'areas' &&
+                      `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
+                    {op.type === 'closer-to-line' &&
+                      `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
+                    {op.type === 'polygon-location' && `In polygon`}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    {isDraft && (
+                      <button
+                        className="save-draft-btn"
+                        onClick={handleSaveDraft}
+                      >
+                        Save
+                      </button>
+                    )}
+                    <button
+                      className="remove-op"
+                      onClick={() => removeOperation(op.id)}
+                      style={{ position: 'relative', right: 'auto', top: 'auto' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
