@@ -893,20 +893,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      {operations.length > 0 && (
+      {/* Draft Operations - Local only */}
+      {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).length > 0 && (
         <div
           className="operations-container"
           style={{
-            marginTop: 'auto',
-            borderTop: '2px solid #eee',
-            paddingTop: '20px',
+            marginTop: '20px',
+            borderTop: '1px solid #eee',
+            paddingTop: '15px',
           }}
         >
-          <h3>Saved Operations</h3>
+          <h3>Draft Operations</h3>
           <ul className="operations-list">
-            {operations.map((op, index) => {
-              const isDraft = !serverOperations.some(serverOp => serverOp.id === op.id);
-              
+            {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).map((op, index) => {
               const handleSaveDraft = async () => {
                 if (!createFactMutation || !gameId) return;
                 
@@ -963,7 +962,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       : op.type === 'closer-to-line'
                         ? 'Distance from Metro Line'
                         : op.type.replace(/-/g, ' ')}
-                    {isDraft && ' (Draft)'}
+                    {' (Draft)'}
                   </strong>
                   <div className="help-text">
                     {op.type === 'draw-circle' &&
@@ -979,14 +978,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {op.type === 'polygon-location' && `In polygon`}
                   </div>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                    {isDraft && (
-                      <button
-                        className="save-draft-btn"
-                        onClick={handleSaveDraft}
-                      >
-                        Save
-                      </button>
-                    )}
+                    <button
+                      className="save-draft-btn"
+                      onClick={handleSaveDraft}
+                    >
+                      Save
+                    </button>
                     <button
                       className="remove-op"
                       onClick={() => removeOperation(op.id)}
@@ -1001,6 +998,9 @@ const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </div>
       )}
+
+      {/* Saved Facts - From backend */}
+
       {referencePoints && referencePoints.length > 0 && (
         <div
           className="operations-container"
