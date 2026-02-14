@@ -2,7 +2,7 @@ import { AskedQuestion } from '../../models/QnA';
 import { Card, CardContent } from 'components/ui/card';
 import { Button } from 'components/ui/button';
 import { formatDate } from 'utils/dateUtils';
-import { Gift } from 'lucide-react';
+import { Gift, Map } from 'lucide-react';
 
 interface QuestionCardProps {
   question: AskedQuestion;
@@ -56,6 +56,26 @@ export function QuestionCard({
               </span>
             )}
             <span>{formatDate(question.created)}</span>
+            {question.question_meta?.location_points &&
+              question.question_meta.location_points.length > 0 && (
+                <a
+                  href={`/games/${question.category.reward.created}/map?locations=${JSON.stringify(
+                    question.question_meta.location_points.map((p) => [
+                      parseFloat(p.lon),
+                      parseFloat(p.lat),
+                    ]),
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center text-gray-500 hover:text-indigo-600 transition-colors"
+                  title="View Locations on Map"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent card click if any
+                  }}
+                >
+                  <Map className="w-3.5 h-3.5 ml-2" />
+                </a>
+              )}
           </div>
         </div>
 

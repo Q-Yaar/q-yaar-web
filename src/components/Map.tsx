@@ -2,437 +2,613 @@ import React, { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Heading, Operation } from '../utils/geoTypes';
-import { applySingleOperation, calculateDistance, computeHiderArea, globalWorld, getRelativeHeading, differencePolygons, getPerpendicularBisectorLine } from '../utils/geoUtils';
+import {
+  applySingleOperation,
+  calculateDistance,
+  computeHiderArea,
+  globalWorld,
+  getRelativeHeading,
+  differencePolygons,
+  getPerpendicularBisectorLine,
+} from '../utils/geoUtils';
 import { LocateFixed } from 'lucide-react';
 
 interface MapProps {
-    action: string;
-    points: number[][];
-    setPoints: React.Dispatch<React.SetStateAction<number[][]>>;
-    setDistance: React.Dispatch<React.SetStateAction<number | null>>;
-    setHeading: React.Dispatch<React.SetStateAction<Heading | null>>;
-    radius: number;
-    hiderLocation: 'inside' | 'outside';
-    playArea: any;
-    splitDirection: 'North' | 'South' | 'East' | 'West';
-    preferredPoint: 'p1' | 'p2';
-    areaOpType: 'inside' | 'outside';
-    uploadedAreaForOp: any;
-    multiLineStringForOp: any;
-    closerFurther: 'closer' | 'further';
-    selectedLineIndex: number;
-    polygonGeoJSONForOp: any;
-    operations: Operation[];
-    currentLocation?: number[] | null;
+  action: string;
+  points: number[][];
+  setPoints: React.Dispatch<React.SetStateAction<number[][]>>;
+  setDistance: React.Dispatch<React.SetStateAction<number | null>>;
+  setHeading: React.Dispatch<React.SetStateAction<Heading | null>>;
+  radius: number;
+  hiderLocation: 'inside' | 'outside';
+  playArea: any;
+  splitDirection: 'North' | 'South' | 'East' | 'West';
+  preferredPoint: 'p1' | 'p2';
+  areaOpType: 'inside' | 'outside';
+  uploadedAreaForOp: any;
+  multiLineStringForOp: any;
+  closerFurther: 'closer' | 'further';
+  selectedLineIndex: number;
+  polygonGeoJSONForOp: any;
+  operations: Operation[];
+  currentLocation?: number[] | null;
+  referencePoints?: number[][];
 }
 
 const Map: React.FC<MapProps> = ({
-    action, points, setPoints, setDistance, setHeading,
-    radius, hiderLocation, playArea, splitDirection, preferredPoint,
-    areaOpType, uploadedAreaForOp,
-    multiLineStringForOp, closerFurther, selectedLineIndex,
-    polygonGeoJSONForOp,
-    operations,
-    currentLocation
+  action,
+  points,
+  setPoints,
+  setDistance,
+  setHeading,
+  radius,
+  hiderLocation,
+  playArea,
+  splitDirection,
+  preferredPoint,
+  areaOpType,
+  uploadedAreaForOp,
+  multiLineStringForOp,
+  closerFurther,
+  selectedLineIndex,
+  polygonGeoJSONForOp,
+  operations,
+  currentLocation,
+  referencePoints = [],
 }) => {
-    const mapContainerRef = useRef<HTMLDivElement>(null);
-    const map = useRef<maplibregl.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
 
-    // Refs to keep track of latest state without triggering re-renders in effects
-    const pointsRef = useRef(points);
-    const actionRef = useRef(action);
+  // Refs to keep track of latest state without triggering re-renders in effects
+  const pointsRef = useRef(points);
+  const actionRef = useRef(action);
 
-    useEffect(() => {
-        pointsRef.current = points;
-        actionRef.current = action;
+  useEffect(() => {
+    pointsRef.current = points;
+    actionRef.current = action;
 
-        if (map.current && map.current.getSource('measurement-source')) {
-            const source = map.current.getSource('measurement-source') as maplibregl.GeoJSONSource;
-            const geojson: GeoJSON.FeatureCollection = {
-                'type': 'FeatureCollection',
-                'features': []
-            };
+    if (map.current && map.current.getSource('measurement-source')) {
+      const source = map.current.getSource(
+        'measurement-source',
+      ) as maplibregl.GeoJSONSource;
+      const geojson: GeoJSON.FeatureCollection = {
+        type: 'FeatureCollection',
+        features: [],
+      };
 
-            // Add current interaction points (except for area operations where they are irrelevant)
-            if (action !== 'areas' && action !== 'closer-to-line') {
-                points.forEach(p => {
-                    geojson.features.push({
-                        'type': 'Feature',
-                        'geometry': { 'type': 'Point', 'coordinates': p },
-                        'properties': {}
-                    });
-                });
+      // Add current interaction points (except for area operations where they are irrelevant)
+      if (action !== 'areas' && action !== 'closer-to-line') {
+        points.forEach((p) => {
+          geojson.features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: p },
+            properties: {},
+          });
+        });
+      }
+
+      if (
+        (action === 'distance' || action === 'heading') &&
+        points.length === 2
+      ) {
+        geojson.features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: points },
+          properties: {},
+        });
+      }
+
+      // --- Apply Operations via Lib ---
+      let currentHiderArea = computeHiderArea(playArea, operations);
+
+      if (action === 'closer-to-line' && multiLineStringForOp) {
+        if (multiLineStringForOp.type === 'FeatureCollection') {
+          if (
+            selectedLineIndex !== undefined &&
+            multiLineStringForOp.features[selectedLineIndex]
+          ) {
+            const feat = multiLineStringForOp.features[selectedLineIndex];
+            if (
+              feat.geometry.type === 'LineString' ||
+              feat.geometry.type === 'MultiLineString'
+            ) {
+              geojson.features.push(feat);
             }
-
-            if ((action === 'distance' || action === 'heading') && points.length === 2) {
-                geojson.features.push({
-                    'type': 'Feature',
-                    'geometry': { 'type': 'LineString', 'coordinates': points },
-                    'properties': {}
-                });
-            }
-
-            // --- Apply Operations via Lib ---
-            let currentHiderArea = computeHiderArea(playArea, operations);
-
-            if (action === 'closer-to-line' && multiLineStringForOp) {
-                if (multiLineStringForOp.type === 'FeatureCollection') {
-                    if (selectedLineIndex !== undefined && multiLineStringForOp.features[selectedLineIndex]) {
-                        const feat = multiLineStringForOp.features[selectedLineIndex];
-                        if (feat.geometry.type === 'LineString' || feat.geometry.type === 'MultiLineString') {
-                            geojson.features.push(feat);
-                        }
-                    } else {
-                        const lines = multiLineStringForOp.features.filter((f: any) => f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
-                        geojson.features.push(...lines);
-                    }
-                } else if (multiLineStringForOp.type === 'Feature' && (multiLineStringForOp.geometry.type === 'LineString' || multiLineStringForOp.geometry.type === 'MultiLineString')) {
-                    geojson.features.push(multiLineStringForOp);
-                } else if (multiLineStringForOp.type === 'LineString' || multiLineStringForOp.type === 'MultiLineString') {
-                    geojson.features.push({
-                        type: 'Feature',
-                        geometry: multiLineStringForOp,
-                        properties: {}
-                    });
-                }
-            }
-
-
-
-            if (action === 'polygon-location' && polygonGeoJSONForOp) {
-                if (polygonGeoJSONForOp.type === 'FeatureCollection') {
-                    geojson.features.push(...polygonGeoJSONForOp.features);
-                } else if (polygonGeoJSONForOp.type === 'Feature') {
-                    geojson.features.push(polygonGeoJSONForOp);
-                } else {
-                    geojson.features.push({
-                        type: 'Feature',
-                        geometry: polygonGeoJSONForOp,
-                        properties: {}
-                    });
-                }
-            }
-
-            if (action === 'areas' && uploadedAreaForOp) {
-                if (uploadedAreaForOp.type === 'FeatureCollection') {
-                    const idx = selectedLineIndex !== undefined ? selectedLineIndex : 0;
-                    const feat = uploadedAreaForOp.features[idx];
-                    if (feat) {
-                        geojson.features.push(feat);
-                    }
-                } else if (uploadedAreaForOp.type === 'Feature') {
-                    geojson.features.push(uploadedAreaForOp);
-                } else {
-                    geojson.features.push({
-                        type: 'Feature',
-                        geometry: uploadedAreaForOp,
-                        properties: {}
-                    });
-                }
-            }
-
-            // Apply current active operation (if not yet saved)
-            if (['draw-circle', 'split-by-direction', 'hotter-colder', 'closer-to-line', 'polygon-location', 'areas'].includes(action)) {
-                const currentOp: Operation = {
-                    id: 'current',
-                    type: action as any,
-                    points: [...points],
-                    radius,
-                    hiderLocation,
-                    splitDirection,
-                    preferredPoint,
-                    areaOpType,
-                    uploadedArea: uploadedAreaForOp,
-                    multiLineString: multiLineStringForOp,
-                    closerFurther,
-                    selectedLineIndex,
-                    polygonGeoJSON: polygonGeoJSONForOp
-                };
-
-                const minPoints = (action === 'draw-circle' || action === 'split-by-direction' || action === 'closer-to-line') ? 1 :
-                    (action === 'hotter-colder' ? 2 : 0);
-                const hasRequiredInputs = (action === 'areas') ? !!uploadedAreaForOp :
-                    (action === 'closer-to-line') ? (!!multiLineStringForOp && points.length >= 1) :
-                        (action === 'polygon-location') ? (!!polygonGeoJSONForOp && points.length >= 1) :
-                            points.length >= minPoints;
-
-                if (hasRequiredInputs) {
-                    currentHiderArea = applySingleOperation(currentOp, currentHiderArea as any);
-
-                    // If hotter-colder, also show lines for the current operation
-                    if (action === 'hotter-colder' && points.length === 2) {
-                        geojson.features.push({
-                            'type': 'Feature',
-                            'geometry': { 'type': 'LineString', 'coordinates': points },
-                            'properties': { 'line-type': 'p1-p2' }
-                        });
-                        const initialArea = computeHiderArea(playArea, []); // Base area for bisector calculation
-                        const bisectorLine = getPerpendicularBisectorLine(points[0], points[1], initialArea as any);
-                        geojson.features.push({
-                            ...bisectorLine,
-                            type: 'Feature',
-                            properties: { ...bisectorLine.properties, 'line-type': 'bisector' }
-                        } as GeoJSON.Feature);
-                    }
-                }
-            }
-
-            // --- Final Shading ---
-            if (currentHiderArea) {
-                const shadingFeature = differencePolygons(globalWorld, currentHiderArea as any);
-                geojson.features.push({
-                    ...shadingFeature,
-                    type: 'Feature',
-                    properties: { ...shadingFeature.properties, 'is-shading': true }
-                } as GeoJSON.Feature);
-            }
-
-            if (currentLocation) {
-                geojson.features.push({
-                    'type': 'Feature',
-                    'geometry': { 'type': 'Point', 'coordinates': currentLocation },
-                    'properties': { 'is-current-location': true }
-                });
-            }
-
-            source.setData(geojson);
+          } else {
+            const lines = multiLineStringForOp.features.filter(
+              (f: any) =>
+                f.geometry.type === 'LineString' ||
+                f.geometry.type === 'MultiLineString',
+            );
+            geojson.features.push(...lines);
+          }
+        } else if (
+          multiLineStringForOp.type === 'Feature' &&
+          (multiLineStringForOp.geometry.type === 'LineString' ||
+            multiLineStringForOp.geometry.type === 'MultiLineString')
+        ) {
+          geojson.features.push(multiLineStringForOp);
+        } else if (
+          multiLineStringForOp.type === 'LineString' ||
+          multiLineStringForOp.type === 'MultiLineString'
+        ) {
+          geojson.features.push({
+            type: 'Feature',
+            geometry: multiLineStringForOp,
+            properties: {},
+          });
         }
-    }, [points, action, radius, hiderLocation, playArea, splitDirection, preferredPoint, areaOpType, uploadedAreaForOp, multiLineStringForOp, closerFurther, selectedLineIndex, operations, currentLocation]);
+      }
 
-    useEffect(() => {
-        if (!mapContainerRef.current) return;
-
-        const container = mapContainerRef.current;
-        const instanceId = Math.random().toString(36).substring(7);
-        console.log(`[Map ${instanceId}] Initializing Map...`);
-
-        const m = new maplibregl.Map({
-            container: container,
-            style: `https://tiles.openfreemap.org/styles/liberty`,
-            center: [77.591, 12.979],
-            zoom: 14
-        });
-
-        map.current = m;
-        m.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-        // Use ResizeObserver to ensure the map resizes whenever the container size changes
-        const resizeObserver = new ResizeObserver(() => {
-            if (m) {
-                console.log(`[Map ${instanceId}] Container resized, calling m.resize()`);
-                m.resize();
-            }
-        });
-        resizeObserver.observe(container);
-
-        m.on('load', () => {
-            console.log(`[Map ${instanceId}] Map Loaded`);
-
-            m.addSource('measurement-source', {
-                'type': 'geojson',
-                'data': {
-                    'type': 'FeatureCollection',
-                    'features': []
-                }
-            });
-
-            // Layer for lines
-            m.addLayer({
-                'id': 'measurement-line',
-                'type': 'line',
-                'source': 'measurement-source',
-                'layout': {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                'paint': {
-                    'line-color': [
-                        'case',
-                        ['==', ['get', 'line-type'], 'bisector'], '#ff00ff',
-                        ['==', ['get', 'is-selected-line'], true], '#ff9800',
-                        '#0000ff'
-                    ],
-                    'line-width': [
-                        'case',
-                        ['==', ['get', 'line-type'], 'bisector'], 2,
-                        ['==', ['get', 'is-selected-line'], true], 6,
-                        4
-                    ],
-                    'line-dasharray': [
-                        'case',
-                        ['==', ['get', 'line-type'], 'bisector'], ['literal', [2, 2]],
-                        ['literal', [1, 0]]
-                    ]
-                },
-                'filter': ['==', '$type', 'LineString']
-            });
-
-            // Layer for shading
-            // Layer for shading
-            m.addLayer({
-                'id': 'shading-fill',
-                'type': 'fill',
-                'source': 'measurement-source',
-                'paint': {
-                    'fill-color': '#000000',
-                    'fill-opacity': 0.4
-                },
-                'filter': ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]]
-            });
-
-            // Layer for current location (Add BEFORE points so points appear on top)
-            m.addLayer({
-                'id': 'current-location-point',
-                'type': 'circle',
-                'source': 'measurement-source',
-                'paint': {
-                    'circle-radius': 8,
-                    'circle-color': '#007cbf',
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#ffffff'
-                },
-                'filter': ['==', 'is-current-location', true]
-            });
-
-            // Layer for points
-            m.addLayer({
-                'id': 'measurement-points',
-                'type': 'circle',
-                'source': 'measurement-source',
-                'paint': {
-                    'circle-radius': 6,
-                    'circle-color': '#ff0000'
-                },
-                'filter': ['all', ['==', '$type', 'Point'], ['!has', 'is-current-location']]
-            });
-        });
-
-        m.on('error', (e) => {
-            console.error(`[Map ${instanceId}] Map Error:`, e);
-        });
-
-        m.on('click', (e) => {
-            const currentAction = actionRef.current;
-
-            if (currentAction === 'distance' || currentAction === 'heading' || currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'hotter-colder' || currentAction === 'closer-to-line' || currentAction === 'polygon-location') {
-                const newPoint = [e.lngLat.lng, e.lngLat.lat];
-                let currentPoints = pointsRef.current;
-
-                const maxPoints = (currentAction === 'draw-circle' || currentAction === 'split-by-direction' || currentAction === 'closer-to-line' || currentAction === 'polygon-location') ? 1 : 2;
-
-                if (currentPoints.length >= maxPoints) {
-                    // Reset if we already have enough points and click again
-                    currentPoints = [newPoint];
-                    setPoints(currentPoints);
-                    setDistance(null);
-                    setHeading(null);
-                } else {
-                    const updatedPoints = [...currentPoints, newPoint];
-                    setPoints(updatedPoints);
-                }
-            }
-        });
-
-        return () => {
-            console.log(`[Map ${instanceId}] Cleaning up...`);
-            resizeObserver.disconnect();
-            if (map.current === m) {
-                map.current = null;
-            }
-            m.remove();
-        }
-    }, []); // Empty dependency array ensures map is only initialized once
-
-    useEffect(() => {
-        if (points.length === 2) {
-            if (action === 'distance') {
-                setDistance(calculateDistance(points[0], points[1]));
-            } else if (action === 'heading') {
-                setHeading(getRelativeHeading(points[0], points[1]) as Heading);
-            }
+      if (action === 'polygon-location' && polygonGeoJSONForOp) {
+        if (polygonGeoJSONForOp.type === 'FeatureCollection') {
+          geojson.features.push(...polygonGeoJSONForOp.features);
+        } else if (polygonGeoJSONForOp.type === 'Feature') {
+          geojson.features.push(polygonGeoJSONForOp);
         } else {
-            setDistance(null);
-            setHeading(null);
+          geojson.features.push({
+            type: 'Feature',
+            geometry: polygonGeoJSONForOp,
+            properties: {},
+          });
         }
-    }, [points, action, setDistance, setHeading]);
+      }
 
-    const handleLocateUser = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by this browser.');
-            return;
+      if (action === 'areas' && uploadedAreaForOp) {
+        if (uploadedAreaForOp.type === 'FeatureCollection') {
+          const idx = selectedLineIndex !== undefined ? selectedLineIndex : 0;
+          const feat = uploadedAreaForOp.features[idx];
+          if (feat) {
+            geojson.features.push(feat);
+          }
+        } else if (uploadedAreaForOp.type === 'Feature') {
+          geojson.features.push(uploadedAreaForOp);
+        } else {
+          geojson.features.push({
+            type: 'Feature',
+            geometry: uploadedAreaForOp,
+            properties: {},
+          });
         }
+      }
 
-        // Request current position and zoom to it
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                const userLocation = [longitude, latitude];
+      // Apply current active operation (if not yet saved)
+      if (
+        [
+          'draw-circle',
+          'split-by-direction',
+          'hotter-colder',
+          'closer-to-line',
+          'polygon-location',
+          'areas',
+        ].includes(action)
+      ) {
+        const currentOp: Operation = {
+          id: 'current',
+          type: action as any,
+          points: [...points],
+          radius,
+          hiderLocation,
+          splitDirection,
+          preferredPoint,
+          areaOpType,
+          uploadedArea: uploadedAreaForOp,
+          multiLineString: multiLineStringForOp,
+          closerFurther,
+          selectedLineIndex,
+          polygonGeoJSON: polygonGeoJSONForOp,
+        };
 
-                if (map.current) {
-                    map.current.flyTo({
-                        center: userLocation as [number, number],
-                        zoom: 18,
-                        essential: true
-                    });
-                }
-            },
-            (err) => {
-                console.warn('Geolocation request failed:', err);
-                let message = `Failed to get location: ${err.message}`;
-                if (err.code === err.PERMISSION_DENIED) {
-                    message += '\n\nPlease enable location services for this site in your browser settings.';
-                } else if (err.code === err.TIMEOUT) {
-                    message = 'Location request timed out. Please try again.';
-                } else if (err.code === err.POSITION_UNAVAILABLE) {
-                    message = 'Location information is unavailable.';
-                }
-                alert(message);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
+        const minPoints =
+          action === 'draw-circle' ||
+          action === 'split-by-direction' ||
+          action === 'closer-to-line'
+            ? 1
+            : action === 'hotter-colder'
+              ? 2
+              : 0;
+        const hasRequiredInputs =
+          action === 'areas'
+            ? !!uploadedAreaForOp
+            : action === 'closer-to-line'
+              ? !!multiLineStringForOp && points.length >= 1
+              : action === 'polygon-location'
+                ? !!polygonGeoJSONForOp && points.length >= 1
+                : points.length >= minPoints;
+
+        if (hasRequiredInputs) {
+          currentHiderArea = applySingleOperation(
+            currentOp,
+            currentHiderArea as any,
+          );
+
+          // If hotter-colder, also show lines for the current operation
+          if (action === 'hotter-colder' && points.length === 2) {
+            geojson.features.push({
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: points },
+              properties: { 'line-type': 'p1-p2' },
+            });
+            const initialArea = computeHiderArea(playArea, []); // Base area for bisector calculation
+            const bisectorLine = getPerpendicularBisectorLine(
+              points[0],
+              points[1],
+              initialArea as any,
+            );
+            geojson.features.push({
+              ...bisectorLine,
+              type: 'Feature',
+              properties: {
+                ...bisectorLine.properties,
+                'line-type': 'bisector',
+              },
+            } as GeoJSON.Feature);
+          }
+        }
+      }
+
+      // --- Final Shading ---
+      if (currentHiderArea) {
+        const shadingFeature = differencePolygons(
+          globalWorld,
+          currentHiderArea as any,
         );
-    };
+        geojson.features.push({
+          ...shadingFeature,
+          type: 'Feature',
+          properties: { ...shadingFeature.properties, 'is-shading': true },
+        } as GeoJSON.Feature);
+      }
 
-    return (
-        <div style={{ display: 'flex', flex: 1, position: 'relative', width: '100%', height: '100%' }}>
-            <div ref={mapContainerRef} style={{ flex: 1, width: '100%', height: '100%' }} />
-            <button
-                onClick={handleLocateUser}
-                style={{
-                    position: 'absolute',
-                    bottom: '40px',
-                    right: '40px',
-                    zIndex: 1000,
-                    backgroundColor: 'white',
-                    border: '2px solid #007cbf',
-                    borderRadius: '50%',
-                    padding: '10px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                    width: '44px',
-                    height: '44px',
-                    transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f0f0f0';
-                    e.currentTarget.style.transform = 'scale(1.05)';
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'white';
-                    e.currentTarget.style.transform = 'scale(1)';
-                }}
-                title="Go to my location"
-            >
-                <LocateFixed size={22} color="#007cbf" />
-            </button>
-        </div>
+      if (currentLocation) {
+        geojson.features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: currentLocation },
+          properties: { 'is-current-location': true },
+        });
+      }
+
+      // Reference Points
+      if (referencePoints && referencePoints.length > 0) {
+        referencePoints.forEach((p, index) => {
+          const label = String.fromCharCode(65 + index); // A, B, C...
+          geojson.features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: p },
+            properties: { 'is-reference-point': true, label },
+          });
+        });
+      }
+
+      source.setData(geojson);
+    }
+  }, [
+    points,
+    action,
+    radius,
+    hiderLocation,
+    playArea,
+    splitDirection,
+    preferredPoint,
+    areaOpType,
+    uploadedAreaForOp,
+    multiLineStringForOp,
+    closerFurther,
+    selectedLineIndex,
+    operations,
+    currentLocation,
+    referencePoints,
+  ]);
+
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    const container = mapContainerRef.current;
+    const instanceId = Math.random().toString(36).substring(7);
+    console.log(`[Map ${instanceId}] Initializing Map...`);
+
+    const m = new maplibregl.Map({
+      container: container,
+      style: `https://tiles.openfreemap.org/styles/liberty`,
+      center: [77.591, 12.979],
+      zoom: 14,
+    });
+
+    map.current = m;
+    m.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Use ResizeObserver to ensure the map resizes whenever the container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      if (m) {
+        console.log(
+          `[Map ${instanceId}] Container resized, calling m.resize()`,
+        );
+        m.resize();
+      }
+    });
+    resizeObserver.observe(container);
+
+    m.on('load', () => {
+      console.log(`[Map ${instanceId}] Map Loaded`);
+
+      m.addSource('measurement-source', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      });
+
+      // Layer for lines
+      m.addLayer({
+        id: 'measurement-line',
+        type: 'line',
+        source: 'measurement-source',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'],
+            '#ff00ff',
+            ['==', ['get', 'is-selected-line'], true],
+            '#ff9800',
+            '#0000ff',
+          ],
+          'line-width': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'],
+            2,
+            ['==', ['get', 'is-selected-line'], true],
+            6,
+            4,
+          ],
+          'line-dasharray': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'],
+            ['literal', [2, 2]],
+            ['literal', [1, 0]],
+          ],
+        },
+        filter: ['==', '$type', 'LineString'],
+      });
+
+      // Layer for shading
+      // Layer for shading
+      m.addLayer({
+        id: 'shading-fill',
+        type: 'fill',
+        source: 'measurement-source',
+        paint: {
+          'fill-color': '#000000',
+          'fill-opacity': 0.4,
+        },
+        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]],
+      });
+
+      // Layer for current location (Add BEFORE points so points appear on top)
+      m.addLayer({
+        id: 'current-location-point',
+        type: 'circle',
+        source: 'measurement-source',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': '#007cbf',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+        filter: ['==', 'is-current-location', true],
+      });
+
+      // Add custom pin image
+      const pinSvg = `
+        <svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 0C6.7 0 0 6.7 0 15c0 10 15 25 15 25s15-15 15-25c0-8.3-6.7-15-15-15z" fill="#FF5722" stroke="white" stroke-width="2"/>
+        </svg>
+      `;
+      const pinImage = new Image(30, 40);
+      pinImage.onload = () => {
+        if (!m.hasImage('custom-pin')) {
+          m.addImage('custom-pin', pinImage);
+        }
+      };
+      pinImage.src =
+        'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(pinSvg);
+
+      // Layer for reference points (Symbols)
+      m.addLayer({
+        id: 'reference-points-layer',
+        type: 'symbol',
+        source: 'measurement-source',
+        layout: {
+          'icon-image': 'custom-pin',
+          'icon-anchor': 'bottom',
+          'icon-size': 0.8,
+          'text-field': ['get', 'label'],
+          'text-font': ['Noto Sans Regular'],
+          'text-offset': [0, -1.2], // Adjust to center in the pin head
+          'text-anchor': 'bottom',
+          'text-size': 14,
+          'icon-allow-overlap': true,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#FFFFFF',
+        },
+        filter: ['==', 'is-reference-point', true],
+      });
+
+      // Layer for points
+      m.addLayer({
+        id: 'measurement-points',
+        type: 'circle',
+        source: 'measurement-source',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#ff0000',
+        },
+        filter: [
+          'all',
+          ['==', '$type', 'Point'],
+          ['!has', 'is-current-location'],
+        ],
+      });
+    });
+
+    m.on('error', (e) => {
+      console.error(`[Map ${instanceId}] Map Error:`, e);
+    });
+
+    m.on('click', (e) => {
+      const currentAction = actionRef.current;
+
+      if (
+        currentAction === 'distance' ||
+        currentAction === 'heading' ||
+        currentAction === 'draw-circle' ||
+        currentAction === 'split-by-direction' ||
+        currentAction === 'hotter-colder' ||
+        currentAction === 'closer-to-line' ||
+        currentAction === 'polygon-location'
+      ) {
+        const newPoint = [e.lngLat.lng, e.lngLat.lat];
+        let currentPoints = pointsRef.current;
+
+        const maxPoints =
+          currentAction === 'draw-circle' ||
+          currentAction === 'split-by-direction' ||
+          currentAction === 'closer-to-line' ||
+          currentAction === 'polygon-location'
+            ? 1
+            : 2;
+
+        if (currentPoints.length >= maxPoints) {
+          // Reset if we already have enough points and click again
+          currentPoints = [newPoint];
+          setPoints(currentPoints);
+          setDistance(null);
+          setHeading(null);
+        } else {
+          const updatedPoints = [...currentPoints, newPoint];
+          setPoints(updatedPoints);
+        }
+      }
+    });
+
+    return () => {
+      console.log(`[Map ${instanceId}] Cleaning up...`);
+      resizeObserver.disconnect();
+      if (map.current === m) {
+        map.current = null;
+      }
+      m.remove();
+    };
+  }, []); // Empty dependency array ensures map is only initialized once
+
+  useEffect(() => {
+    if (points.length === 2) {
+      if (action === 'distance') {
+        setDistance(calculateDistance(points[0], points[1]));
+      } else if (action === 'heading') {
+        setHeading(getRelativeHeading(points[0], points[1]) as Heading);
+      }
+    } else {
+      setDistance(null);
+      setHeading(null);
+    }
+  }, [points, action, setDistance, setHeading]);
+
+  const handleLocateUser = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    // Request current position and zoom to it
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const userLocation = [longitude, latitude];
+
+        if (map.current) {
+          map.current.flyTo({
+            center: userLocation as [number, number],
+            zoom: 18,
+            essential: true,
+          });
+        }
+      },
+      (err) => {
+        console.warn('Geolocation request failed:', err);
+        let message = `Failed to get location: ${err.message}`;
+        if (err.code === err.PERMISSION_DENIED) {
+          message +=
+            '\n\nPlease enable location services for this site in your browser settings.';
+        } else if (err.code === err.TIMEOUT) {
+          message = 'Location request timed out. Please try again.';
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          message = 'Location information is unavailable.';
+        }
+        alert(message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
     );
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flex: 1,
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+      }}
+    >
+      <div
+        ref={mapContainerRef}
+        style={{ flex: 1, width: '100%', height: '100%' }}
+      />
+      <button
+        onClick={handleLocateUser}
+        style={{
+          position: 'absolute',
+          bottom: '40px',
+          right: '40px',
+          zIndex: 1000,
+          backgroundColor: 'white',
+          border: '2px solid #007cbf',
+          borderRadius: '50%',
+          padding: '10px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          width: '44px',
+          height: '44px',
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#f0f0f0';
+          e.currentTarget.style.transform = 'scale(1.05)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'white';
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+        title="Go to my location"
+      >
+        <LocateFixed size={22} color="#007cbf" />
+      </button>
+    </div>
+  );
 };
 
 export default Map;

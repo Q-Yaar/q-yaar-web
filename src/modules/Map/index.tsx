@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Map from '../../components/Map';
 import Sidebar from '../../components/Sidebar';
 import { Heading, Operation } from '../../utils/geoTypes';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Header } from '../../components/ui/header';
 import { useGetFactsQuery } from '../../apis/api';
@@ -13,6 +13,31 @@ let lastKnownLocation: number[] | null = null;
 
 const MapPage: React.FC = () => {
   const { gameId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const locationsParam = searchParams.get('locations');
+
+  const referencePoints = React.useMemo(() => {
+    if (!locationsParam) return [];
+    try {
+      const parsed = JSON.parse(locationsParam);
+      if (
+        Array.isArray(parsed) &&
+        parsed.every(
+          (p) =>
+            Array.isArray(p) &&
+            p.length === 2 &&
+            typeof p[0] === 'number' &&
+            typeof p[1] === 'number',
+        )
+      ) {
+        return parsed as number[][];
+      }
+      return [];
+    } catch (e) {
+      console.error('Failed to parse locations param:', e);
+      return [];
+    }
+  }, [locationsParam]);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(
     window.innerWidth > 768,
   );
@@ -21,7 +46,9 @@ const MapPage: React.FC = () => {
   const [distance, setDistance] = useState<number | null>(null);
   const [heading, setHeading] = useState<Heading | null>(null);
   const [radius, setRadius] = useState<number>(5);
-  const [hiderLocation, setHiderLocation] = useState<'inside' | 'outside'>('inside');
+  const [hiderLocation, setHiderLocation] = useState<'inside' | 'outside'>(
+    'inside',
+  );
   const [playArea, setPlayArea] = useState<any>(null);
   const [splitDirection, setSplitDirection] = useState<
     'North' | 'South' | 'East' | 'West'
@@ -30,7 +57,9 @@ const MapPage: React.FC = () => {
   const [areaOpType, setAreaOpType] = useState<'inside' | 'outside'>('inside');
   const [uploadedAreaForOp, setUploadedAreaForOp] = useState<any>(null);
   const [multiLineStringForOp, setMultiLineStringForOp] = useState<any>(null);
-  const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>('closer');
+  const [closerFurther, setCloserFurther] = useState<'closer' | 'further'>(
+    'closer',
+  );
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
   const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
   const [localOperations, setLocalOperations] = useState<Operation[]>([]);
@@ -43,7 +72,7 @@ const MapPage: React.FC = () => {
   // Fetch facts from the server
   const { data: factsData } = useGetFactsQuery(
     { game_id: gameId!, fact_type: 'GEO' },
-    { skip: !gameId }
+    { skip: !gameId },
   );
 
   // Merge server facts with local operations
@@ -52,14 +81,18 @@ const MapPage: React.FC = () => {
   useEffect(() => {
     if (factsData?.results) {
       const serverOperations = factsData.results
-        .map(fact => convertBackendFactToOperation(fact))
+        .map((fact) => convertBackendFactToOperation(fact))
         .filter((op): op is Operation => op !== null);
 
       // Merge server operations with local operations
       // Server operations take precedence for existing IDs
-      const mergedOps = [...serverOperations, ...localOperations.filter(
-        localOp => !serverOperations.some(serverOp => serverOp.id === localOp.id)
-      )];
+      const mergedOps = [
+        ...serverOperations,
+        ...localOperations.filter(
+          (localOp) =>
+            !serverOperations.some((serverOp) => serverOp.id === localOp.id),
+        ),
+      ];
 
       setOperations(mergedOps);
     } else {
@@ -90,10 +123,20 @@ const MapPage: React.FC = () => {
       timeout: 10000,
     };
 
-    const watchId = navigator.geolocation.watchPosition(success, error, options);
+    const watchId = navigator.geolocation.watchPosition(
+      success,
+      error,
+      options,
+    );
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
+
+  const handleClearReferencePoints = () => {
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.delete('locations');
+    setSearchParams(newSearchParams);
+  };
 
   return (
     <div
@@ -158,6 +201,8 @@ const MapPage: React.FC = () => {
             setPoints={setPoints}
             currentLocation={currentLocation}
             gameId={gameId}
+            referencePoints={referencePoints}
+            onClearReferencePoints={handleClearReferencePoints}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
@@ -201,6 +246,7 @@ const MapPage: React.FC = () => {
             polygonGeoJSONForOp={polygonGeoJSON}
             operations={operations}
             currentLocation={currentLocation}
+            referencePoints={referencePoints}
           />
         </div>
       </div>
