@@ -22,15 +22,4 @@ export interface Operation {
     timestamp?: number;
 }
 
-export type FactType = 'note' | 'map' | 'picture';
 
-export interface Fact {
-    id: string;
-    gameId: string;
-    teamId: string;
-    answerId?: string;
-    type: FactType;
-    timestamp: number;
-    operation?: OperationType;
-    parameters?: any;
-}

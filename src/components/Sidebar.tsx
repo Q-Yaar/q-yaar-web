@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import './Sidebar.css';
-import { Operation, Fact } from '../utils/geoTypes';
-import { convertFactToOperation, convertOperationToFact, mergeFacts } from '../utils/factUtils';
+import { Operation } from '../utils/geoTypes';
 
 const PUBLIC_ASSETS = [
     { name: 'Bengaluru Urban District', path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson' },
@@ -166,62 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         setPoints(newPoints);
     };
 
-    const handleSyncFacts = () => {
-        // This would eventually be a fetch call to the backend
-        // For now, let's simulate by using a file picker to "import"
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json';
-        input.onchange = async (e: any) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event: any) => {
-                try {
-                    const remoteFacts: Fact[] = JSON.parse(event.target.result);
-                    const localFacts = operations.map(op => convertOperationToFact(op, gameId, teamId));
-                    if (playArea) {
-                        localFacts.unshift(convertOperationToFact(playArea, gameId, teamId, true));
-                    }
 
-                    const mergedFacts = mergeFacts(localFacts, remoteFacts);
-
-                    // Extract Play Area if present
-                    const playAreaFact = mergedFacts.find(f => f.operation === 'play-area');
-                    if (playAreaFact) {
-                        setPlayArea(playAreaFact.parameters.playArea);
-                    }
-
-                    const newOperations = mergedFacts
-                        .filter(f => f.operation !== 'play-area')
-                        .map(f => convertFactToOperation(f))
-                        .filter((op): op is Operation => op !== null);
-
-                    setOperations(newOperations);
-                    alert("Facts synchronized successfully!");
-                } catch (err) {
-                    console.error("Failed to parse facts:", err);
-                    alert("Invalid JSON format");
-                }
-            };
-            reader.readAsText(file);
-        };
-        input.click();
-    };
-
-    const handleExportFacts = () => {
-        const facts = operations.map(op => convertOperationToFact(op, gameId, teamId));
-        if (playArea) {
-            facts.unshift(convertOperationToFact(playArea, gameId, teamId, true));
-        }
-        const blob = new Blob([JSON.stringify(facts, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `facts-${gameId}-${teamId}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
 
     const removeOperation = (id: string) => {
         setOperations(operations.filter(op => op.id !== id));
@@ -231,10 +175,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="sidebar">
             <header>
                 <h2>Map Tools</h2>
-                <div className="sync-buttons">
-                    <button className="sync-btn" onClick={handleSyncFacts} title="Sync with backend">Sync</button>
-                    <button className="export-btn" onClick={handleExportFacts} title="Download facts">Export</button>
-                </div>
             </header>
 
             <section className="tool-section">
