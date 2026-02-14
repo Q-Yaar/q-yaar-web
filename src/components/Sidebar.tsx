@@ -72,6 +72,10 @@ interface SidebarProps {
   serverOperations?: any[];
   gameId?: string;
   createFactMutation?: ((arg: any) => Promise<any>) | null;
+  refetchFacts?: () => void;
+  allFacts?: Fact[];
+  currentUserEmail?: string;
+  deleteFactMutation?: ((factId: string) => Promise<any>) | null;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -117,6 +121,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   teamsData = [],
   serverOperations = [],
   createFactMutation = null,
+  refetchFacts = () => {},
+  allFacts = [],
+  currentUserEmail = 'Unknown Player',
+  deleteFactMutation = null,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -877,19 +885,32 @@ const Sidebar: React.FC<SidebarProps> = ({
                     return;
                   }
                   
-                  // Create the fact with the correct format
+                  // Get team name for display
+                  const teamName = teamsData.find(team => team.team_id === teamId)?.team_name || 'Unknown Team';
+                  
+                  // Create the fact with the correct format including player and team info
                   await createFactMutation({
                     game_id: gameId,
                     fact_type: 'GEO',
                     team_id: teamId,
                     fact_info: {
                       op_type: op.type,
-                      op_meta: factInfo
+                      op_meta: {
+                        ...factInfo,
+                        team_id: teamId,
+                        team_name: teamName,
+                        player_name: currentUserEmail
+                      }
                     }
                   });
                   
                   // Remove the draft from local operations since it's now saved
                   removeOperation(op.id);
+                  
+                  // Refetch facts to update the list
+                  refetchFacts();
+                  console.log('Fact saved successfully, refetching facts...');
+                  alert('Fact saved successfully!');
                 } catch (error) {
                   console.error('Failed to save fact:', error);
                   alert('Failed to save fact. Please try again.');
@@ -1013,7 +1034,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </div>
       )}
-      {textFacts && textFacts.length > 0 && (
+      {allFacts && allFacts.length > 0 && (
         <div
           className="operations-container"
           style={{
@@ -1024,20 +1045,49 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <h3>Saved Facts</h3>
           <ul className="operations-list" style={{ marginTop: '10px' }}>
-            {textFacts.map((fact: Fact, index: number) => (
-              <li key={fact.fact_id} className="operation-card">
-                <strong>{index + 1}. Fact</strong>
-                <div className="help-text">
-                  {fact.fact_info.op_meta?.text || 'No text content'}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
-                  {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}
-                </div>
-                <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
-                  {formatDate(fact.created)}
-                </div>
-              </li>
-            ))}
+            {allFacts.map((fact: Fact, index: number) => {
+              const handleDeleteFact = async () => {
+                if (!deleteFactMutation) return;
+                
+                if (window.confirm('Are you sure you want to delete this fact?')) {
+                  try {
+                    await deleteFactMutation(fact.fact_id);
+                    console.log('Fact deleted successfully');
+                    refetchFacts();
+                  } catch (error) {
+                    console.error('Failed to delete fact:', error);
+                    alert('Failed to delete fact. Please try again.');
+                  }
+                }
+              };
+              
+              return (
+                <li key={fact.fact_id} className="operation-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{index + 1}. {fact.fact_type === 'GEO' ? 'Map Fact' : 'Fact'}</strong>
+                      <div className="help-text">
+                        {fact.fact_type === 'TEXT' 
+                          ? (fact.fact_info.op_meta?.text || 'No text content')
+                          : (fact.fact_info.op_meta?.op_type || 'Map operation')}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
+                        {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
+                        {formatDate(fact.created)}
+                      </div>
+                    </div>
+                    <button
+                      className="delete-fact-btn"
+                      onClick={handleDeleteFact}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

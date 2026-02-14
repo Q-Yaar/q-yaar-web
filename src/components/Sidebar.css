@@ -269,6 +269,29 @@
     opacity: 1;
 }
 
+.delete-fact-btn {
+    padding: 4px 8px;
+    background: linear-gradient(135deg, #ff4444 0%, #d32f2f 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(255, 68, 68, 0.2);
+    flex-shrink: 0;
+}
+
+.delete-fact-btn:hover {
+    box-shadow: 0 4px 8px rgba(255, 68, 68, 0.3);
+    transform: translateY(-1px);
+}
+
+.delete-fact-btn:active {
+    transform: translateY(0);
+}
+
 .divider {
     border-top: 1px solid #eee;
     margin: 15px 0;

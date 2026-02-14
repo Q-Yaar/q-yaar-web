@@ -5,8 +5,10 @@ import { Heading, Operation } from '../../utils/geoTypes';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Header } from '../../components/ui/header';
-import { useGetFactsQuery, useCreateFactMutation } from '../../apis/api';
+import { useGetFactsQuery, useCreateFactMutation, useDeleteFactMutation } from '../../apis/api';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
+import { useSelector } from 'react-redux';
+import { selectAuthState } from '../../redux/auth-reducer';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
 import { Fact } from '../../models/Fact';
 
@@ -71,8 +73,13 @@ const MapPage: React.FC = () => {
     lastKnownLocation,
   );
 
+  // Get auth state to access current user information
+  const authState = useSelector(selectAuthState);
+  const currentUser = authState.authData?.user.data;
+  const currentUserEmail = currentUser?.email || 'Unknown Player';
+
   // Fetch facts from the server
-  const { data: factsData } = useGetFactsQuery(
+  const { data: factsData, refetch: refetchFacts } = useGetFactsQuery(
     { game_id: gameId! },
     { skip: !gameId },
   );
@@ -82,6 +89,9 @@ const MapPage: React.FC = () => {
   
   // Create fact mutation for saving drafts
   const [createFactMutation] = useCreateFactMutation();
+  
+  // Delete fact mutation
+  const [deleteFactMutation] = useDeleteFactMutation();
 
   // Separate GEO facts (operations) from TEXT facts
   const [operations, setOperations] = useState<Operation[]>([]);
@@ -92,6 +102,8 @@ const MapPage: React.FC = () => {
 
   useEffect(() => {
     if (factsData?.results) {
+      console.log('All received facts:', factsData.results);
+      
       const serverOperations = factsData.results
         .filter((fact) => fact.fact_type === 'GEO')
         .map((fact) => convertBackendFactToOperation(fact))
@@ -100,6 +112,9 @@ const MapPage: React.FC = () => {
       const serverTextFacts = factsData.results.filter(
         (fact) => fact.fact_type === 'TEXT',
       );
+      
+      console.log('GEO facts (operations):', serverOperations);
+      console.log('TEXT facts:', serverTextFacts);
 
       // Sort text facts by creation time (newest first)
       const sortedTextFacts = [...serverTextFacts].sort((a, b) => 
@@ -137,6 +152,7 @@ const MapPage: React.FC = () => {
         fact.fact_info.op_meta?.team_id === selectedTeamFilter
       );
       setFilteredFacts(filtered);
+      console.log('Filtered facts for team', selectedTeamFilter, ':', filtered);
     }
   }, [textFacts, selectedTeamFilter]);
 
@@ -245,11 +261,15 @@ const MapPage: React.FC = () => {
             onClearReferencePoints={handleClearReferencePoints}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             textFacts={filteredFacts}
+            allFacts={factsData?.results || []}
             selectedTeamFilter={selectedTeamFilter}
             setSelectedTeamFilter={setSelectedTeamFilter}
             teamsData={teamsData}
             serverOperations={serverOperations}
             createFactMutation={createFactMutation}
+            refetchFacts={refetchFacts}
+            currentUserEmail={currentUserEmail}
+            deleteFactMutation={deleteFactMutation}
           />
         </div>
         <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
