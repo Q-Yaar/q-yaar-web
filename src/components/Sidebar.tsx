@@ -5,6 +5,16 @@ import { Fact } from '../models/Fact';
 import { Team } from '../models/Team';
 import { formatDate } from '../utils/dateUtils';
 import { convertOperationToFactInfo } from '../utils/factUtils';
+import {
+  TeamFilterDropdown,
+  PlayAreaSection,
+  CategoryToolSection,
+  LocationControls,
+  ToolConfigurationForms,
+  DraftOperationsList,
+  ReferenceLocationsList,
+  SavedFactsList
+} from './SidebarComponents';
 
 const PUBLIC_ASSETS = [
   {
@@ -319,6 +329,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     setOperations(operations.filter((op) => op.id !== id));
   };
 
+  const isTextFactValid = (textContent: string, selectedOption: string | null) => {
+    return selectedOption === 'text' && !textContent.trim();
+  };
+
   return (
     <div className="sidebar">
       <header style={{ display: 'flex', alignItems: 'center' }}>
@@ -353,569 +367,74 @@ const Sidebar: React.FC<SidebarProps> = ({
         <h2>Map Tools</h2>
       </header>
 
-      {/* Team Filter Dropdown - moved to top */}
-      {teamsData && (
-        <div style={{ margin: '15px 0', padding: '10px 0', borderBottom: '1px solid #eee' }}>
-          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '5px', color: '#555' }}>
-            Filter Facts by Team
-          </label>
-          <select
-            value={selectedTeamFilter}
-            onChange={(e) => setSelectedTeamFilter(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px',
-              borderRadius: '4px',
-              border: '1px solid #ddd',
-              fontSize: '0.9rem',
-              backgroundColor: 'white',
-              cursor: 'pointer',
-            }}
-          >
-            {teamsData.map((team) => (
-              <option key={team.team_id} value={team.team_id}>
-                {team.team_name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Team Filter Dropdown */}
+      <TeamFilterDropdown
+        teamsData={teamsData}
+        selectedTeamFilter={selectedTeamFilter}
+        setSelectedTeamFilter={setSelectedTeamFilter}
+      />
 
-      <section className="tool-section">
-        <label>Play Area</label>
-        <div className="file-input-wrapper">
-          <select
-            onChange={(e) => {
-              const path = e.target.value;
-              if (path) {
-                fetchGeoJSON(path, setPlayArea);
-              }
-            }}
-            value={playArea?._source_path || OPERATION_ASSETS['play-area'][0].path}
-          >
-            {OPERATION_ASSETS['play-area'].map((asset) => (
-              <option key={asset.path} value={asset.path}>
-                {asset.name}
-              </option>
-            ))}
-          </select>
-          {playArea && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-start',
-                marginTop: '4px',
-              }}
-            >
-              <div className="success-badge">✓ Bengaluru Urban District Applied</div>
-            </div>
-          )}
-        </div>
-      </section>
+      {/* Play Area Section */}
+      <PlayAreaSection
+        playArea={playArea}
+        setPlayArea={setPlayArea}
+        OPERATION_ASSETS={OPERATION_ASSETS}
+        fetchGeoJSON={fetchGeoJSON}
+      />
 
-      <section className="tool-section">
-        <label>Category</label>
-        <select value={selectedCategory} onChange={handleCategoryChange}>
-          <option value="">Select Category</option>
-          <option value="questions">Questions</option>
-          <option value="facts">Facts</option>
-        </select>
-      </section>
+      {/* Category and Tool Selection */}
+      <CategoryToolSection
+        selectedCategory={selectedCategory}
+        selectedOption={selectedOption}
+        handleCategoryChange={handleCategoryChange}
+        handleOptionChange={handleOptionChange}
+      />
 
-      <section className="tool-section">
-        <label>Tool</label>
-        <select
-          value={selectedOption}
-          onChange={handleOptionChange}
-          disabled={!selectedCategory}
-        >
-          <option value="">Select Action</option>
-          {selectedCategory === 'questions' && (
-            <>
-              <option value="distance">Distance Measurement</option>
-              <option value="heading">Relative Heading</option>
-              <option value="polygon-location">Polygon Location</option>
-            </>
-          )}
-          {selectedCategory === 'facts' && (
-            <>
-              <option value="text">Text Fact</option>
-              <option value="draw-circle">Draw Circle</option>
-              <option value="split-by-direction">Split by Direction</option>
-              <option value="hotter-colder">Hotter / Colder</option>
-              <option value="areas">Area Operations</option>
-              <option value="closer-to-line">Distance from Metro Line</option>
-            </>
-          )}
-        </select>
-      </section>
-
+      {/* Tool Configuration and Controls */}
       {selectedOption && (
-        <div className="tool-details">
+        <>
           {/* Location Controls */}
-          {selectedOption !== 'areas' && (
-            <div style={{ marginBottom: '10px' }}>
-              {isTwoPointTool ? (
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    className="action-btn"
-                    onClick={() => handleUseCurrentLocation(0)}
-                    disabled={!currentLocation}
-                    title={
-                      !currentLocation
-                        ? 'Waiting for location...'
-                        : 'Set Point 1 to Current Location'
-                    }
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      backgroundColor: '#007cbf',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: currentLocation ? 'pointer' : 'not-allowed',
-                      opacity: currentLocation ? 1 : 0.6,
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    📍 Set P1
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={() => handleUseCurrentLocation(1)}
-                    disabled={!currentLocation || points.length === 0}
-                    title={
-                      !currentLocation
-                        ? 'Waiting for location...'
-                        : points.length === 0
-                          ? 'Set P1 first'
-                          : 'Set Point 2 to Current Location'
-                    }
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      backgroundColor: '#007cbf',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor:
-                        currentLocation && points.length > 0
-                          ? 'pointer'
-                          : 'not-allowed',
-                      opacity: currentLocation && points.length > 0 ? 1 : 0.6,
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    📍 Set P2
-                  </button>
-                </div>
-              ) : (
-                <button
-                  className="action-btn"
-                  onClick={() => handleUseCurrentLocation()}
-                  disabled={!currentLocation}
-                  title={
-                    !currentLocation
-                      ? 'Waiting for location...'
-                      : 'Use/Update Current Location as a Point'
-                  }
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    backgroundColor: '#007cbf',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: currentLocation ? 'pointer' : 'not-allowed',
-                    opacity: currentLocation ? 1 : 0.6,
-                    fontSize: '0.9rem',
-                  }}
-                >
-                  📍 Use Current Location
-                </button>
-              )}
-            </div>
-          )}
+          <LocationControls
+            selectedOption={selectedOption}
+            points={points}
+            currentLocation={currentLocation}
+            handleUseCurrentLocation={handleUseCurrentLocation}
+            isTwoPointTool={isTwoPointTool}
+          />
 
-          {/* Points Information */}
-          {selectedOption !== 'areas' && points.length > 0 && (
-            <div className="info-box" style={{ marginBottom: '15px' }}>
-              <div>
-                <strong>
-                  {selectedOption === 'draw-circle' ||
-                  selectedOption === 'split-by-direction'
-                    ? 'Center'
-                    : 'Point 1'}
-                  :
-                </strong>{' '}
-                {points[0][1].toFixed(4)}, {points[0][0].toFixed(4)}
-              </div>
-              {points.length > 1 &&
-                selectedOption !== 'draw-circle' &&
-                selectedOption !== 'split-by-direction' && (
-                  <div style={{ marginTop: '5px' }}>
-                    <strong>Point 2:</strong> {points[1][1].toFixed(4)},{' '}
-                    {points[1][0].toFixed(4)}
-                  </div>
-                )}
-            </div>
-          )}
+          {/* Tool Configuration Forms */}
+          <ToolConfigurationForms
+            selectedOption={selectedOption}
+            points={points}
+            distance={distance}
+            heading={heading}
+            radius={radius}
+            setRadius={setRadius}
+            hiderLocation={hiderLocation}
+            setHiderLocation={setHiderLocation}
+            splitDirection={splitDirection}
+            setSplitDirection={setSplitDirection}
+            preferredPoint={preferredPoint}
+            setPreferredPoint={setPreferredPoint}
+            areaOpType={areaOpType}
+            setAreaOpType={setAreaOpType}
+            uploadedAreaForOp={uploadedAreaForOp}
+            setUploadedAreaForOp={setUploadedAreaForOp}
+            multiLineStringForOp={multiLineStringForOp}
+            setMultiLineStringForOp={setMultiLineStringForOp}
+            closerFurther={closerFurther}
+            setCloserFurther={setCloserFurther}
+            selectedLineIndex={selectedLineIndex}
+            setSelectedLineIndex={setSelectedLineIndex}
+            polygonGeoJSONForOp={polygonGeoJSONForOp}
+            setPolygonGeoJSONForOp={setPolygonGeoJSONForOp}
+            textFactContent={textFactContent}
+            setTextFactContent={setTextFactContent}
+            OPERATION_ASSETS={OPERATION_ASSETS}
+            fetchGeoJSON={fetchGeoJSON}
+          />
 
-          {/* Result Information */}
-          {selectedOption === 'distance' && distance !== null && (
-            <div
-              className="info-box"
-              style={{
-                borderColor: '#4CAF50',
-                backgroundColor: '#f0fff4',
-                marginBottom: '15px',
-              }}
-            >
-              <strong>Distance:</strong> {distance.toFixed(2)} km
-            </div>
-          )}
-
-          {selectedOption === 'heading' && heading && (
-            <div
-              className="info-box"
-              style={{
-                borderColor: '#2196F3',
-                backgroundColor: '#e3f2fd',
-                marginBottom: '15px',
-              }}
-            >
-              <strong>Relative Heading:</strong>
-              <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>
-                P1 is {heading.lat} and {heading.lon} of P2
-              </div>
-            </div>
-          )}
-
-          {/* Configuration Forms */}
-          {selectedOption === 'draw-circle' && (
-            <div className="tool-section">
-              <label>Radius (km)</label>
-              <input
-                type="number"
-                value={radius}
-                onChange={(e) => setRadius(parseFloat(e.target.value) || 0)}
-              />
-              <label style={{ marginTop: '10px' }}>Hider is</label>
-              <div className="radio-group">
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={hiderLocation === 'inside'}
-                    onChange={() => setHiderLocation('inside')}
-                  />{' '}
-                  Inside
-                </label>
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={hiderLocation === 'outside'}
-                    onChange={() => setHiderLocation('outside')}
-                  />{' '}
-                  Outside
-                </label>
-              </div>
-            </div>
-          )}
-
-          {selectedOption === 'split-by-direction' && (
-            <div className="tool-section">
-              <label>Hider is toward...</label>
-              <select
-                value={splitDirection}
-                onChange={(e) => setSplitDirection(e.target.value as any)}
-              >
-                <option value="North">North</option>
-                <option value="South">South</option>
-                <option value="East">East</option>
-                <option value="West">West</option>
-              </select>
-              <span className="help-text">
-                Opposite side will be shaded out.
-              </span>
-            </div>
-          )}
-
-          {selectedOption === 'hotter-colder' && (
-            <div className="tool-section">
-              <label>Closer to...</label>
-              <div className="radio-group">
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={preferredPoint === 'p1'}
-                    onChange={() => setPreferredPoint('p1')}
-                  />{' '}
-                  P1
-                </label>
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={preferredPoint === 'p2'}
-                    onChange={() => setPreferredPoint('p2')}
-                  />{' '}
-                  P2
-                </label>
-              </div>
-              <span className="help-text">
-                Area closer to the OTHER point will be shaded out.
-              </span>
-            </div>
-          )}
-
-          {selectedOption === 'areas' && (
-            <div className="tool-section">
-              <label>Operation</label>
-              <div className="radio-group">
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={areaOpType === 'inside'}
-                    onChange={() => setAreaOpType('inside')}
-                  />{' '}
-                  Inside
-                </label>
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={areaOpType === 'outside'}
-                    onChange={() => setAreaOpType('outside')}
-                  />{' '}
-                  Outside
-                </label>
-              </div>
-              <label style={{ marginTop: '10px' }}>Select Area Asset</label>
-              <div className="file-input-wrapper">
-                <select
-                  onChange={(e) => {
-                    const path = e.target.value;
-                    if (path) {
-                      fetchGeoJSON(path, setUploadedAreaForOp);
-                    } else {
-                      setUploadedAreaForOp(null);
-                    }
-                  }}
-                  value={uploadedAreaForOp?._source_path || ''}
-                >
-                  <option value="">Select Asset</option>
-                  {OPERATION_ASSETS['areas'].map((asset) => (
-                    <option key={asset.path} value={asset.path}>
-                      {asset.name}
-                    </option>
-                  ))}
-                </select>
-                {uploadedAreaForOp && (
-                  <div className="success-badge">✓ {uploadedAreaForOp.features[selectedLineIndex]?.properties?.name || 'Area Ready'}</div>
-                )}
-              </div>
-
-              {uploadedAreaForOp &&
-                uploadedAreaForOp.type === 'FeatureCollection' &&
-                uploadedAreaForOp.features.filter(
-                  (f: any) =>
-                    f.geometry &&
-                    (f.geometry.type === 'Polygon' ||
-                      f.geometry.type === 'MultiPolygon'),
-                ).length > 1 && (
-                  <div style={{ marginTop: '10px' }}>
-                    <label>Select Specific Area</label>
-                    <select
-                      value={selectedLineIndex}
-                      onChange={(e) =>
-                        setSelectedLineIndex(parseInt(e.target.value) || 0)
-                      }
-                    >
-                      {uploadedAreaForOp.features
-                        .map((feat: any, idx: number) => ({ feat, idx }))
-                        .filter(
-                          (item: any) =>
-                            item.feat.geometry &&
-                            (item.feat.geometry.type === 'Polygon' ||
-                              item.feat.geometry.type === 'MultiPolygon'),
-                        )
-                        .map((item: any, listIdx: number) => (
-                          <option key={item.idx} value={item.idx}>
-                            {item.feat.properties?.name || `Area ${listIdx + 1}`}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-            </div>
-          )}
-
-          {selectedOption === 'closer-to-line' && (
-            <div className="tool-section">
-              <label>Hider is...</label>
-              <div className="radio-group">
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={closerFurther === 'closer'}
-                    onChange={() => setCloserFurther('closer')}
-                  />{' '}
-                  Closer
-                </label>
-                <label className="radio-item">
-                  <input
-                    type="radio"
-                    checked={closerFurther === 'further'}
-                    onChange={() => setCloserFurther('further')}
-                  />{' '}
-                  Further
-                </label>
-              </div>
-              <label style={{ marginTop: '10px' }}>Select Line Asset</label>
-              <div className="file-input-wrapper">
-                <select
-                  onChange={(e) => {
-                    const path = e.target.value;
-                    if (path) {
-                      fetchGeoJSON(path, setMultiLineStringForOp);
-                    } else {
-                      setMultiLineStringForOp(null);
-                    }
-                  }}
-                  value={multiLineStringForOp?._source_path || ''}
-                >
-                  <option value="">Select Asset</option>
-                  {OPERATION_ASSETS['closer-to-line'].map((asset) => (
-                    <option key={asset.path} value={asset.path}>
-                      {asset.name}
-                    </option>
-                  ))}
-                </select>
-                {multiLineStringForOp && (
-                  <div className="success-badge">✓ {multiLineStringForOp.features[selectedLineIndex]?.properties?.name || 'Line Ready'}</div>
-                )}
-              </div>
-
-              {multiLineStringForOp &&
-                multiLineStringForOp.type === 'FeatureCollection' &&
-                multiLineStringForOp.features.length > 1 && (
-                  <div style={{ marginTop: '10px' }}>
-                    <label>Select Specific Line</label>
-                    <select
-                      value={selectedLineIndex}
-                      onChange={(e) =>
-                        setSelectedLineIndex(parseInt(e.target.value) || 0)
-                      }
-                    >
-                      {multiLineStringForOp.features
-                        .map((feat: any, idx: number) => ({ feat, idx }))
-                        .filter(
-                          (item: any) =>
-                            item.feat.geometry.type === 'LineString' ||
-                            item.feat.geometry.type === 'MultiLineString',
-                        )
-                        .map((item: any) => (
-                          <option key={item.idx} value={item.idx}>
-                            {item.feat.properties?.name || `Line ${item.idx + 1}`}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-              <span className="help-text">
-                Set Seeker position (P1) on clicking map.
-              </span>
-            </div>
-          )}
-
-          {selectedOption === 'text' && (
-            <div className="tool-section">
-              <label>Text Content</label>
-              <textarea
-                value={textFactContent}
-                onChange={(e) => setTextFactContent(e.target.value)}
-                placeholder="Enter your text fact..."
-                style={{
-                  width: '100%',
-                  height: '100px',
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
-                  fontSize: '0.9rem',
-                  resize: 'vertical',
-                  minHeight: '60px',
-                  maxHeight: '150px',
-                }}
-              />
-            </div>
-          )}
-
-          {selectedOption === 'polygon-location' && (
-            <div className="tool-section">
-              <label style={{ marginTop: '10px' }}>Select Polygons Asset</label>
-              <div className="file-input-wrapper">
-                <select
-                  onChange={(e) => {
-                    const path = e.target.value;
-                    if (path) {
-                      fetchGeoJSON(path, setPolygonGeoJSONForOp);
-                    } else {
-                      setPolygonGeoJSONForOp(null);
-                    }
-                  }}
-                  value={polygonGeoJSONForOp?._source_path || ''}
-                >
-                  <option value="">Select Asset</option>
-                  {OPERATION_ASSETS['polygon-location'].map((asset) => (
-                    <option key={asset.path} value={asset.path}>
-                      {asset.name}
-                    </option>
-                  ))}
-                </select>
-                {polygonGeoJSONForOp && (
-                  <div className="success-badge">✓ Polygons Ready</div>
-                )}
-              </div>
-
-              {points.length > 0 && polygonGeoJSONForOp && (
-                <div
-                  className="info-box"
-                  style={{ marginTop: '10px', backgroundColor: '#f9f9f9' }}
-                >
-                  {(() => {
-                    const {
-                      findContainingPolygon,
-                    } = require('../utils/geoUtils');
-                    const found = findContainingPolygon(
-                      points[0],
-                      polygonGeoJSONForOp,
-                    );
-                    if (found) {
-                      return (
-                        <>
-                          <strong>Containing Polygon Attributes:</strong>
-                          <pre
-                            style={{
-                              fontSize: '0.75rem',
-                              marginTop: '5px',
-                              overflowX: 'auto',
-                            }}
-                          >
-                            {JSON.stringify(found.properties, null, 2)}
-                          </pre>
-                        </>
-                      );
-                    }
-                    return <i>Point is not inside any polygon.</i>;
-                  })()}
-                </div>
-              )}
-              <span className="help-text">
-                Click on map to set your location (P1).
-              </span>
-            </div>
-          )}
-
+          {/* Save Button */}
           {selectedCategory === 'facts' && (
             <button
               className="save-btn"
@@ -939,304 +458,35 @@ const Sidebar: React.FC<SidebarProps> = ({
               Save as Draft
             </button>
           )}
-        </div>
+        </>
       )}
 
-      {/* Draft Operations - Local only */}
-      {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).length > 0 && (
-        <div
-          className="operations-container"
-          style={{
-            marginTop: '20px',
-            borderTop: '1px solid #eee',
-            paddingTop: '15px',
-          }}
-        >
-          <h3>Draft Operations</h3>
-          <ul className="operations-list">
-            {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).map((op, index) => (
-              <OperationCard
-                key={op.id}
-                op={op}
-                index={index}
-                onSave={async () => {
-                  if (!createFactMutation || !gameId) return;
-                  
-                  try {
-                    // Use the selected team from the dropdown as the target team
-                    if (teamsData.length === 0) {
-                      alert('No teams available. Please try again later.');
-                      return;
-                    }
-                    
-                    // Check if a team is selected
-                    if (!selectedTeamFilter) {
-                      alert('Please select a team from the dropdown.');
-                      return;
-                    }
-                    
-                    // Find the selected team (target team)
-                    const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
-                    
-                    if (!targetTeam) {
-                      alert('Selected team not found. Please try again.');
-                      return;
-                    }
-                    
-                    // Find the current user's team for op_meta
-                    const currentUserTeam = teamsData.find(team => 
-                      team.players.some((player: any) => player.user_profile.email === currentUserEmail)
-                    );
-                    
-                    if (!currentUserTeam) {
-                      alert('Could not determine your team. Please try again.');
-                      return;
-                    }
-                    
-                    const targetTeamId = targetTeam.team_id;
-                    const currentUserTeamId = currentUserTeam.team_id;
-                    const currentUserTeamName = currentUserTeam.team_name;
-                    
-                    // Convert operation to fact info for GEO facts
-                    const factInfo = convertOperationToFactInfo(op);
-                    
-                    // Add feature name to op_meta if available
-                    const enhancedFactInfo = { ...factInfo };
-                    
-                    // For operations with feature names, add them to the fact
-                    if (op.featureName) {
-                      enhancedFactInfo.featureName = op.featureName;
-                    }
-                    
-                    // Create GEO fact
-                    await createFactMutation({
-                      game_id: gameId,
-                      fact_type: 'GEO',
-                      team_id: targetTeamId,
-                      fact_info: {
-                        op_type: op.type,
-                        op_meta: {
-                          ...enhancedFactInfo,
-                          team_id: currentUserTeamId,
-                          team_name: currentUserTeamName,
-                          player_name: currentUserEmail
-                        }
-                      }
-                    });
-                    
-                    // Remove the draft from local operations since it's now saved
-                    removeOperation(op.id);
-                    
-                    // Refetch facts to update the list
-                    refetchFacts();
-                    console.log('Fact saved successfully, refetching facts...');
-                    alert('Fact saved successfully!');
-                  } catch (error) {
-                    console.error('Failed to save fact:', error);
-                    alert('Failed to save fact. Please try again.');
-                  }
-                }}
-                onRemove={() => removeOperation(op.id)}
-              />
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* Draft Operations List */}
+      <DraftOperationsList
+        operations={operations}
+        serverOperations={serverOperations}
+        teamsData={teamsData}
+        selectedTeamFilter={selectedTeamFilter}
+        currentUserEmail={currentUserEmail}
+        gameId={gameId}
+        createFactMutation={createFactMutation}
+        refetchFacts={refetchFacts}
+        removeOperation={removeOperation}
+      />
 
-      {/* Saved Facts - From backend */}
+      {/* Reference Locations List */}
+      <ReferenceLocationsList
+        referencePoints={referencePoints}
+        onClearReferencePoints={onClearReferencePoints}
+      />
 
-      {referencePoints && referencePoints.length > 0 && (
-        <div
-          className="operations-container"
-          style={{
-            marginTop: '10px',
-            borderTop: '2px solid #eee',
-            paddingTop: '20px',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <h3>Reference Locations</h3>
-            {onClearReferencePoints && (
-              <button
-                className="clear-btn"
-                onClick={onClearReferencePoints}
-                style={{ fontSize: '0.8rem', padding: '2px 8px' }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          <ul className="operations-list" style={{ marginTop: '10px' }}>
-            {referencePoints.map((point: number[], index: number) => (
-              <li
-                key={index}
-                className="operation-card"
-                style={{ padding: '8px' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <div
-                    style={{
-                      width: '20px',
-                      height: '24px',
-                      backgroundColor: '#FF5722',
-                      color: 'white',
-                      borderRadius: '50% 50% 50% 0',
-                      transform: 'rotate(-45deg)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: '10px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{ transform: 'rotate(45deg)' }}>
-                      {String.fromCharCode(65 + index)}
-                    </span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                      Location {String.fromCharCode(65 + index)}
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#666' }}>
-                      {point[1].toFixed(5)}, {point[0].toFixed(5)}
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {allFacts && allFacts.length > 0 && (
-        <div
-          className="operations-container"
-          style={{
-            marginTop: '10px',
-            borderTop: '2px solid #eee',
-            paddingTop: '20px',
-          }}
-        >
-          <h3>Saved Facts</h3>
-          <ul className="operations-list" style={{ marginTop: '10px' }}>
-            {allFacts.map((fact: Fact, index: number) => {
-              const handleDeleteFact = async () => {
-                if (!deleteFactMutation) return;
-                
-                if (window.confirm('Are you sure you want to delete this fact?')) {
-                  try {
-                    await deleteFactMutation(fact.fact_id);
-                    console.log('Fact deleted successfully');
-                    refetchFacts();
-                  } catch (error) {
-                    console.error('Failed to delete fact:', error);
-                    alert('Failed to delete fact. Please try again.');
-                  }
-                }
-              };
-              
-              const { playerName, teamName, createdDate } = getFactMetadata(fact);
-
-              return (
-                <li key={fact.fact_id} className="operation-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div style={{ flex: 1 }}>
-                      <strong>{index + 1}. {getFactDisplayName(fact)}</strong>
-                      <div className="help-text" style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#333' }}>
-                        {getFactContent(fact)}
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
-                        {playerName} - {teamName}
-                      </div>
-                      <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
-                        {createdDate}
-                      </div>
-                    </div>
-                    <button
-                      className="delete-fact-btn"
-                      onClick={handleDeleteFact}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      {/* Saved Facts List */}
+      <SavedFactsList
+        allFacts={allFacts}
+        deleteFactMutation={deleteFactMutation}
+        refetchFacts={refetchFacts}
+      />
     </div>
-  );
-};
-
-// OperationCard Component - Extracted from the main operations mapping
-interface OperationCardProps {
-  op: Operation;
-  index: number;
-  onSave: () => void;
-  onRemove: () => void;
-}
-
-const OperationCard: React.FC<OperationCardProps> = ({ op, index, onSave, onRemove }) => {
-  const getOperationDisplayName = (type: Operation['type']) => {
-    switch (type) {
-      case 'areas':
-        return 'Area Operations';
-      case 'closer-to-line':
-        return 'Distance from Metro Line';
-      default:
-        return type.replace(/-/g, ' ');
-    }
-  };
-
-  const getOperationHelpText = () => {
-    switch (op.type) {
-      case 'draw-circle':
-        return `${op.radius}km · Hider ${op.hiderLocation}`;
-      case 'split-by-direction':
-        return `Hider is ${op.splitDirection}`;
-      case 'hotter-colder':
-        return `Closer to ${op.preferredPoint}`;
-      case 'areas':
-        return `${op.areaOpType}${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`;
-      case 'closer-to-line':
-        return `${op.closerFurther} than Seeker ${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`;
-      case 'polygon-location':
-        return `In polygon`;
-      default:
-        return '';
-    }
-  };
-
-  return (
-    <li className="operation-card">
-      <strong>
-        {index + 1}. {getOperationDisplayName(op.type)} (Draft)
-      </strong>
-      <div className="help-text">{getOperationHelpText()}</div>
-      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-        <button
-          className="save-draft-btn"
-          onClick={onSave}
-        >
-          Save
-        </button>
-        <button
-          className="remove-op"
-          onClick={onRemove}
-          style={{ position: 'relative', right: 'auto', top: 'auto' }}
-        >
-          ×
-        </button>
-      </div>
-    </li>
   );
 };
 
@@ -1298,66 +548,6 @@ const handleSaveTextFact = async (
     console.error('Failed to save text fact:', error);
     alert('Failed to save text fact. Please try again.');
   }
-};
-
-const isTextFactValid = (textContent: string, selectedOption: string | null) => {
-  return selectedOption === 'text' && !textContent.trim();
-};
-
-// Operation details rendering helper (moved from fact mapping scope)
-const renderOperationDetails = (opType: string, opMeta: any) => {
-  switch (opType) {
-    case 'plain_text':
-      return opMeta.text || 'No text content';
-    case 'draw-circle':
-      return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
-    case 'split-by-direction':
-      return `Hider is ${opMeta.splitDirection}`;
-    case 'hotter-colder':
-      return `Closer to ${opMeta.preferredPoint}`;
-    case 'areas':
-      if (opMeta.featureName) {
-        return `${opMeta.areaOpType} (${opMeta.featureName})`;
-      }
-      return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
-    case 'closer-to-line':
-      if (opMeta.featureName) {
-        return `${opMeta.closerFurther} than Seeker (${opMeta.featureName})`;
-      }
-      return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
-    case 'polygon-location':
-      return `In polygon`;
-    default:
-      return opType.replace(/-/g, ' ');
-  }
-};
-
-// Fact display helper functions
-const getFactDisplayName = (fact: Fact) => {
-  if (fact.fact_type === 'GEO') {
-    const opType = fact.fact_info.op_type;
-    if (opType) {
-      return opType.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase());
-    }
-    return 'Map Operation';
-  }
-  return 'Text Fact';
-};
-
-const getFactContent = (fact: Fact) => {
-  if (fact.fact_type === 'GEO') {
-    return renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {});
-  }
-  return fact.fact_info.op_meta?.text || 'No text content';
-};
-
-const getFactMetadata = (fact: Fact) => {
-  const opMeta = fact.fact_info.op_meta || {};
-  return {
-    playerName: opMeta.player_name || 'Unknown',
-    teamName: opMeta.team_name || 'Unknown Team',
-    createdDate: formatDate(fact.created)
-  };
 };
 
 export default Sidebar;
