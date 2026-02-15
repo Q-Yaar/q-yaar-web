@@ -78,10 +78,17 @@ const MapPage: React.FC = () => {
   const currentUser = authState.authData?.user.data;
   const currentUserEmail = currentUser?.email || 'Unknown Player';
 
+  // Separate GEO facts (operations) from TEXT facts
+  const [operations, setOperations] = useState<Operation[]>([]);
+  const [serverOperations, setServerOperations] = useState<Operation[]>([]);
+  const [textFacts, setTextFacts] = useState<Fact[]>([]);
+  const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
+
   // Fetch facts from the server
   const { data: factsData, refetch: refetchFacts } = useGetFactsQuery(
-    { game_id: gameId! },
-    { skip: !gameId },
+    { game_id: gameId!, team_id: selectedTeamFilter },
+    { skip: !gameId || !selectedTeamFilter },
   );
 
   // Fetch teams for the game
@@ -92,13 +99,6 @@ const MapPage: React.FC = () => {
   
   // Delete fact mutation
   const [deleteFactMutation] = useDeleteFactMutation();
-
-  // Separate GEO facts (operations) from TEXT facts
-  const [operations, setOperations] = useState<Operation[]>([]);
-  const [serverOperations, setServerOperations] = useState<Operation[]>([]);
-  const [textFacts, setTextFacts] = useState<Fact[]>([]);
-  const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('all');
 
   // Set initial team filter when teamsData is available
   useEffect(() => {
@@ -154,16 +154,10 @@ const MapPage: React.FC = () => {
     }
   }, [factsData, localOperations]);
 
-  // Filter facts based on selected team
+  // Since we're now filtering on the server side, filteredFacts = textFacts
   useEffect(() => {
-    const filtered = selectedTeamFilter === 'all' 
-      ? textFacts
-      : textFacts.filter((fact) => 
-          fact.fact_info.op_meta?.team_id === selectedTeamFilter
-        );
-    setFilteredFacts(filtered);
-    console.log('Filtered facts for team', selectedTeamFilter, ':', filtered);
-  }, [textFacts, selectedTeamFilter]);
+    setFilteredFacts(textFacts);
+  }, [textFacts]);
 
   useEffect(() => {
     if (!navigator.geolocation) {

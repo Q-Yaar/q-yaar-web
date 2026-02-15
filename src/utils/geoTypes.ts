@@ -19,6 +19,7 @@ export interface Operation {
     closerFurther?: 'closer' | 'further';
     selectedLineIndex?: number;
     polygonGeoJSON?: any;
+    featureName?: string;
     timestamp?: number;
 }
 
