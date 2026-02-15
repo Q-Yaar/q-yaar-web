@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './Sidebar.css';
 import { Operation } from '../utils/geoTypes';
 import { Fact } from '../models/Fact';
+import { Team } from '../models/Team';
 import { formatDate } from '../utils/dateUtils';
 import { convertOperationToFactInfo } from '../utils/factUtils';
 
@@ -205,6 +206,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     if (value === 'areas') {
       setPoints([]);
     }
+    // Text fact content is managed separately
     if (value !== 'text') {
       setTextFactContent('');
     }
@@ -213,27 +215,34 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleSaveOperation = () => {
     if (!selectedOption) return;
     
-    // For text facts, we don't need points or other geo data
+    // Handle text facts separately from geo operations
     if (selectedOption === 'text') {
-      if (!textFactContent.trim()) {
-        alert('Please enter some text content.');
-        return;
-      }
-    } else {
-      // For geo operations, check the usual requirements
-      if (
-        selectedOption !== 'areas' &&
-        selectedOption !== 'closer-to-line' &&
-        points.length === 0
-      )
-        return;
-      if (
-        selectedOption === 'closer-to-line' &&
-        (!multiLineStringForOp || points.length === 0)
-      )
-        return;
-      if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
+      handleSaveTextFact(
+        textFactContent,
+        gameId,
+        currentUserEmail,
+        teamsData,
+        selectedTeamFilter,
+        createFactMutation,
+        refetchFacts,
+        setTextFactContent
+      );
+      return;
     }
+    
+    // For geo operations, check the usual requirements
+    if (
+      selectedOption !== 'areas' &&
+      selectedOption !== 'closer-to-line' &&
+      points.length === 0
+    )
+      return;
+    if (
+      selectedOption === 'closer-to-line' &&
+      (!multiLineStringForOp || points.length === 0)
+    )
+      return;
+    if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
 
     const newOp: Operation = {
       id: Date.now().toString(),
@@ -250,7 +259,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       selectedLineIndex,
       polygonGeoJSON: polygonGeoJSONForOp,
       timestamp: Date.now(),
-      textContent: selectedOption === 'text' ? textFactContent : undefined,
     };
 
     setOperations([...operations, newOp]);
@@ -916,7 +924,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               onClick={handleSaveOperation}
               disabled={
                 !selectedOption ||
-                (selectedOption === 'text' && !textFactContent.trim()) ||
+                isTextFactValid(textFactContent, selectedOption) ||
                 (selectedOption === 'areas' && !uploadedAreaForOp) ||
                 (selectedOption === 'closer-to-line' &&
                   (!multiLineStringForOp || points.length === 0)) ||
@@ -948,63 +956,49 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <h3>Draft Operations</h3>
           <ul className="operations-list">
-            {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).map((op, index) => {
-              const handleSaveDraft = async () => {
-                if (!createFactMutation || !gameId) return;
-                
-                try {
-                  // Use the selected team from the dropdown as the target team
-                  if (teamsData.length === 0) {
-                    alert('No teams available. Please try again later.');
-                    return;
-                  }
+            {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).map((op, index) => (
+              <OperationCard
+                key={op.id}
+                op={op}
+                index={index}
+                onSave={async () => {
+                  if (!createFactMutation || !gameId) return;
                   
-                  // Check if a specific team is selected (not "all")
-                  if (selectedTeamFilter === 'all') {
-                    alert('Please select a specific team from the dropdown.');
-                    return;
-                  }
-                  
-                  // Find the selected team (target team)
-                  const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
-                  
-                  if (!targetTeam) {
-                    alert('Selected team not found. Please try again.');
-                    return;
-                  }
-                  
-                  // Find the current user's team for op_meta
-                  const currentUserTeam = teamsData.find(team => 
-                    team.players.some((player: any) => player.user_profile.email === currentUserEmail)
-                  );
-                  
-                  if (!currentUserTeam) {
-                    alert('Could not determine your team. Please try again.');
-                    return;
-                  }
-                  
-                  const targetTeamId = targetTeam.team_id;
-                  const currentUserTeamId = currentUserTeam.team_id;
-                  const currentUserTeamName = currentUserTeam.team_name;
-                  
-                  // Handle different fact types
-                  if (op.type === 'text') {
-                    // Create TEXT fact
-                    await createFactMutation({
-                      game_id: gameId,
-                      fact_type: 'TEXT',
-                      team_id: targetTeamId,
-                      fact_info: {
-                        op_type: 'plain_text',
-                        op_meta: {
-                          text: op.textContent || '',
-                          team_id: currentUserTeamId,
-                          team_name: currentUserTeamName,
-                          player_name: currentUserEmail
-                        }
-                      }
-                    });
-                  } else {
+                  try {
+                    // Use the selected team from the dropdown as the target team
+                    if (teamsData.length === 0) {
+                      alert('No teams available. Please try again later.');
+                      return;
+                    }
+                    
+                    // Check if a specific team is selected (not "all")
+                    if (selectedTeamFilter === 'all') {
+                      alert('Please select a specific team from the dropdown.');
+                      return;
+                    }
+                    
+                    // Find the selected team (target team)
+                    const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
+                    
+                    if (!targetTeam) {
+                      alert('Selected team not found. Please try again.');
+                      return;
+                    }
+                    
+                    // Find the current user's team for op_meta
+                    const currentUserTeam = teamsData.find(team => 
+                      team.players.some((player: any) => player.user_profile.email === currentUserEmail)
+                    );
+                    
+                    if (!currentUserTeam) {
+                      alert('Could not determine your team. Please try again.');
+                      return;
+                    }
+                    
+                    const targetTeamId = targetTeam.team_id;
+                    const currentUserTeamId = currentUserTeam.team_id;
+                    const currentUserTeamName = currentUserTeam.team_name;
+                    
                     // Convert operation to fact info for GEO facts
                     const factInfo = convertOperationToFactInfo(op);
                     
@@ -1012,77 +1006,33 @@ const Sidebar: React.FC<SidebarProps> = ({
                     await createFactMutation({
                       game_id: gameId,
                       fact_type: 'GEO',
-                      team_id: targetTeamId,  // Target team ID from dropdown
+                      team_id: targetTeamId,
                       fact_info: {
                         op_type: op.type,
                         op_meta: {
                           ...factInfo,
-                          team_id: currentUserTeamId,  // Current user's team ID
-                          team_name: currentUserTeamName,  // Current user's team name
+                          team_id: currentUserTeamId,
+                          team_name: currentUserTeamName,
                           player_name: currentUserEmail
                         }
                       }
                     });
+                    
+                    // Remove the draft from local operations since it's now saved
+                    removeOperation(op.id);
+                    
+                    // Refetch facts to update the list
+                    refetchFacts();
+                    console.log('Fact saved successfully, refetching facts...');
+                    alert('Fact saved successfully!');
+                  } catch (error) {
+                    console.error('Failed to save fact:', error);
+                    alert('Failed to save fact. Please try again.');
                   }
-                  
-                  // Remove the draft from local operations since it's now saved
-                  removeOperation(op.id);
-                  
-                  // Refetch facts to update the list
-                  refetchFacts();
-                  console.log('Fact saved successfully, refetching facts...');
-                  alert('Fact saved successfully!');
-                } catch (error) {
-                  console.error('Failed to save fact:', error);
-                  alert('Failed to save fact. Please try again.');
-                }
-              };
-              
-              return (
-                <li key={op.id} className="operation-card">
-                  <strong>
-                    {index + 1}.{' '}
-                    {op.type === 'text'
-                      ? 'Text Fact'
-                      : op.type === 'areas'
-                        ? 'Area Operations'
-                        : op.type === 'closer-to-line'
-                          ? 'Distance from Metro Line'
-                          : op.type.replace(/-/g, ' ')}
-                    {' (Draft)'}
-                  </strong>
-                  <div className="help-text">
-                    {op.type === 'text' && op.textContent}
-                    {op.type === 'draw-circle' &&
-                      `${op.radius}km · Hider ${op.hiderLocation}`}
-                    {op.type === 'split-by-direction' &&
-                      `Hider is ${op.splitDirection}`}
-                    {op.type === 'hotter-colder' &&
-                      `Closer to ${op.preferredPoint}`}
-                    {op.type === 'areas' &&
-                      `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`}
-                    {op.type === 'closer-to-line' &&
-                      `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`}
-                    {op.type === 'polygon-location' && `In polygon`}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                    <button
-                      className="save-draft-btn"
-                      onClick={handleSaveDraft}
-                    >
-                      Save
-                    </button>
-                    <button
-                      className="remove-op"
-                      onClick={() => removeOperation(op.id)}
-                      style={{ position: 'relative', right: 'auto', top: 'auto' }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+                }}
+                onRemove={() => removeOperation(op.id)}
+              />
+            ))}
           </ul>
         </div>
       )}
@@ -1186,49 +1136,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }
               };
               
-              // Helper function to render operation details like saved operations
-              const renderOperationDetails = (opType: string, opMeta: any) => {
-                switch (opType) {
-                  case 'plain_text':
-                    return opMeta.text || 'No text content';
-                  case 'draw-circle':
-                    return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
-                  case 'split-by-direction':
-                    return `Hider is ${opMeta.splitDirection}`;
-                  case 'hotter-colder':
-                    return `Closer to ${opMeta.preferredPoint}`;
-                  case 'areas':
-                    return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
-                  case 'closer-to-line':
-                    return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
-                  case 'polygon-location':
-                    return `In polygon`;
-                  default:
-                    return opType.replace(/-/g, ' ');
-                }
-              };
+              const { playerName, teamName, createdDate } = getFactMetadata(fact);
 
               return (
                 <li key={fact.fact_id} className="operation-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                     <div style={{ flex: 1 }}>
-                      <strong>{index + 1}. {
-                        fact.fact_type === 'GEO' 
-                          ? (fact.fact_info.op_type 
-                              ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
-                              : 'Map Operation')
-                          : 'Text Fact'
-                      }</strong>
+                      <strong>{index + 1}. {getFactDisplayName(fact)}</strong>
                       <div className="help-text" style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#333' }}>
-                        {fact.fact_type === 'GEO' 
-                          ? renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {})
-                          : (fact.fact_info.op_meta?.text || 'No text content')}
+                        {getFactContent(fact)}
                       </div>
                       <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
-                        {fact.fact_info.op_meta?.player_name || 'Unknown'} - {fact.fact_info.op_meta?.team_name || 'Unknown Team'}
+                        {playerName} - {teamName}
                       </div>
                       <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
-                        {formatDate(fact.created)}
+                        {createdDate}
                       </div>
                     </div>
                     <button
@@ -1246,6 +1168,184 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
     </div>
   );
+};
+
+// OperationCard Component - Extracted from the main operations mapping
+interface OperationCardProps {
+  op: Operation;
+  index: number;
+  onSave: () => void;
+  onRemove: () => void;
+}
+
+const OperationCard: React.FC<OperationCardProps> = ({ op, index, onSave, onRemove }) => {
+  const getOperationDisplayName = (type: Operation['type']) => {
+    switch (type) {
+      case 'areas':
+        return 'Area Operations';
+      case 'closer-to-line':
+        return 'Distance from Metro Line';
+      default:
+        return type.replace(/-/g, ' ');
+    }
+  };
+
+  const getOperationHelpText = () => {
+    switch (op.type) {
+      case 'draw-circle':
+        return `${op.radius}km · Hider ${op.hiderLocation}`;
+      case 'split-by-direction':
+        return `Hider is ${op.splitDirection}`;
+      case 'hotter-colder':
+        return `Closer to ${op.preferredPoint}`;
+      case 'areas':
+        return `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`;
+      case 'closer-to-line':
+        return `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`;
+      case 'polygon-location':
+        return `In polygon`;
+      default:
+        return '';
+    }
+  };
+
+  return (
+    <li className="operation-card">
+      <strong>
+        {index + 1}. {getOperationDisplayName(op.type)} (Draft)
+      </strong>
+      <div className="help-text">{getOperationHelpText()}</div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+        <button
+          className="save-draft-btn"
+          onClick={onSave}
+        >
+          Save
+        </button>
+        <button
+          className="remove-op"
+          onClick={onRemove}
+          style={{ position: 'relative', right: 'auto', top: 'auto' }}
+        >
+          ×
+        </button>
+      </div>
+    </li>
+  );
+};
+
+// Text Fact Handling Functions
+const handleSaveTextFact = async (
+  textContent: string,
+  gameId: string,
+  currentUserEmail: string,
+  teamsData: Team[],
+  selectedTeamFilter: string,
+  createFactMutation: any,
+  refetchFacts: () => void,
+  setTextFactContent: (content: string) => void
+) => {
+  if (!textContent.trim()) {
+    alert('Please enter some text content.');
+    return;
+  }
+
+  try {
+    // Find the selected team (target team)
+    const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
+    if (!targetTeam) {
+      alert('Selected team not found. Please try again.');
+      return;
+    }
+
+    // Find the current user's team for op_meta
+    const currentUserTeam = teamsData.find(team =>
+      team.players.some((player: any) => player.user_profile.email === currentUserEmail)
+    );
+
+    if (!currentUserTeam) {
+      alert('Could not determine your team. Please try again.');
+      return;
+    }
+
+    // Create TEXT fact directly
+    await createFactMutation({
+      game_id: gameId,
+      fact_type: 'TEXT',
+      team_id: targetTeam.team_id,
+      fact_info: {
+        op_type: 'plain_text',
+        op_meta: {
+          text: textContent,
+          team_id: currentUserTeam.team_id,
+          team_name: currentUserTeam.team_name,
+          player_name: currentUserEmail
+        }
+      }
+    });
+
+    // Clear the text content and refetch facts
+    setTextFactContent('');
+    refetchFacts();
+    alert('Text fact saved successfully!');
+  } catch (error) {
+    console.error('Failed to save text fact:', error);
+    alert('Failed to save text fact. Please try again.');
+  }
+};
+
+const isTextFactValid = (textContent: string, selectedOption: string | null) => {
+  return selectedOption === 'text' && !textContent.trim();
+};
+
+// Operation details rendering helper (moved from fact mapping scope)
+const renderOperationDetails = (opType: string, opMeta: any) => {
+  switch (opType) {
+    case 'plain_text':
+      return opMeta.text || 'No text content';
+    case 'draw-circle':
+      return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
+    case 'split-by-direction':
+      return `Hider is ${opMeta.splitDirection}`;
+    case 'hotter-colder':
+      return `Closer to ${opMeta.preferredPoint}`;
+    case 'areas':
+      return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
+    case 'closer-to-line':
+      return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
+    case 'polygon-location':
+      return `In polygon`;
+    default:
+      return opType.replace(/-/g, ' ');
+  }
+};
+
+// Fact display helper functions
+const getFactDisplayName = (fact: Fact) => {
+  if (fact.fact_type === 'GEO') {
+    const opType = fact.fact_info.op_type;
+    if (opType) {
+      return opType.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase());
+    }
+    return 'Map Operation';
+  }
+  return 'Text Fact';
+};
+
+const getFactContent = (fact: Fact) => {
+  if (fact.fact_type === 'GEO') {
+    return renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {});
+  }
+  return fact.fact_info.op_meta?.text || 'No text content';
+};
+
+const getFactMetadata = (fact: Fact) => {
+  const opMeta = fact.fact_info.op_meta || {};
+  return {
+    playerName: opMeta.player_name || 'Unknown',
+    teamName: opMeta.team_name || 'Unknown Team',
+    createdDate: formatDate(fact.created)
+  };
 };
 
 export default Sidebar;
