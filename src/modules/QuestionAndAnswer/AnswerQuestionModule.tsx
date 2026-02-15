@@ -184,22 +184,43 @@ export function AnswerQuestionModule() {
                               View on Game Map
                             </Button>
                           </a>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              handleOpenLocation(
-                                question.question_meta!.location_points![0]
-                                  .lat,
-                                question.question_meta!.location_points![0]
-                                  .lon,
-                              )
-                            }
-                            className="flex-1 border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                          >
-                            <MapPin className="w-4 h-4 mr-2" />
-                            Google Maps
-                          </Button>
+                          {question.question_meta!.location_points!.length > 1 ? (
+                            <div className="flex flex-1 gap-2">
+                              {question.question_meta!.location_points!.map(
+                                (point, index) => (
+                                  <Button
+                                    key={index}
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleOpenLocation(point.lat, point.lon)
+                                    }
+                                    className="flex-1 border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-2"
+                                  >
+                                    <MapPin className="w-3 h-3 mr-1" />
+                                    Point {String.fromCharCode(65 + index)}
+                                  </Button>
+                                ),
+                              )}
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleOpenLocation(
+                                  question.question_meta!.location_points![0]
+                                    .lat,
+                                  question.question_meta!.location_points![0]
+                                    .lon,
+                                )
+                              }
+                              className="flex-1 border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            >
+                              <MapPin className="w-4 h-4 mr-2" />
+                              Google Maps
+                            </Button>
+                          )}
                         </div>
                       )}
 
