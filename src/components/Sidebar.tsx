@@ -244,6 +244,13 @@ const Sidebar: React.FC<SidebarProps> = ({
       return;
     if (selectedOption === 'polygon-location' && !polygonGeoJSONForOp) return;
 
+    // Add feature name to the operation if available
+    const featureName = (selectedOption === 'areas' && uploadedAreaForOp && selectedLineIndex !== undefined)
+      ? uploadedAreaForOp.features[selectedLineIndex]?.properties?.name
+      : (selectedOption === 'closer-to-line' && multiLineStringForOp && selectedLineIndex !== undefined)
+        ? multiLineStringForOp.features[selectedLineIndex]?.properties?.name
+        : undefined;
+
     const newOp: Operation = {
       id: Date.now().toString(),
       type: selectedOption as any,
@@ -258,6 +265,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       closerFurther,
       selectedLineIndex,
       polygonGeoJSON: polygonGeoJSONForOp,
+      featureName,
       timestamp: Date.now(),
     };
 
@@ -702,7 +710,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   ))}
                 </select>
                 {uploadedAreaForOp && (
-                  <div className="success-badge">✓ Area Ready</div>
+                  <div className="success-badge">✓ {uploadedAreaForOp.features[selectedLineIndex]?.properties?.name || 'Area Ready'}</div>
                 )}
               </div>
 
@@ -732,10 +740,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         )
                         .map((item: any, listIdx: number) => (
                           <option key={item.idx} value={item.idx}>
-                            Area {listIdx + 1}{' '}
-                            {item.feat.properties?.name
-                              ? `(${item.feat.properties.name})`
-                              : ''}
+                            {item.feat.properties?.name || `Area ${listIdx + 1}`}
                           </option>
                         ))}
                     </select>
@@ -786,7 +791,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   ))}
                 </select>
                 {multiLineStringForOp && (
-                  <div className="success-badge">✓ Line Ready</div>
+                  <div className="success-badge">✓ {multiLineStringForOp.features[selectedLineIndex]?.properties?.name || 'Line Ready'}</div>
                 )}
               </div>
 
@@ -810,10 +815,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         )
                         .map((item: any) => (
                           <option key={item.idx} value={item.idx}>
-                            Line {item.idx + 1}{' '}
-                            {item.feat.properties?.name
-                              ? `(${item.feat.properties.name})`
-                              : ''}
+                            {item.feat.properties?.name || `Line ${item.idx + 1}`}
                           </option>
                         ))}
                     </select>
@@ -998,6 +1000,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                     // Convert operation to fact info for GEO facts
                     const factInfo = convertOperationToFactInfo(op);
                     
+                    // Add feature name to op_meta if available
+                    const enhancedFactInfo = { ...factInfo };
+                    
+                    // For operations with feature names, add them to the fact
+                    if (op.featureName) {
+                      enhancedFactInfo.featureName = op.featureName;
+                    }
+                    
                     // Create GEO fact
                     await createFactMutation({
                       game_id: gameId,
@@ -1006,7 +1016,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                       fact_info: {
                         op_type: op.type,
                         op_meta: {
-                          ...factInfo,
+                          ...enhancedFactInfo,
                           team_id: currentUserTeamId,
                           team_name: currentUserTeamName,
                           player_name: currentUserEmail
@@ -1195,9 +1205,9 @@ const OperationCard: React.FC<OperationCardProps> = ({ op, index, onSave, onRemo
       case 'hotter-colder':
         return `Closer to ${op.preferredPoint}`;
       case 'areas':
-        return `${op.areaOpType}${op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`;
+        return `${op.areaOpType}${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`;
       case 'closer-to-line':
-        return `${op.closerFurther} than Seeker ${op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`;
+        return `${op.closerFurther} than Seeker ${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`;
       case 'polygon-location':
         return `In polygon`;
       default:
@@ -1306,8 +1316,14 @@ const renderOperationDetails = (opType: string, opMeta: any) => {
     case 'hotter-colder':
       return `Closer to ${opMeta.preferredPoint}`;
     case 'areas':
+      if (opMeta.featureName) {
+        return `${opMeta.areaOpType} (${opMeta.featureName})`;
+      }
       return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
     case 'closer-to-line':
+      if (opMeta.featureName) {
+        return `${opMeta.closerFurther} than Seeker (${opMeta.featureName})`;
+      }
       return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
     case 'polygon-location':
       return `In polygon`;
