@@ -154,7 +154,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggleSidebar,
   textFacts = [],
   teamsData = [],
-  selectedTeamFilter = 'all',
+  selectedTeamFilter = '',
   setSelectedTeamFilter = () => {},
   serverOperations = [],
   createFactMutation = null,
@@ -346,7 +346,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </header>
 
       {/* Team Filter Dropdown - moved to top */}
-      {(teamsData && teamsData.length > 0) && (
+      {teamsData && (
         <div style={{ margin: '15px 0', padding: '10px 0', borderBottom: '1px solid #eee' }}>
           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '5px', color: '#555' }}>
             Filter Facts by Team
@@ -364,15 +364,11 @@ const Sidebar: React.FC<SidebarProps> = ({
               cursor: 'pointer',
             }}
           >
-            {teamsData.length === 0 ? (
-              <option value="all">No Teams Available</option>
-            ) : (
-              teamsData.map((team) => (
-                <option key={team.team_id} value={team.team_id}>
-                  {team.team_name}
-                </option>
-              ))
-            )}
+            {teamsData.map((team) => (
+              <option key={team.team_id} value={team.team_id}>
+                {team.team_name}
+              </option>
+            ))}
           </select>
         </div>
       )}
@@ -971,9 +967,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                       return;
                     }
                     
-                    // Check if a specific team is selected (not "all")
-                    if (selectedTeamFilter === 'all') {
-                      alert('Please select a specific team from the dropdown.');
+                    // Check if a team is selected
+                    if (!selectedTeamFilter) {
+                      alert('Please select a team from the dropdown.');
                       return;
                     }
                     
