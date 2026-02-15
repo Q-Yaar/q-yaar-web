@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Eye, Hand, Plus, X, CheckSquare, Square } from 'lucide-react';
 import { Card } from '../../models/Deck';
@@ -32,6 +32,13 @@ export const PeekModal = ({
 }: PeekModalProps) => {
   useLockBodyScroll(isOpen);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+
+  // Clear selection when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedCardIds([]);
+    }
+  }, [isOpen]);
 
   const toggleSelection = (cardId: string) => {
     setSelectedCardIds((prev) =>
@@ -112,11 +119,10 @@ export const PeekModal = ({
                     e.stopPropagation();
                     toggleSelection(card.card_id);
                   }}
-                  className={`w-full mt-3 text-xs font-bold py-2 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-colors ${
-                    isSelected
+                  className={`w-full mt-3 text-xs font-bold py-2 rounded-lg shadow-lg flex items-center justify-center gap-2 transition-colors ${isSelected
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                       : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
+                    }`}
                 >
                   {isSelected ? (
                     <>
