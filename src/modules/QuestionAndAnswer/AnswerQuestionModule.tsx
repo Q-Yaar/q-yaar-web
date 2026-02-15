@@ -24,6 +24,7 @@ import { Header } from '../../components/ui/header';
 import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
+import { formatDate } from 'utils/dateUtils';
 
 export function AnswerQuestionModule() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -152,52 +153,55 @@ export function AnswerQuestionModule() {
                             {question.reward.reward_name}
                           </span>
                         )}
-                        {question.question_meta?.location_points &&
-                          question.question_meta.location_points.length > 0 && (
-                            <>
-                              <a
-                                href={`/games/${question.category.reward.created
-                                  }/map?locations=${JSON.stringify(
-                                    question.question_meta.location_points.map(
-                                      (p) => [parseFloat(p.lon), parseFloat(p.lat)],
-                                    ),
-                                  )}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-gray-100 text-gray-400 hover:text-indigo-600 h-6 px-2"
-                                title="View Locations on Map"
-                              >
-                                <Map className="w-3 h-3 mr-1" />
-                                <span className="text-xs">Map</span>
-                              </a>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  handleOpenLocation(
-                                    question.question_meta!.location_points![0]
-                                      .lat,
-                                    question.question_meta!.location_points![0]
-                                      .lon,
-                                  )
-                                }
-                                className="text-gray-400 hover:text-indigo-600 h-6 px-2"
-                                title="View on Google Maps"
-                              >
-                                <MapPin className="w-3 h-3 mr-1" />
-                                <span className="text-xs">Google Maps</span>
-                              </Button>
-                            </>
-                          )}
                       </div>
 
                       <span className="text-xs text-gray-400">
-                        {new Date(question.created).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatDate(question.created)}
                       </span>
                     </div>
+
+                    {/* Map Navigation Row */}
+                    {question.question_meta?.location_points &&
+                      question.question_meta.location_points.length > 0 && (
+                        <div className="flex items-center gap-2 mb-4 w-full">
+                          <a
+                            href={`/games/${question.category.reward.created
+                              }/map?locations=${JSON.stringify(
+                                question.question_meta.location_points.map(
+                                  (p) => [parseFloat(p.lon), parseFloat(p.lat)],
+                                ),
+                              )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1"
+                          >
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full border-dashed border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                            >
+                              <Map className="w-4 h-4 mr-2" />
+                              View on Game Map
+                            </Button>
+                          </a>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleOpenLocation(
+                                question.question_meta!.location_points![0]
+                                  .lat,
+                                question.question_meta!.location_points![0]
+                                  .lon,
+                              )
+                            }
+                            className="flex-1 border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          >
+                            <MapPin className="w-4 h-4 mr-2" />
+                            Google Maps
+                          </Button>
+                        </div>
+                      )}
 
                     <h3 className="text-xl font-bold text-gray-900 mb-6 leading-relaxed text-left">
                       {question.rendered_question}
