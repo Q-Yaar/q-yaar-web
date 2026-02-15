@@ -46,6 +46,7 @@ export function QuestionCard({
             {question.rendered_question}
           </p>
           <div className="flex flex-wrap items-center text-xs text-gray-500 gap-2 mb-2">
+            <span>{formatDate(question.created)}</span>
             <span className="bg-gray-100 px-2 py-0.5 rounded">
               {question.category.category_name}
             </span>
@@ -60,7 +61,6 @@ export function QuestionCard({
                 {question.reward.reward_name}
               </span>
             )}
-            <span>{formatDate(question.created)}</span>
             {question.question_meta?.location_points &&
               question.question_meta.location_points.length > 0 && (
                 <>
