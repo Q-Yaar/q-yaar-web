@@ -51,11 +51,10 @@ export function QuestionCard({
             </span>
             {question.reward && (
               <span
-                className={`flex items-center px-2 py-0.5 rounded font-medium ${
-                  question.accepted
+                className={`flex items-center px-2 py-0.5 rounded font-medium ${question.accepted
                     ? 'bg-indigo-50 text-indigo-700'
                     : 'bg-gray-100 text-gray-600'
-                }`}
+                  }`}
               >
                 <Gift className="w-3 h-3 mr-1" />
                 {question.reward.reward_name}
@@ -86,45 +85,49 @@ export function QuestionCard({
         </div>
 
         {/* Location Update Section */}
-        {question.geo && question.geo.count > 0 && onAddLocation && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Required Locations
-              </span>
-              <span className="text-xs font-medium text-indigo-600">
-                {question.question_meta?.location_points?.length || 0}/
-                {question.geo.count}
-              </span>
-            </div>
-            {(question.question_meta?.location_points?.length || 0) <
-            question.geo.count ? (
-              <Button
-                onClick={() => onAddLocation(question)}
-                disabled={
-                  isUpdatingLocation &&
-                  updatingLocationId === question.question_id
-                }
-                variant="outline"
-                size="sm"
-                className="w-full border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50"
-              >
-                {isUpdatingLocation &&
-                updatingLocationId === question.question_id ? (
-                  <Loader className="w-3.5 h-3.5 animate-spin mr-2" />
-                ) : (
-                  <MapPin className="w-3.5 h-3.5 mr-2" />
-                )}
-                Add Current Location
-              </Button>
-            ) : (
-              <div className="w-full py-1.5 bg-green-50 text-green-700 text-center text-xs font-medium rounded border border-green-200 flex items-center justify-center">
-                <CheckCircle className="w-3.5 h-3.5 mr-2" />
-                Locations Captured
+        {question.geo &&
+          question.geo.count > 0 &&
+          onAddLocation &&
+          (question.question_meta?.location_points?.length || 0) <
+          question.geo.count && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Required Locations
+                </span>
+                <span className="text-xs font-medium text-indigo-600">
+                  {question.question_meta?.location_points?.length || 0}/
+                  {question.geo.count}
+                </span>
               </div>
-            )}
-          </div>
-        )}
+              {(question.question_meta?.location_points?.length || 0) <
+                question.geo.count ? (
+                <Button
+                  onClick={() => onAddLocation(question)}
+                  disabled={
+                    isUpdatingLocation &&
+                    updatingLocationId === question.question_id
+                  }
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50"
+                >
+                  {isUpdatingLocation &&
+                    updatingLocationId === question.question_id ? (
+                    <Loader className="w-3.5 h-3.5 animate-spin mr-2" />
+                  ) : (
+                    <MapPin className="w-3.5 h-3.5 mr-2" />
+                  )}
+                  Add Current Location
+                </Button>
+              ) : (
+                <div className="w-full py-1.5 bg-green-50 text-green-700 text-center text-xs font-medium rounded border border-green-200 flex items-center justify-center">
+                  <CheckCircle className="w-3.5 h-3.5 mr-2" />
+                  Locations Captured
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Action / Result */}
         {question.answered && (
