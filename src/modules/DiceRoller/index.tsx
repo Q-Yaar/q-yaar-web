@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button';
 import { CustomizeDiceModal } from './CustomizeDiceModal';
 import { DieConfig, RollResult } from './types';
 import { storage, STORAGE_KEYS } from '../../utils/storage';
+import { formatDate } from '../../utils/dateUtils';
 
 // Fixed set of 9 colors
 const COLOR_CONFIGS = [
@@ -234,11 +235,7 @@ export default function DiceRoller() {
                         {roll.dieType}
                       </div>
                       <span className="text-gray-400 text-xs">
-                        {new Date(roll.timestamp).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                        })}
+                        {formatDate(roll.timestamp)}
                       </span>
                     </div>
                     <div className="text-xl font-bold text-gray-900">
