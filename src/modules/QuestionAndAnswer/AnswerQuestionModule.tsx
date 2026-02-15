@@ -13,6 +13,7 @@ import {
   Clock,
   ArrowLeft,
   MessageCircle,
+  Map,
   MapPin,
   Gift,
 } from 'lucide-react';
@@ -140,8 +141,8 @@ export function AnswerQuestionModule() {
                   className="overflow-hidden hover:shadow-md transition-shadow"
                 >
                   <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-start justify-between gap-y-2 mb-4">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                           {question.category.category_name}
                         </span>
@@ -151,23 +152,43 @@ export function AnswerQuestionModule() {
                             {question.reward.reward_name}
                           </span>
                         )}
-                        {question.question_meta?.location_points?.[0] && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              handleOpenLocation(
-                                question.question_meta.location_points![0].lat,
-                                question.question_meta.location_points![0].lon,
-                              )
-                            }
-                            className="text-gray-400 hover:text-indigo-600 h-6 px-2"
-                            title="View Location"
-                          >
-                            <MapPin className="w-3 h-3 mr-1" />
-                            <span className="text-xs">Location</span>
-                          </Button>
-                        )}
+                        {question.question_meta?.location_points &&
+                          question.question_meta.location_points.length > 0 && (
+                            <>
+                              <a
+                                href={`/games/${question.category.reward.created
+                                  }/map?locations=${JSON.stringify(
+                                    question.question_meta.location_points.map(
+                                      (p) => [parseFloat(p.lon), parseFloat(p.lat)],
+                                    ),
+                                  )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-gray-100 text-gray-400 hover:text-indigo-600 h-6 px-2"
+                                title="View Locations on Map"
+                              >
+                                <Map className="w-3 h-3 mr-1" />
+                                <span className="text-xs">Map</span>
+                              </a>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  handleOpenLocation(
+                                    question.question_meta!.location_points![0]
+                                      .lat,
+                                    question.question_meta!.location_points![0]
+                                      .lon,
+                                  )
+                                }
+                                className="text-gray-400 hover:text-indigo-600 h-6 px-2"
+                                title="View on Google Maps"
+                              >
+                                <MapPin className="w-3 h-3 mr-1" />
+                                <span className="text-xs">Google Maps</span>
+                              </Button>
+                            </>
+                          )}
                       </div>
 
                       <span className="text-xs text-gray-400">
@@ -207,7 +228,7 @@ export function AnswerQuestionModule() {
                           className="w-full py-6 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
                         >
                           {isAnswering &&
-                          answeringId === question.question_id ? (
+                            answeringId === question.question_id ? (
                             <Loader className="w-5 h-5 animate-spin" />
                           ) : (
                             <>
@@ -225,7 +246,7 @@ export function AnswerQuestionModule() {
                           className="w-full py-6 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300"
                         >
                           {isAnswering &&
-                          answeringId === question.question_id ? (
+                            answeringId === question.question_id ? (
                             <Loader className="w-5 h-5 animate-spin" />
                           ) : (
                             <>

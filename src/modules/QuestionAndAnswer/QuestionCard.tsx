@@ -45,15 +45,15 @@ export function QuestionCard({
           <p className="font-semibold text-gray-900 text-lg mb-1 text-left">
             {question.rendered_question}
           </p>
-          <div className="flex items-center text-xs text-gray-500 space-x-2">
+          <div className="flex flex-wrap items-center text-xs text-gray-500 gap-2 mb-2">
             <span className="bg-gray-100 px-2 py-0.5 rounded">
               {question.category.category_name}
             </span>
             {question.reward && (
               <span
                 className={`flex items-center px-2 py-0.5 rounded font-medium ${question.accepted
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'bg-gray-100 text-gray-600'
+                  ? 'bg-indigo-50 text-indigo-700'
+                  : 'bg-gray-100 text-gray-600'
                   }`}
               >
                 <Gift className="w-3 h-3 mr-1" />
@@ -63,23 +63,42 @@ export function QuestionCard({
             <span>{formatDate(question.created)}</span>
             {question.question_meta?.location_points &&
               question.question_meta.location_points.length > 0 && (
-                <a
-                  href={`/games/${question.category.reward.created}/map?locations=${JSON.stringify(
-                    question.question_meta.location_points.map((p) => [
-                      parseFloat(p.lon),
-                      parseFloat(p.lat),
-                    ]),
-                  )}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center text-gray-500 hover:text-indigo-600 transition-colors"
-                  title="View Locations on Map"
-                  onClick={(e) => {
-                    e.stopPropagation(); // Prevent card click if any
-                  }}
-                >
-                  <Map className="w-3.5 h-3.5 ml-2" />
-                </a>
+                <>
+                  <a
+                    href={`/games/${question.category.reward.created}/map?locations=${JSON.stringify(
+                      question.question_meta.location_points.map((p) => [
+                        parseFloat(p.lon),
+                        parseFloat(p.lat),
+                      ]),
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center text-gray-500 hover:text-indigo-600 transition-colors"
+                    title="View Locations on Map"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent card click if any
+                    }}
+                  >
+                    <Map className="w-3.5 h-3.5 mr-1" />
+                    <span>Map</span>
+                  </a>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const lat = question.question_meta!.location_points![0].lat;
+                      const lon = question.question_meta!.location_points![0].lon;
+                      window.open(
+                        `https://www.google.com/maps?q=${lat},${lon}`,
+                        '_blank',
+                      );
+                    }}
+                    className="flex items-center text-gray-500 hover:text-indigo-600 transition-colors"
+                    title="View on Google Maps"
+                  >
+                    <MapPin className="w-3.5 h-3.5 mr-1" />
+                    <span>Google Maps</span>
+                  </button>
+                </>
               )}
           </div>
         </div>
