@@ -1,7 +1,12 @@
+
 import React, { useState } from 'react';
 import { Modal } from '../../components/ui/modal';
 import { Team } from '../../models/Team';
-import { Users, User, Shield, X } from 'lucide-react';
+import {
+  Users,
+  User,
+  ChevronDown
+} from 'lucide-react';
 import { TeamAvatar } from '../../components/TeamAvatar';
 
 interface TeamModalProps {
@@ -17,111 +22,109 @@ export function TeamModal({
   teams,
   currentTeam,
 }: TeamModalProps) {
-  const [activeTab, setActiveTab] = useState<'teams' | 'players'>('teams');
+  // Track expanded state instead of collapsed. Default to empty (all collapsed)
+  const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>({});
 
-  // Filter out current team from all teams list to avoid duplication if needed,
-  // or just show all.
-  // The requirement says "shows all teams and my team players".
+  const toggleTeam = (teamId: string) => {
+    setExpandedTeams(prev => ({
+      ...prev,
+      [teamId]: !prev[teamId]
+    }));
+  };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Team Details"
-      className="max-w-2xl"
+      title="Teams"
+      className="max-w-xl"
     >
-      <div className="flex border-b border-gray-200 mb-4">
-        <button
-          className={`flex-1 pb-2 text-sm font-medium transition-colors ${
-            activeTab === 'teams'
-              ? 'border-b-2 border-indigo-600 text-indigo-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-          onClick={() => setActiveTab('teams')}
-        >
-          All Teams
-        </button>
-        <button
-          className={`flex-1 pb-2 text-sm font-medium transition-colors ${
-            activeTab === 'players'
-              ? 'border-b-2 border-indigo-600 text-indigo-600'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-          onClick={() => setActiveTab('players')}
-        >
-          My Team Players
-        </button>
-      </div>
+      <div className="bg-white p-4 sm:p-6 max-h-[85vh] overflow-y-auto">
 
-      <div className="mt-4 max-h-[60vh] overflow-y-auto">
-        {activeTab === 'teams' ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {teams.length === 0 ? (
-              <p className="text-gray-500 col-span-2 text-center py-4">
-                No teams found.
-              </p>
-            ) : (
-              teams.map((team) => (
+        {/* Header Stats */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200 text-xs font-medium text-gray-600">
+            <Users className="w-3.5 h-3.5" />
+            <span>{teams.length} Teams</span>
+          </div>
+        </div>
+
+        {/* Teams List */}
+        <div className="space-y-3">
+          {teams.length === 0 ? (
+            <div className="text-gray-500 text-center py-8 text-sm bg-gray-50 rounded-lg dashed border border-gray-200">
+              No teams have joined yet.
+            </div>
+          ) : (
+            teams.map((team) => {
+              const isExpanded = !!expandedTeams[team.team_id];
+              const hasPlayers = team.players && team.players.length > 0;
+              const isCurrentTeam = team.team_id === currentTeam?.team_id;
+
+              return (
                 <div
                   key={team.team_id}
-                  className={`p-3 rounded-lg border flex items-center gap-3 ${
-                    team.team_id === currentTeam?.team_id
-                      ? 'bg-indigo-50 border-indigo-200'
-                      : 'bg-white border-gray-200'
-                  }`}
+                  className={`rounded-lg border transition-all duration-200 overflow-hidden ${isExpanded ? 'border-gray-300 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}
                 >
-                  <TeamAvatar
-                    teamName={team.team_name}
-                    teamColor={team.team_colour}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate">
-                      {team.team_name}
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      {team.players?.length || 0} Players
-                    </p>
+                  <div
+                    className="flex items-center justify-between p-3 cursor-pointer select-none bg-white"
+                    onClick={() => toggleTeam(team.team_id)}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <TeamAvatar
+                        teamName={team.team_name}
+                        teamColor={team.team_colour}
+                        className="w-8 h-8 text-[10px] shrink-0 shadow-sm ring-1 ring-gray-100"
+                      />
+
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-semibold truncate ${isCurrentTeam ? 'text-indigo-600' : 'text-gray-900'}`}>
+                            {team.team_name}
+                          </span>
+                          {isCurrentTeam && (
+                            <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium border border-indigo-100 shrink-0">YOU</span>
+                          )}
+                        </div>
+                        <span className="text-gray-500 text-xs flex items-center gap-1">
+                          {team.players?.length || 0} players
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-gray-400 pl-2">
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                    </div>
                   </div>
-                  {team.team_id === currentTeam?.team_id && (
-                    <Shield className="w-4 h-4 text-indigo-500" />
+
+                  {/* Players List */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-100 bg-gray-50">
+                      {hasPlayers ? (
+                        <div className="p-2 space-y-1">
+                          {team.players.map((player, pIdx) => (
+                            <div key={pIdx} className="flex items-center gap-3 p-2 rounded-md hover:bg-black/5 transition-colors">
+                              <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center shrink-0 border border-gray-200 text-gray-400 shadow-sm">
+                                <User className="w-3 h-3" />
+                              </div>
+                              <span className="text-sm text-gray-700 font-medium truncate">
+                                {player.profile_name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-3 text-center text-xs text-gray-400 italic">
+                          No players in this team
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {!currentTeam ? (
-              <p className="text-gray-500 text-center py-4">
-                You are not in a team.
-              </p>
-            ) : !currentTeam.players || currentTeam.players.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">
-                No players in this team.
-              </p>
-            ) : (
-              currentTeam.players.map((player, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                    <User className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      {player.profile_name || 'Unknown Player'}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {/* Role not available in Player model yet */}
-                      Member
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
     </Modal>
   );
