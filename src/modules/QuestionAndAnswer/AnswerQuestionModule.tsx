@@ -163,7 +163,7 @@ export function AnswerQuestionModule() {
                     {/* Map Navigation Row */}
                     {question.question_meta?.location_points &&
                       question.question_meta.location_points.length > 0 && (
-                        <div className="flex items-center gap-2 mb-4 w-full">
+                        <div className="flex items-center gap-2 mb-4 w-full overflow-x-auto pb-2">
                           <a
                             href={`/games/${question.category.reward.created
                               }/map?locations=${JSON.stringify(
@@ -173,7 +173,7 @@ export function AnswerQuestionModule() {
                               )}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex-1"
+                            className="flex-auto shrink-0"
                           >
                             <Button
                               variant="outline"
@@ -185,7 +185,7 @@ export function AnswerQuestionModule() {
                             </Button>
                           </a>
                           {question.question_meta!.location_points!.length > 1 ? (
-                            <div className="flex flex-1 gap-2">
+                            <div className="flex flex-auto shrink-0 gap-2">
                               {question.question_meta!.location_points!.map(
                                 (point, index) => (
                                   <Button
@@ -215,7 +215,7 @@ export function AnswerQuestionModule() {
                                     .lon,
                                 )
                               }
-                              className="flex-1 border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                              className="flex-auto shrink-0 border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                             >
                               <MapPin className="w-4 h-4 mr-2" />
                               Google Maps
