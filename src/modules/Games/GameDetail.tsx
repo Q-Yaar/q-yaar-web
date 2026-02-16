@@ -13,7 +13,7 @@ import { ModulesSection, GameModule } from './ModulesSection';
 import { TeamSection } from './TeamSection';
 import { TeamModal } from './TeamModal';
 import { useState } from 'react';
-import { useFetchTeamsQuery } from '../../apis/gameApi';
+import { useFetchTeamsQuery, useFetchGameDetailsQuery } from '../../apis/gameApi';
 import { TeamAvatar } from 'components/TeamAvatar';
 
 export default function GameDetail() {
@@ -28,6 +28,7 @@ export default function GameDetail() {
   } = useFetchMyTeamQuery(gameId!);
 
   const { data: teams } = useFetchTeamsQuery(gameId!);
+  const { data: game, isLoading: isGameLoading } = useFetchGameDetailsQuery(gameId!);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const onBack = () => navigate(-1);
@@ -97,7 +98,7 @@ export default function GameDetail() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
-        title="Game Modules"
+        title={game?.name || 'Game Modules'}
         onBack={onBack}
         action={
           <button
