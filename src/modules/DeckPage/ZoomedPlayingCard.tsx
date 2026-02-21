@@ -7,6 +7,7 @@ import {
   Hand,
   Trash2,
   RotateCcw,
+  Timer,
 } from 'lucide-react';
 import { Card } from '../../models/Deck';
 import { PlayingCardUIType } from './PlayingCard';
@@ -36,6 +37,8 @@ export const ZoomedPlayingCard = ({
         return <Skull size={18} className="text-purple-500" />;
       case 'POWERUP':
         return <Zap size={18} className="text-amber-500" />;
+      case 'TIME_BONUS':
+        return <Timer size={18} className="text-teal-500" />;
       default:
         return <Info size={18} className="text-slate-400" />;
     }
@@ -47,6 +50,8 @@ export const ZoomedPlayingCard = ({
         return 'text-purple-900';
       case 'POWERUP':
         return 'text-amber-900';
+      case 'TIME_BONUS':
+        return 'text-teal-900';
       default:
         return 'text-slate-800';
     }

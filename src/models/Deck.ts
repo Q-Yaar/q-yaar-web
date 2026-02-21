@@ -7,7 +7,7 @@ export interface Card {
   card_id: string;
   title: string;
   description: string;
-  card_type: string; // e.g., "CURSE"
+  card_type: string; // e.g., "CURSE" | "POWERUP" | "TIME_BONUS"
   image: string | null;
   tags: string[]; // Array of strings
   reward: string | null;

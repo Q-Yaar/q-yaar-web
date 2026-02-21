@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Flame, Zap, Skull, Info, ScanEye, Eye } from 'lucide-react';
+import { Flame, Zap, Skull, Info, ScanEye, Eye, Timer } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Card } from '../../models/Deck';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
@@ -77,6 +77,17 @@ export const PlayingCard = ({
           textBg: 'bg-amber-50',
           accent: 'text-amber-900',
           icon: <Zap size={14} className="text-amber-300" />,
+          costBg: 'bg-red-100 text-red-800 border-t border-red-200',
+        };
+      case 'TIME_BONUS':
+        return {
+          border: 'border-teal-400',
+          outerShadow: 'shadow-teal-900/20',
+          bg: 'bg-slate-900',
+          headerGradient: 'from-teal-900 to-slate-900',
+          textBg: 'bg-teal-50',
+          accent: 'text-teal-900',
+          icon: <Timer size={14} className="text-teal-300" />,
           costBg: 'bg-red-100 text-red-800 border-t border-red-200',
         };
       default:
