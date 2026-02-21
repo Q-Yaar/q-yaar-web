@@ -168,7 +168,7 @@ export const PlayingCard = ({
           {/* Type Badge */}
           <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/60 backdrop-blur-md border border-white/10 px-2.5 py-1 rounded-md text-[10px] font-bold text-white uppercase tracking-wider shadow-lg">
             {theme.icon}
-            {card.card_type}
+            {getLabel(card.card_type)}
           </div>
 
           {/* View / Menu Buttons */}

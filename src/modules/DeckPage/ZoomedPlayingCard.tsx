@@ -74,7 +74,7 @@ export const ZoomedPlayingCard = ({
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-              {card.card_type}
+              {getLabel(card.card_type)}
             </span>
             <span className={`text-xs font-bold leading-none ${themeColor}`}>
               Playing Card
