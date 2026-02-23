@@ -457,10 +457,60 @@ const Map: React.FC<MapProps> = ({
           ['!has', 'is-current-location'],
         ],
       });
+
+      // Layer for POI selection confirmation (temporary)
+      m.addLayer({
+        id: 'poi-selection-marker',
+        type: 'circle',
+        source: {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [],
+          },
+        },
+        paint: {
+          'circle-radius': 10,
+          'circle-color': '#4CAF50',
+          'circle-stroke-width': 3,
+          'circle-stroke-color': '#FFFFFF',
+          'circle-opacity': 0.8,
+        },
+      });
     });
 
     m.on('error', (e) => {
       console.error(`[Map ${instanceId}] Map Error:`, e);
+    });
+
+    // Add hover cursor feedback for POIs
+    m.on('mousemove', (e) => {
+      const currentAction = actionRef.current;
+      if (
+        currentAction === 'distance' ||
+        currentAction === 'heading' ||
+        currentAction === 'draw-circle' ||
+        currentAction === 'split-by-direction' ||
+        currentAction === 'hotter-colder' ||
+        currentAction === 'closer-to-line' ||
+        currentAction === 'polygon-location'
+      ) {
+        try {
+          // Check if hovering over base map POIs
+          const baseMapFeatures = m.queryRenderedFeatures(e.point, {
+            layers: ['poi_r1', 'poi_r7', 'poi_r20'] // POIs at different resolutions
+          });
+
+          if (baseMapFeatures.length > 0) {
+            m.getCanvas().style.cursor = 'pointer';
+          } else {
+            m.getCanvas().style.cursor = 'crosshair';
+          }
+        } catch (error) {
+          console.warn('Error querying POI layers on mousemove:', error);
+          m.getCanvas().style.cursor = 'crosshair';
+        }
+      }
     });
 
     m.on('click', (e) => {
@@ -475,7 +525,66 @@ const Map: React.FC<MapProps> = ({
         currentAction === 'closer-to-line' ||
         currentAction === 'polygon-location'
       ) {
-        const newPoint = [e.lngLat.lng, e.lngLat.lat];
+        // Use MapLibre GL JS native feature querying
+        // Query both our measurement layers and base map layers for POIs
+        const measurementFeatures = m.queryRenderedFeatures(e.point, {
+          layers: ['measurement-points', 'reference-points-layer', 'current-location-point']
+        });
+
+        // Query base map layers for POIs
+        let baseMapFeatures: any[] = [];
+        try {
+          baseMapFeatures = m.queryRenderedFeatures(e.point, {
+            layers: ['poi_r1', 'poi_r7', 'poi_r20'] // POIs at different resolutions
+          });
+        } catch (error) {
+          console.warn('Error querying POI layers:', error);
+        }
+
+        // Check if we clicked on an existing measurement point
+        const clickedOnMeasurementPoint = measurementFeatures.some(feature => 
+          feature.layer.id === 'measurement-points' ||
+          feature.layer.id === 'reference-points-layer' ||
+          feature.layer.id === 'current-location-point'
+        );
+
+        if (clickedOnMeasurementPoint) {
+          // If clicked on existing measurement point, don't add new point
+          return;
+        }
+
+        // If we clicked on a base map POI, use its coordinates
+        let newPoint = [e.lngLat.lng, e.lngLat.lat];
+        let poiInfo = null;
+        
+        // Debug: Log available layers if no POIs found (only once per session)
+        if (baseMapFeatures.length === 0 && !((window as any).poiLayersLogged)) {
+          console.log('Available base map layers:', 
+            m.getStyle().layers.map(l => l.id).filter(id => 
+              !id.startsWith('measurement-') && !id.startsWith('shading-') && 
+              !id.startsWith('current-') && !id.startsWith('reference-')
+            )
+          );
+          (window as any).poiLayersLogged = true;
+        }
+        
+        if (baseMapFeatures.length > 0) {
+          // Use the first POI feature's coordinates
+          const poiFeature = baseMapFeatures[0];
+          if (poiFeature.geometry.type === 'Point') {
+            newPoint = poiFeature.geometry.coordinates as [number, number];
+          } else if (poiFeature.geometry.type === 'Polygon') {
+            // For polygon features, use the centroid or first coordinate
+            newPoint = poiFeature.geometry.coordinates[0][0] as [number, number];
+          }
+          poiInfo = {
+            name: poiFeature.properties?.name || 'Unnamed POI',
+            type: poiFeature.layer.id,
+            properties: poiFeature.properties
+          };
+          console.log('Selected POI:', poiInfo, 'at', newPoint);
+        }
+
         let currentPoints = pointsRef.current;
 
         const maxPoints =
@@ -495,6 +604,33 @@ const Map: React.FC<MapProps> = ({
         } else {
           const updatedPoints = [...currentPoints, newPoint];
           setPoints(updatedPoints);
+        }
+
+        // Show visual confirmation if POI was selected
+        if (poiInfo) {
+          // Add persistent POI marker (stays until new selection or reset)
+          const poiMarkerSource = m.getSource('poi-selection-marker') as maplibregl.GeoJSONSource;
+          poiMarkerSource.setData({
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: newPoint
+              },
+              properties: {
+                ...poiInfo,
+                selectedAt: new Date().toISOString()
+              }
+            }]
+          });
+        } else {
+          // If no POI selected, clear any existing POI marker
+          const poiMarkerSource = m.getSource('poi-selection-marker') as maplibregl.GeoJSONSource;
+          poiMarkerSource.setData({
+            type: 'FeatureCollection',
+            features: []
+          });
         }
       }
     });
