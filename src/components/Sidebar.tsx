@@ -175,7 +175,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   teamsError = null,
   selectedTeamFilter = '',
   setSelectedTeamFilter = () => { },
-  teamsData = [],
   serverOperations = [],
   gameId = 'default-game',
   createFactMutation = null,

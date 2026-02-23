@@ -11,7 +11,36 @@ interface SavedFactsListProps {
   isLoadingFacts?: boolean;
 }
 
-export const SavedFactsList: React.FC<SavedFactsListProps> = ({
+const getFactMetadata = (fact: Fact) => {
+  let playerName = 'System';
+  let teamName = '';
+  let createdDate = fact.created ? formatDate(fact.created) : 'Unknown Date';
+
+  if (fact.fact_info?.op_meta?.player_name) {
+    playerName = fact.fact_info.op_meta.player_name;
+  } else if (fact.fact_info?.player_email) {
+    playerName = fact.fact_info.player_email;
+  }
+
+  if (fact.fact_info?.op_meta?.team_name) {
+    teamName = fact.fact_info.op_meta.team_name;
+  }
+
+  return { playerName, teamName, createdDate };
+};
+
+const getFactDisplayName = (fact: Fact) => {
+  if (fact.fact_type === 'TEXT') return 'Text Fact';
+  if (fact.fact_type === 'GEO' && fact.fact_info?.op_type) {
+    const opType = fact.fact_info.op_type;
+    if (opType === 'areas') return 'Area Operation';
+    if (opType === 'closer-to-line') return 'Distance from Line';
+    return opType.replace(/-/g, ' ');
+  }
+  return fact.fact_type || 'Unknown Fact';
+};
+
+export const SavedFactsList: React.FC<SavedFactsListProps> = memo(({
   allFacts,
   deletingId,
   onDeleteFact,
@@ -42,71 +71,6 @@ export const SavedFactsList: React.FC<SavedFactsListProps> = ({
     );
   }
 
-  if (!allFacts || allFacts.length === 0) return null;
-
-  const getFactMetadata = (fact: Fact) => {
-    let playerName = 'System';
-    let teamName = '';
-    let createdDate = fact.created ? formatDate(fact.created) : 'Unknown Date';
-
-    if (fact.fact_info?.op_meta?.player_name) {
-      playerName = fact.fact_info.op_meta.player_name;
-    } else if (fact.fact_info?.player_email) {
-      playerName = fact.fact_info.player_email;
-    }
-
-    if (fact.fact_info?.op_meta?.team_name) {
-      teamName = fact.fact_info.op_meta.team_name;
-    }
-
-    return { playerName, teamName, createdDate };
-  };
-
-  const getFactDisplayName = (fact: Fact) => {
-    if (fact.fact_type === 'TEXT') return 'Text Fact';
-    if (fact.fact_type === 'GEO' && fact.fact_info?.op_type) {
-      const opType = fact.fact_info.op_type;
-      if (opType === 'areas') return 'Area Operation';
-      if (opType === 'closer-to-line') return 'Distance from Line';
-      return opType.replace(/-/g, ' ');
-    }
-    return fact.fact_type || 'Unknown Fact';
-  };
-
-  const { playerName, teamName, createdDate } = getFactMetadata();
-
-  return (
-    <li key={fact.fact_id} className="operation-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-        <div style={{ flex: 1 }}>
-          <strong>{index + 1}. {getFactDisplayName()}</strong>
-          <div className="help-text" style={{ fontSize: '0.9rem', fontWeight: 'normal', color: '#333' }}>
-            {getFactContent()}
-          </div>
-          <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px' }}>
-            {playerName} - {teamName}
-          </div>
-          <div style={{ fontSize: '0.6rem', color: '#999', marginTop: '2px' }}>
-            {createdDate}
-          </div>
-        </div>
-        <button
-          className="delete-fact-btn"
-          onClick={onDelete}
-        >
-          Delete
-        </button>
-      </div>
-    </li>
-  );
-});
-
-// Memoize the entire list component to prevent re-renders when props don't change
-export const SavedFactsList: React.FC<SavedFactsListProps> = memo(({
-  allFacts,
-  deleteFactMutation,
-  refetchFacts
-}) => {
   if (!allFacts || allFacts.length === 0) return null;
 
   return (
@@ -164,7 +128,7 @@ export const SavedFactsList: React.FC<SavedFactsListProps> = memo(({
       </ul>
     </div>
   );
-};
+});
 
 export const renderOperationDetails = (opType: string, opMeta: any) => {
   switch (opType) {

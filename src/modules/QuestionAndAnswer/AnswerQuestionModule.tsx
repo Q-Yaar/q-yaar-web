@@ -165,8 +165,7 @@ export function AnswerQuestionModule() {
                       question.question_meta.location_points.length > 0 && (
                         <div className="flex items-center gap-2 mb-4 w-full overflow-x-auto pb-2">
                           <a
-                            href={`/games/${question.category.reward.created
-                              }/map?locations=${JSON.stringify(
+                            href={`/games/${gameId}/map?locations=${JSON.stringify(
                                 question.question_meta.location_points.map(
                                   (p) => [parseFloat(p.lon), parseFloat(p.lat)],
                                 ),
@@ -298,7 +297,7 @@ export function AnswerQuestionModule() {
             </h2>
             <div className="space-y-3">
               {answeredQuestions.map((q) => (
-                <QuestionCard key={q.question_id} question={q} />
+                <QuestionCard key={q.question_id} question={q} gameId={gameId} />
               ))}
             </div>
           </div>

@@ -448,6 +448,7 @@ export function AskQuestionModule() {
                     <QuestionCard
                       key={q.question_id}
                       question={q}
+                      gameId={gameId}
                       onAccept={handleAccept}
                       isAccepting={isAccepting}
                       acceptingId={acceptingId}

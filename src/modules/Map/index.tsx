@@ -109,6 +109,8 @@ const MapPage: React.FC = () => {
     isLoading: isTeamsLoading, 
     error: teamsError 
   } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+
+
   
   // Create fact mutation for saving drafts
   const [createFactMutation] = useCreateFactMutation();

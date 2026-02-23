@@ -6,6 +6,7 @@ import { Gift, Map, MapPin, Loader, CheckCircle } from 'lucide-react';
 
 interface QuestionCardProps {
   question: AskedQuestion;
+  gameId?: string;
   onAccept?: (question: AskedQuestion) => void;
   isAccepting?: boolean;
   acceptingId?: string | null;
@@ -16,6 +17,7 @@ interface QuestionCardProps {
 
 export function QuestionCard({
   question,
+  gameId,
   onAccept,
   isAccepting = false,
   acceptingId = null,
@@ -65,7 +67,7 @@ export function QuestionCard({
               question.question_meta.location_points.length > 0 && (
                 <>
                   <a
-                    href={`/games/${question.category.reward.created}/map?locations=${JSON.stringify(
+                    href={`/games/${gameId || question.category.reward.created}/map?locations=${JSON.stringify(
                       question.question_meta.location_points.map((p) => [
                         parseFloat(p.lon),
                         parseFloat(p.lat),
