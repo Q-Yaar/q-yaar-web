@@ -56,8 +56,14 @@ const MapPage: React.FC = () => {
   }, [locationsParam]);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState<boolean>(false);
   const [showLayersMenu, setShowLayersMenu] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [action, setAction] = useState<string>('');
   const [points, setPoints] = useState<number[][]>([]);
+  const [pointPOIInfo, setPointPOIInfo] = useState<Array<{
+    name?: string;
+    type?: string;
+    properties?: any;
+  } | null>>([]);
   const [distance, setDistance] = useState<number | null>(null);
   const [heading, setHeading] = useState<Heading | null>(null);
   const [radius, setRadius] = useState<number>(5);
@@ -522,6 +528,7 @@ const MapPage: React.FC = () => {
             currentLocation={currentLocation}
             gameId={gameId}
             referencePoints={referencePoints}
+            pointPOIInfo={pointPOIInfo}
             onClearReferencePoints={handleClearReferencePoints}
             onToggleSidebar={() => setIsBottomSheetOpen(false)}
             textFacts={filteredFacts}
@@ -536,6 +543,53 @@ const MapPage: React.FC = () => {
             refetchFacts={refetchFacts}
             deleteFactMutation={deleteFactMutation}
             isLoadingFacts={isLoadingFacts}
+          />
+        </div>
+        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+          {!isSidebarOpen && (
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                left: '10px',
+                zIndex: 1000,
+                backgroundColor: 'white',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                padding: '5px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              }}
+              title={isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
+            >
+              {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+            </button>
+          )}
+          <Map
+            action={action}
+            points={points}
+            setPoints={setPoints}
+            setDistance={setDistance}
+            setHeading={setHeading}
+            radius={radius}
+            hiderLocation={hiderLocation}
+            playArea={playArea}
+            splitDirection={splitDirection}
+            preferredPoint={preferredPoint}
+            areaOpType={areaOpType}
+            uploadedAreaForOp={uploadedAreaForOp}
+            multiLineStringForOp={multiLineStringForOp}
+            closerFurther={closerFurther}
+            selectedLineIndex={selectedLineIndex}
+            polygonGeoJSONForOp={polygonGeoJSON}
+            operations={operations}
+            currentLocation={currentLocation}
+            referencePoints={referencePoints}
+            onPointPOIInfoChange={setPointPOIInfo}
           />
         </div>
       </div>

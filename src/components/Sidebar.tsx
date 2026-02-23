@@ -17,7 +17,8 @@ import {
   ToolConfigurationForms,
   DraftOperationsList,
   ReferenceLocationsList,
-  SavedFactsList
+  SavedFactsList,
+  PointsInformation
 } from './SidebarComponents';
 import { getFactContent } from './SidebarComponents/SavedFactsList';
 
@@ -115,6 +116,11 @@ interface SidebarProps {
   currentLocation?: number[] | null;
   teamId?: string;
   referencePoints?: number[][];
+  pointPOIInfo?: Array<{
+    name?: string;
+    type?: string;
+    properties?: any;
+  } | null>;
   onClearReferencePoints?: () => void;
   onToggleSidebar?: () => void;
   textFacts?: Fact[];
@@ -167,6 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentLocation,
   teamId = 'default-team',
   referencePoints = [],
+  pointPOIInfo = [],
   onClearReferencePoints,
   onToggleSidebar,
   textFacts = [],
@@ -456,15 +463,25 @@ const Sidebar: React.FC<SidebarProps> = ({
             </span>
           )}
         </h3>
-        <DraftOperationsList
-          operations={operations}
-          serverOperations={serverOperationsOrDefault}
-          onSaveOperation={(op) => {
-            setSaveModalTeamId(selectedTeamFilter || '');
-            setFactToSave({ type: 'OPERATION', payload: op });
-          }}
-          removeOperation={removeOperation}
-        />
+      {/* Points Information */}
+      <PointsInformation
+        points={points}
+        currentLocation={currentLocation}
+        referencePoints={referencePoints}
+        pointPOIInfo={pointPOIInfo}
+        showAlways={true}
+      />
+
+      {/* Draft Operations List */}
+      <DraftOperationsList
+        operations={operations}
+        serverOperations={serverOperations}
+        onSaveOperation={(op) => {
+          setSaveModalTeamId(selectedTeamFilter || '');
+          setFactToSave({ type: 'OPERATION', payload: op });
+        }}
+        removeOperation={removeOperation}
+      />
 
         <ReferenceLocationsList
           referencePoints={referencePoints || []}
