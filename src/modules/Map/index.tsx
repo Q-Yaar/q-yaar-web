@@ -104,8 +104,12 @@ const MapPage: React.FC = () => {
   );
 
   // Fetch teams for the game
-  const { data: teamsData } = useFetchTeamsQuery(gameId!, { skip: !gameId });
-
+  const { 
+    data: teamsData, 
+    isLoading: isTeamsLoading, 
+    error: teamsError 
+  } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+  
   // Create fact mutation for saving drafts
   const [createFactMutation] = useCreateFactMutation();
 
@@ -142,9 +146,17 @@ const MapPage: React.FC = () => {
 
       // Store server operations for draft detection
       setServerOperations(serverOperations);
+      setTextFacts(sortedTextFacts);
+    } else {
+      setServerOperations([]);
+      setTextFacts([]);
+    }
+  }, [factsData]);  // Only depend on factsData, not localOperations
 
+  // Handle local operations merging separately
+  useEffect(() => {
+    if (serverOperations.length > 0) {
       // Merge server operations with local operations
-      // Server operations take precedence for existing IDs
       const mergedOps = [
         ...serverOperations,
         ...localOperations.filter(
@@ -152,19 +164,11 @@ const MapPage: React.FC = () => {
             !serverOperations.some((serverOp) => serverOp.id === localOp.id),
         ),
       ];
-
-      console.log('Server operations:', serverOperations);
-      console.log('Local operations:', localOperations);
-      console.log('Merged operations:', mergedOps);
-
       setOperations(mergedOps);
-      setTextFacts(sortedTextFacts);
     } else {
       setOperations(localOperations);
-      setServerOperations([]);
-      setTextFacts([]);
     }
-  }, [factsData, localOperations]);
+  }, [localOperations, serverOperations]);  // Only run when these specific dependencies change
 
   // Since we're now filtering on the server side, filteredFacts = textFacts
   useEffect(() => {
@@ -523,6 +527,8 @@ const MapPage: React.FC = () => {
             selectedTeamFilter={selectedTeamFilter}
             setSelectedTeamFilter={setSelectedTeamFilter}
             teamsData={teamsData}
+            isTeamsLoading={isTeamsLoading}
+            teamsError={teamsError}
             serverOperations={serverOperations}
             createFactMutation={createFactMutation}
             refetchFacts={refetchFacts}

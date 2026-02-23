@@ -121,6 +121,8 @@ interface SidebarProps {
   selectedTeamFilter?: string;
   setSelectedTeamFilter?: (teamId: string) => void;
   teamsData?: any[];
+  isTeamsLoading?: boolean;
+  teamsError?: any;
   serverOperations?: any[];
   gameId?: string;
   createFactMutation?: ((arg: any) => Promise<any>) | null;
@@ -168,6 +170,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClearReferencePoints,
   onToggleSidebar,
   textFacts = [],
+  teamsData = [],
+  isTeamsLoading = false,
+  teamsError = null,
   selectedTeamFilter = '',
   setSelectedTeamFilter = () => { },
   teamsData = [],
@@ -364,13 +369,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar">
       {/* Team Filter Dropdown */}
-      {teamsData && (
-        <TeamFilterDropdown
-          teamsData={teamsData}
-          selectedTeamFilter={selectedTeamFilter || ''}
-          setSelectedTeamFilter={setSelectedTeamFilter || (() => { })}
-        />
-      )}
+      <TeamFilterDropdown
+        teamsData={teamsData}
+        selectedTeamFilter={selectedTeamFilter}
+        setSelectedTeamFilter={setSelectedTeamFilter}
+        isLoading={isTeamsLoading}
+        error={teamsError}
+      />
 
       {/* Category and Tool Selection */}
       <CategoryToolSection
