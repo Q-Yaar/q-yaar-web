@@ -332,8 +332,8 @@ const MapPage: React.FC = () => {
                 pointerEvents: 'auto',
               }}
             >
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#666', padding: '8px 12px', borderBottom: '1px solid #eee', marginBottom: '4px' }}>
-                Play Area Layers
+              <div style={{ textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#666', padding: '8px 12px', borderBottom: '1px solid #eee', marginBottom: '4px' }}>
+                Layers
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {OPERATION_ASSETS['play-area'].map((asset) => {
@@ -476,6 +476,7 @@ const MapPage: React.FC = () => {
             backgroundColor: 'white',
             height: '70vh',
             overflowY: isBottomSheetOpen ? 'auto' : 'hidden',
+            paddingTop: '24px',
             paddingBottom: '20px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             borderRadius: '24px 24px 0 0',

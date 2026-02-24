@@ -1060,8 +1060,6 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Saved Facts - From backend */}
-
         {
           referencePoints && referencePoints.length > 0 && (
             <div className="mt-4 border-t border-gray-100 pt-5">
@@ -1124,7 +1122,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         }
         {
           allFacts && allFacts.length > 0 && (
-            <div className="mt-4 border-t border-gray-100 pt-5">
+            <div className="mt-4 border-t border-gray-100 pt-5 text-left">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Saved Facts</h3>
               <ul className="flex flex-col space-y-3">
                 {allFacts.map((fact: Fact, index: number) => {
@@ -1192,11 +1190,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         title="Delete Fact"
       >
         <div className="space-y-4">
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-left">
             Are you sure you want to delete this fact? This action cannot be undone.
           </p>
           {factToDelete && (
-            <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm text-gray-700 font-medium">
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm text-gray-700 font-medium text-left">
               {getFactContent(factToDelete)}
             </div>
           )}
@@ -1246,12 +1244,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         title="Save Fact"
       >
         <div className="space-y-4">
-          <p className="text-gray-600 mb-2">
+          <p className="text-gray-600 mb-2 text-left">
             Select the team you want to save this fact for:
           </p>
 
           <div className="flex flex-col space-y-2">
-            <Label className="text-sm font-medium">Target Team</Label>
+            <Label className="text-sm font-medium text-left">Target Team</Label>
             <select
               value={saveModalTeamId}
               onChange={(e) => setSaveModalTeamId(e.target.value)}
