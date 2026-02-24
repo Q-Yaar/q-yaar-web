@@ -518,40 +518,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      <section className="flex flex-col space-y-2">
-        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Play Area</Label>
-        <div className="file-input-wrapper">
-          <select
-            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            onChange={(e) => {
-              const path = e.target.value;
-              if (path) {
-                fetchGeoJSON(path, setPlayArea);
-              }
-            }}
-            value={playArea?._source_path || OPERATION_ASSETS['play-area'][0].path}
-          >
-            {OPERATION_ASSETS['play-area'].map((asset) => (
-              <option key={asset.path} value={asset.path}>
-                {asset.name}
-              </option>
-            ))}
-          </select>
-          {playArea && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-start',
-                marginTop: '4px',
-              }}
-            >
-              <div className="success-badge">✓ Bengaluru Urban District Applied</div>
-            </div>
-          )}
-        </div>
-      </section>
-
       <section className="flex flex-col space-y-2 mt-4">
         <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Category</Label>
         <select

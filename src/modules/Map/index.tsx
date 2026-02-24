@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useLocation, useNavigate } from 'react-rout
 import Map from '../../components/Map';
 import Sidebar from '../../components/Sidebar';
 import { Heading, Operation } from '../../utils/geoTypes';
-import { LocateFixed, Menu, ChevronUp, ChevronDown, ChevronLeft } from 'lucide-react';
+import { LocateFixed, Menu, ChevronUp, ChevronDown, ChevronLeft, Layers, Check } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { useGetFactsQuery, useCreateFactMutation, useDeleteFactMutation } from '../../apis/api';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
@@ -15,6 +15,15 @@ import { Team } from '../../models/Team';
 
 // Simple in-memory cache for the last known location
 let lastKnownLocation: number[] | null = null;
+
+const OPERATION_ASSETS = {
+  'play-area': [
+    {
+      name: 'Bengaluru Urban District',
+      path: '/assets/geojsons/bengaluru/bengaluru_urban_district.geojson',
+    }
+  ]
+};
 
 const MapPage: React.FC = () => {
   const { gameId } = useParams();
@@ -46,6 +55,7 @@ const MapPage: React.FC = () => {
     }
   }, [locationsParam]);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState<boolean>(false);
+  const [showLayersMenu, setShowLayersMenu] = useState<boolean>(false);
   const [action, setAction] = useState<string>('');
   const [points, setPoints] = useState<number[][]>([]);
   const [distance, setDistance] = useState<number | null>(null);
@@ -193,6 +203,25 @@ const MapPage: React.FC = () => {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
+  const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
+    try {
+      const response = await fetch(path);
+      const data = await response.json();
+      data._source_path = path;
+      setter(data);
+    } catch (err) {
+      console.error('Error fetching GeoJSON:', err);
+      alert('Failed to load GeoJSON asset');
+    }
+  };
+
+  // Automatically load Bengaluru Urban District play area on mount
+  useEffect(() => {
+    if (OPERATION_ASSETS['play-area'].length > 0 && !playArea) {
+      fetchGeoJSON(OPERATION_ASSETS['play-area'][0].path, setPlayArea);
+    }
+  }, [playArea]);
+
   const handleClearReferencePoints = () => {
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.delete('locations');
@@ -283,38 +312,122 @@ const MapPage: React.FC = () => {
             alignItems: 'center',
             boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
             border: '1px solid #e0e0e0',
-            cursor: 'pointer',
           }}
         >
-          {/* Left Section: Context info and expand toggle */}
+          {/* Layers Selection Menu Popup */}
+          {showLayersMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '16px',
+                marginBottom: '12px',
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+                border: '1px solid #e0e0e0',
+                padding: '8px',
+                width: '260px',
+                zIndex: 1010,
+                pointerEvents: 'auto',
+              }}
+            >
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#666', padding: '8px 12px', borderBottom: '1px solid #eee', marginBottom: '4px' }}>
+                Play Area Layers
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {OPERATION_ASSETS['play-area'].map((asset) => {
+                  const isSelected = playArea?._source_path === asset.path;
+                  return (
+                    <button
+                      key={asset.path}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fetchGeoJSON(asset.path, setPlayArea);
+                        setShowLayersMenu(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        backgroundColor: isSelected ? '#f0f8ff' : 'transparent',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '14px',
+                        color: isSelected ? '#007cbf' : '#333',
+                        fontWeight: isSelected ? 600 : 400,
+                        transition: 'background-color 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = '#f5f5f5';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <span>{asset.name}</span>
+                      {isSelected && <Check size={16} color="#007cbf" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Left Section: Map layers and context info */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               flex: 1,
-              cursor: 'pointer',
               gap: '12px',
             }}
           >
-            <div style={{
-              backgroundColor: '#f5f5f5',
-              borderRadius: '50%',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#555'
-            }}>
-              <Menu size={20} />
-            </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowLayersMenu(!showLayersMenu);
+              }}
+              title="Map Layers"
+              style={{
+                backgroundColor: showLayersMenu ? '#e6f4ff' : '#f5f5f5',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: showLayersMenu ? '#007cbf' : '#555',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = showLayersMenu ? '#e6f4ff' : '#eee'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = showLayersMenu ? '#e6f4ff' : '#f5f5f5'}
+            >
+              <Layers size={20} />
+            </button>
+            <div
+              onClick={() => setIsBottomSheetOpen(!isBottomSheetOpen)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                cursor: 'pointer',
+              }}
+            >
               <span style={{ fontWeight: 600, color: '#333', fontSize: '15px' }}>Map Tools</span>
               <span style={{ fontSize: '12px', color: '#666' }}>
                 {filteredFacts.length} {filteredFacts.length === 1 ? 'fact' : 'facts'} loaded
               </span>
             </div>
-            <div style={{ color: '#888', marginRight: '8px' }}>
+            <div
+              onClick={() => setIsBottomSheetOpen(!isBottomSheetOpen)}
+              style={{ color: '#888', marginRight: '8px', cursor: 'pointer' }}
+            >
               {isBottomSheetOpen ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
             </div>
           </div>
