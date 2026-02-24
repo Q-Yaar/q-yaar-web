@@ -8,13 +8,40 @@ interface SavedFactsListProps {
   allFacts: Fact[];
   deletingId: string | null;
   onDeleteFact: (fact: Fact) => void;
+  isLoadingFacts?: boolean;
 }
 
 export const SavedFactsList: React.FC<SavedFactsListProps> = ({
   allFacts,
   deletingId,
-  onDeleteFact
+  onDeleteFact,
+  isLoadingFacts = false
 }) => {
+  if (isLoadingFacts) {
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-5 text-left">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Saved Facts</h3>
+        <ul className="flex flex-col space-y-3">
+          {[1, 2].map((i) => (
+            <Card key={`loading-fact-${i}`} className="w-full shadow-sm border border-gray-100 rounded-xl overflow-hidden relative opacity-60">
+              <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-200 rounded-l-xl"></div>
+              <CardContent className="p-4 pl-5 flex justify-between items-start text-left">
+                <div className="flex-1 pr-4 w-full">
+                  <div className="h-4 bg-gray-200 rounded w-1/3 mb-2 animate-pulse"></div>
+                  <div className="h-10 bg-gray-100 rounded w-full mb-3 animate-pulse"></div>
+                  <div className="flex gap-2">
+                    <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   if (!allFacts || allFacts.length === 0) return null;
 
   const getFactMetadata = (fact: Fact) => {

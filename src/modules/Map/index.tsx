@@ -98,7 +98,7 @@ const MapPage: React.FC = () => {
   const [triggerLocateUser, setTriggerLocateUser] = useState<number>(0);
 
   // Fetch facts from the server
-  const { data: factsData, refetch: refetchFacts } = useGetFactsQuery(
+  const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
     { game_id: gameId!, team_id: selectedTeamFilter },
     { skip: !gameId || !selectedTeamFilter },
   );
@@ -525,8 +525,8 @@ const MapPage: React.FC = () => {
             serverOperations={serverOperations}
             createFactMutation={createFactMutation}
             refetchFacts={refetchFacts}
-            currentUserEmail={currentUserEmail}
             deleteFactMutation={deleteFactMutation}
+            isLoadingFacts={isLoadingFacts}
           />
         </div>
       </div>

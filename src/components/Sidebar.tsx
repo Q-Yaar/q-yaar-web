@@ -128,6 +128,7 @@ interface SidebarProps {
   allFacts?: Fact[];
   currentUserEmail?: string;
   deleteFactMutation?: ((factId: string) => Promise<any>) | null;
+  isLoadingFacts?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -176,7 +177,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   refetchFacts = () => { },
   allFacts = [],
   currentUserEmail = 'Unknown Player',
-  deleteFactMutation = null
+  deleteFactMutation = null,
+  isLoadingFacts = false
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
@@ -469,6 +471,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           allFacts={allFactsOrDefault}
           deletingId={deletingId}
           onDeleteFact={(fact) => setFactToDelete(fact)}
+          isLoadingFacts={isLoadingFacts}
         />
       </div>
 
