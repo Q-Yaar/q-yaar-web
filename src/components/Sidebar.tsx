@@ -10,6 +10,16 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent } from './ui/card';
 import { Modal } from './ui/modal';
+import {
+  TeamFilterDropdown,
+  CategoryToolSection,
+  LocationControls,
+  ToolConfigurationForms,
+  DraftOperationsList,
+  ReferenceLocationsList,
+  SavedFactsList
+} from './SidebarComponents';
+import { getFactContent } from './SidebarComponents/SavedFactsList';
 
 const PUBLIC_ASSETS = [
   {
@@ -120,165 +130,6 @@ interface SidebarProps {
   deleteFactMutation?: ((factId: string) => Promise<any>) | null;
 }
 
-interface OperationCardProps {
-  op: Operation;
-  index: number;
-  onSave: () => void | Promise<void>;
-  onRemove: () => void;
-}
-
-const OperationCard: React.FC<OperationCardProps> = ({ op, index, onSave, onRemove }) => {
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onSave();
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const getOperationDisplayName = (type: Operation['type']) => {
-    switch (type) {
-      case 'areas':
-        return 'Area Operations';
-      case 'closer-to-line':
-        return 'Distance from Metro Line';
-      default:
-        return type.replace(/-/g, ' ');
-    }
-  };
-
-  const getOperationHelpText = () => {
-    switch (op.type) {
-      case 'draw-circle':
-        return `${op.radius}km · Hider ${op.hiderLocation}`;
-      case 'split-by-direction':
-        return `Hider is ${op.splitDirection}`;
-      case 'hotter-colder':
-        return `Closer to ${op.preferredPoint}`;
-      case 'areas':
-        return `${op.areaOpType}${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`;
-      case 'closer-to-line':
-        return `${op.closerFurther} than Seeker ${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`;
-      case 'polygon-location':
-        return `In polygon`;
-      default:
-        return '';
-    }
-  };
-
-  return (
-    <Card className="w-full shadow-sm hover:shadow-md transition-shadow border border-amber-200 bg-amber-50/50 rounded-xl overflow-hidden relative mb-3">
-      {/* Decorative left border for draft */}
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 rounded-l-xl"></div>
-      <CardContent className="p-4 pl-5 flex flex-col items-start text-left">
-        <div className="font-semibold text-sm mb-1.5 text-gray-800 tracking-tight">
-          {index + 1}. {getOperationDisplayName(op.type)} <span className="text-amber-600 text-xs ml-1 font-medium">(Draft)</span>
-        </div>
-        <div className="text-sm text-gray-600 mb-3 leading-relaxed">
-          {getOperationHelpText()}
-        </div>
-        <div className="flex gap-2 w-full mt-1">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex-1 h-8 bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            {isSaving ? (
-              <svg className="w-4 h-4 animate-spin mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            ) : null}
-            {isSaving ? 'Saving...' : 'Save Draft'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRemove}
-            disabled={isSaving}
-            className="h-8 px-3 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-          >
-            Discard
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-// Removed unused handleSaveTextFact function
-const isTextFactValid = (textContent: string, selectedOption: string | null) => {
-  return selectedOption === 'text' && !textContent.trim();
-};
-
-const getFactMetadata = (fact: Fact) => {
-  let playerName = 'System';
-  let teamName = '';
-  let createdDate = fact.created ? formatDate(fact.created) : 'Unknown Date';
-
-  if (fact.fact_info?.op_meta?.player_name) {
-    playerName = fact.fact_info.op_meta.player_name;
-  } else if (fact.fact_info?.player_email) {
-    playerName = fact.fact_info.player_email;
-  }
-
-  if (fact.fact_info?.op_meta?.team_name) {
-    teamName = fact.fact_info.op_meta.team_name;
-  }
-
-  return { playerName, teamName, createdDate };
-};
-
-const getFactDisplayName = (fact: Fact) => {
-  if (fact.fact_type === 'TEXT') return 'Text Fact';
-  if (fact.fact_type === 'GEO' && fact.fact_info?.op_type) {
-    const opType = fact.fact_info.op_type;
-    if (opType === 'areas') return 'Area Operation';
-    if (opType === 'closer-to-line') return 'Distance from Line';
-    return opType.replace(/-/g, ' ');
-  }
-  return fact.fact_type || 'Unknown Fact';
-};
-
-const getFactContent = (fact: Fact) => {
-  if (fact.fact_type === 'TEXT') {
-    return fact.fact_info?.op_meta?.text || 'No text content';
-  } else if (fact.fact_type === 'GEO' && fact.fact_info?.op_type && fact.fact_info?.op_meta) {
-    return renderOperationDetails(fact.fact_info.op_type, fact.fact_info.op_meta);
-  }
-  return 'No details available';
-};
-
-// Operation details rendering helper (moved from fact mapping scope)
-const renderOperationDetails = (opType: string, opMeta: any) => {
-  switch (opType) {
-    case 'plain_text':
-      return opMeta.text || 'No text content';
-    case 'draw-circle':
-      return `${opMeta.radius}km · Hider ${opMeta.hiderLocation}`;
-    case 'split-by-direction':
-      return `Hider is ${opMeta.splitDirection}`;
-    case 'hotter-colder':
-      return `Closer to ${opMeta.preferredPoint}`;
-    case 'areas':
-      if (opMeta.featureName) {
-        return `${opMeta.areaOpType} (${opMeta.featureName})`;
-      }
-      return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
-    case 'closer-to-line':
-      if (opMeta.featureName) {
-        return `${opMeta.closerFurther} than Seeker (${opMeta.featureName})`;
-      }
-      return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
-    case 'polygon-location':
-      return `In polygon`;
-    default:
-      return opType.replace(/-/g, ' ');
-  }
-};
-
 const Sidebar: React.FC<SidebarProps> = ({
   onSelectOption,
   points,
@@ -344,9 +195,21 @@ const Sidebar: React.FC<SidebarProps> = ({
   const serverOperationsOrDefault = serverOperations ?? [];
   const createFactMutationOrDefault = createFactMutation ?? null;
   const refetchFactsOrDefault = refetchFacts ?? (() => { });
-  const allFactsOrDefault = allFacts ?? [];
   const currentUserEmailOrDefault = currentUserEmail ?? 'Unknown Player';
   const deleteFactMutationOrDefault = deleteFactMutation ?? null;
+
+  // Combine text facts and geo facts for the SavedFactsList
+  // Format text facts to match the structure expected by SavedFactsList if needed
+  const formattedTextFacts = textFactsOrDefault.map(fact => ({
+    ...fact,
+    fact_type: 'TEXT' as const, // Ensure type is set
+  }));
+
+  // Create a combined list avoiding duplicates (assuming fact_id is unique)
+  const existingFactIds = new Set((allFacts || []).map(f => f.fact_id));
+  const newTextFacts = formattedTextFacts.filter(f => !existingFactIds.has(f.fact_id));
+
+  const allFactsOrDefault = [...newTextFacts, ...(allFacts || [])];
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
@@ -498,508 +361,63 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className="sidebar">
-      {/* Team Filter Dropdown - moved to top */}
+      {/* Team Filter Dropdown */}
       {teamsData && (
-        <div className="space-y-2 pb-4 border-b border-gray-100">
-          <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block text-left">
-            Filter Facts by Team
-          </Label>
-          <select
-            value={selectedTeamFilter}
-            onChange={(e) => setSelectedTeamFilter(e.target.value)}
-            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {teamsData.map((team) => (
-              <option key={team.team_id} value={team.team_id}>
-                {team.team_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <TeamFilterDropdown
+          teamsData={teamsData}
+          selectedTeamFilter={selectedTeamFilter || ''}
+          setSelectedTeamFilter={setSelectedTeamFilter || (() => { })}
+        />
       )}
 
-      <section className="flex flex-col space-y-2 mt-4">
-        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Category</Label>
-        <select
-          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          value={selectedCategory}
-          onChange={handleCategoryChange}
-        >
-          <option value="">Select Category</option>
-          <option value="questions">Questions</option>
-          <option value="facts">Facts</option>
-        </select>
-      </section>
-
-      <section className="flex flex-col space-y-2 mt-4">
-        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Tool</Label>
-        <select
-          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          value={selectedOption}
-          onChange={handleOptionChange}
-          disabled={!selectedCategory}
-        >
-          <option value="">Select Action</option>
-          {selectedCategory === 'questions' && (
-            <>
-              <option value="distance">Distance Measurement</option>
-              <option value="heading">Relative Heading</option>
-              <option value="polygon-location">Polygon Location</option>
-            </>
-          )}
-          {selectedCategory === 'facts' && (
-            <>
-              <option value="text">Text Fact</option>
-              <option value="draw-circle">Draw Circle</option>
-              <option value="split-by-direction">Split by Direction</option>
-              <option value="hotter-colder">Hotter / Colder</option>
-              <option value="areas">Area Operations</option>
-              <option value="closer-to-line">Distance from Metro Line</option>
-            </>
-          )}
-        </select>
-      </section>
+      {/* Category and Tool Selection */}
+      <CategoryToolSection
+        selectedCategory={selectedCategory}
+        selectedOption={selectedOption}
+        handleCategoryChange={handleCategoryChange}
+        handleOptionChange={handleOptionChange}
+      />
 
       {selectedOption && (
         <div className="tool-details">
-          {/* Location Controls */}
-          {selectedOption !== 'areas' && (
-            <div style={{ marginBottom: '10px' }}>
-              {isTwoPointTool ? (
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button
-                    variant="default"
-                    className="flex-1"
-                    onClick={() => handleUseCurrentLocation(0)}
-                    disabled={!currentLocation}
-                    title={
-                      !currentLocation
-                        ? 'Waiting for location...'
-                        : 'Set Point 1 to Current Location'
-                    }
-                  >
-                    📍 Set P1
-                  </Button>
-                  <Button
-                    variant="default"
-                    className="flex-1"
-                    onClick={() => handleUseCurrentLocation(1)}
-                    disabled={!currentLocation || points.length === 0}
-                    title={
-                      !currentLocation
-                        ? 'Waiting for location...'
-                        : points.length === 0
-                          ? 'Set P1 first'
-                          : 'Set Point 2 to Current Location'
-                    }
-                  >
-                    📍 Set P2
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="default"
-                  className="w-full"
-                  onClick={() => handleUseCurrentLocation()}
-                  disabled={!currentLocation}
-                  title={
-                    !currentLocation
-                      ? 'Waiting for location...'
-                      : 'Use/Update Current Location as a Point'
-                  }
-                >
-                  📍 Use Current Location
-                </Button>
-              )}
-            </div>
-          )}
+          <LocationControls
+            selectedOption={selectedOption}
+            points={points}
+            currentLocation={currentLocation}
+            handleUseCurrentLocation={handleUseCurrentLocation}
+            isTwoPointTool={isTwoPointTool}
+          />
 
-          {/* Points Information */}
-          {selectedOption !== 'areas' && points.length > 0 && (
-            <div className="info-box" style={{ marginBottom: '15px' }}>
-              <div>
-                <strong>
-                  {selectedOption === 'draw-circle' ||
-                    selectedOption === 'split-by-direction'
-                    ? 'Center'
-                    : 'Point 1'}
-                  :
-                </strong>{' '}
-                {points[0][1].toFixed(4)}, {points[0][0].toFixed(4)}
-              </div>
-              {points.length > 1 &&
-                selectedOption !== 'draw-circle' &&
-                selectedOption !== 'split-by-direction' && (
-                  <div style={{ marginTop: '5px' }}>
-                    <strong>Point 2:</strong> {points[1][1].toFixed(4)},{' '}
-                    {points[1][0].toFixed(4)}
-                  </div>
-                )}
-            </div>
-          )}
-
-          {/* Result Information */}
-          {selectedOption === 'distance' && distance !== null && (
-            <div
-              className="info-box"
-              style={{
-                borderColor: '#4CAF50',
-                backgroundColor: '#f0fff4',
-                marginBottom: '15px',
-              }}
-            >
-              <strong>Distance:</strong> {distance.toFixed(2)} km
-            </div>
-          )}
-
-          {selectedOption === 'heading' && heading && (
-            <div
-              className="info-box"
-              style={{
-                borderColor: '#2196F3',
-                backgroundColor: '#e3f2fd',
-                marginBottom: '15px',
-              }}
-            >
-              <strong>Relative Heading:</strong>
-              <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>
-                P1 is {heading.lat} and {heading.lon} of P2
-              </div>
-            </div>
-          )}
-
-          {/* Configuration Forms */}
-          {selectedOption === 'draw-circle' && (
-            <div className="flex flex-col space-y-4 mt-4">
-              <div className="flex flex-col space-y-2">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Radius (km)</Label>
-                <Input
-                  type="number"
-                  value={radius}
-                  onChange={(e) => setRadius(parseFloat(e.target.value) || 0)}
-                />
-              </div>
-
-              <div className="flex flex-col space-y-2">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Hider is</Label>
-                <div className="radio-group">
-                  <label className="radio-item">
-                    <input
-                      type="radio"
-                      checked={hiderLocation === 'inside'}
-                      onChange={() => setHiderLocation('inside')}
-                    />{' '}
-                    Inside
-                  </label>
-                  <label className="radio-item">
-                    <input
-                      type="radio"
-                      checked={hiderLocation === 'outside'}
-                      onChange={() => setHiderLocation('outside')}
-                    />{' '}
-                    Outside
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {selectedOption === 'split-by-direction' && (
-            <div className="flex flex-col space-y-2 mt-4">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Hider is toward...</Label>
-              <select
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={splitDirection}
-                onChange={(e) => setSplitDirection(e.target.value as any)}
-              >
-                <option value="North">North</option>
-                <option value="South">South</option>
-                <option value="East">East</option>
-                <option value="West">West</option>
-              </select>
-              <span className="help-text">
-                Opposite side will be shaded out.
-              </span>
-            </div>
-          )}
-
-          {selectedOption === 'hotter-colder' && (
-            <div className="flex flex-col space-y-2 mt-4">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Closer to...</Label>
-              <div className="radio-group">
-                <label className="radio-item text-sm">
-                  <input
-                    type="radio"
-                    checked={preferredPoint === 'p1'}
-                    onChange={() => setPreferredPoint('p1')}
-                  />{' '}
-                  P1
-                </label>
-                <label className="radio-item text-sm">
-                  <input
-                    type="radio"
-                    checked={preferredPoint === 'p2'}
-                    onChange={() => setPreferredPoint('p2')}
-                  />{' '}
-                  P2
-                </label>
-              </div>
-              <span className="text-xs text-gray-500 mt-1">
-              </span>
-            </div>
-          )}
-
-          {selectedOption === 'areas' && (
-            <div className="flex flex-col space-y-4 mt-4">
-              <div className="flex flex-col space-y-2">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Operation</Label>
-                <div className="radio-group">
-                  <label className="radio-item text-sm">
-                    <input
-                      type="radio"
-                      checked={areaOpType === 'inside'}
-                      onChange={() => setAreaOpType('inside')}
-                    />{' '}
-                    Inside
-                  </label>
-                  <label className="radio-item text-sm">
-                    <input
-                      type="radio"
-                      checked={areaOpType === 'outside'}
-                      onChange={() => setAreaOpType('outside')}
-                    />{' '}
-                    Outside
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex flex-col space-y-2">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Select Area Asset</Label>
-                <div className="file-input-wrapper">
-                  <select
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    onChange={(e) => {
-                      const path = e.target.value;
-                      if (path) {
-                        fetchGeoJSON(path, setUploadedAreaForOp);
-                      } else {
-                        setUploadedAreaForOp(null);
-                      }
-                    }}
-                    value={uploadedAreaForOp?._source_path || ''}
-                  >
-                    <option value="">Select Asset</option>
-                    {OPERATION_ASSETS['areas'].map((asset) => (
-                      <option key={asset.path} value={asset.path}>
-                        {asset.name}
-                      </option>
-                    ))}
-                  </select>
-                  {uploadedAreaForOp && (
-                    <div className="success-badge">✓ {uploadedAreaForOp.features[selectedLineIndex]?.properties?.name || 'Area Ready'}</div>
-                  )}
-                </div>
-
-                {uploadedAreaForOp &&
-                  uploadedAreaForOp.type === 'FeatureCollection' &&
-                  uploadedAreaForOp.features.filter(
-                    (f: any) =>
-                      f.geometry &&
-                      (f.geometry.type === 'Polygon' ||
-                        f.geometry.type === 'MultiPolygon'),
-                  ).length > 1 && (
-                    <div className="flex flex-col space-y-2 mt-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Select Specific Area</Label>
-                      <select
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        value={selectedLineIndex}
-                        onChange={(e) =>
-                          setSelectedLineIndex(parseInt(e.target.value) || 0)
-                        }
-                      >
-                        {uploadedAreaForOp.features
-                          .map((feat: any, idx: number) => ({ feat, idx }))
-                          .filter(
-                            (item: any) =>
-                              item.feat.geometry &&
-                              (item.feat.geometry.type === 'Polygon' ||
-                                item.feat.geometry.type === 'MultiPolygon'),
-                          )
-                          .map((item: any, listIdx: number) => (
-                            <option key={item.idx} value={item.idx}>
-                              {item.feat.properties?.name || `Area ${listIdx + 1}`}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-              </div> {/* Closing flex flex-col space-y-2 */}
-            </div>
-          )}
-
-          {selectedOption === 'closer-to-line' && (
-            <div className="flex flex-col space-y-4 mt-4">
-              <div className="flex flex-col space-y-2">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Hider is...</Label>
-                <div className="radio-group">
-                  <label className="radio-item text-sm">
-                    <input
-                      type="radio"
-                      checked={closerFurther === 'closer'}
-                      onChange={() => setCloserFurther('closer')}
-                    />{' '}
-                    Closer
-                  </label>
-                  <label className="radio-item text-sm">
-                    <input
-                      type="radio"
-                      checked={closerFurther === 'further'}
-                      onChange={() => setCloserFurther('further')}
-                    />{' '}
-                    Further
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex flex-col space-y-2">
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Select Line Asset</Label>
-                <div className="file-input-wrapper">
-                  <select
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    onChange={(e) => {
-                      const path = e.target.value;
-                      if (path) {
-                        fetchGeoJSON(path, setMultiLineStringForOp);
-                      } else {
-                        setMultiLineStringForOp(null);
-                      }
-                    }}
-                    value={multiLineStringForOp?._source_path || ''}
-                  >
-                    <option value="">Select Asset</option>
-                    {OPERATION_ASSETS['closer-to-line'].map((asset) => (
-                      <option key={asset.path} value={asset.path}>
-                        {asset.name}
-                      </option>
-                    ))}
-                  </select>
-                  {multiLineStringForOp && (
-                    <div className="success-badge">✓ {multiLineStringForOp.features[selectedLineIndex]?.properties?.name || 'Line Ready'}</div>
-                  )}
-                </div>
-
-                {multiLineStringForOp &&
-                  multiLineStringForOp.type === 'FeatureCollection' &&
-                  multiLineStringForOp.features.length > 1 && (
-                    <div className="flex flex-col space-y-2 mt-2">
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Select Specific Line</Label>
-                      <select
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        value={selectedLineIndex}
-                        onChange={(e) =>
-                          setSelectedLineIndex(parseInt(e.target.value) || 0)
-                        }
-                      >
-                        {multiLineStringForOp.features
-                          .map((feat: any, idx: number) => ({ feat, idx }))
-                          .filter(
-                            (item: any) =>
-                              item.feat.geometry.type === 'LineString' ||
-                              item.feat.geometry.type === 'MultiLineString',
-                          )
-                          .map((item: any) => (
-                            <option key={item.idx} value={item.idx}>
-                              {item.feat.properties?.name || `Line ${item.idx + 1}`}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-
-                <span className="text-xs text-gray-500 mt-2 block">
-                  Set Seeker position (P1) on clicking map.
-                </span>
-              </div>
-            </div>
-          )}
-
-          {selectedOption === 'text' && (
-            <div className="flex flex-col space-y-2 mt-4">
-              <textarea
-                value={textFactContent}
-                onChange={(e) => setTextFactContent(e.target.value)}
-                placeholder="Enter text fact details..."
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ resize: 'vertical' }}
-              />
-            </div>
-          )}
-
-          {selectedOption === 'polygon-location' && (
-            <div className="tool-section">
-              <label style={{ marginTop: '10px' }}>Select Polygons Asset</label>
-              <div className="file-input-wrapper">
-                <select
-                  onChange={(e) => {
-                    const path = e.target.value;
-                    if (path) {
-                      fetchGeoJSON(path, setPolygonGeoJSONForOp);
-                    } else {
-                      setPolygonGeoJSONForOp(null);
-                    }
-                  }}
-                  value={polygonGeoJSONForOp?._source_path || ''}
-                >
-                  <option value="">Select Asset</option>
-                  {OPERATION_ASSETS['polygon-location'].map((asset) => (
-                    <option key={asset.path} value={asset.path}>
-                      {asset.name}
-                    </option>
-                  ))}
-                </select>
-                {polygonGeoJSONForOp && (
-                  <div className="success-badge">✓ Polygons Ready</div>
-                )}
-              </div>
-
-              {points.length > 0 && polygonGeoJSONForOp && (
-                <div
-                  className="info-box"
-                  style={{ marginTop: '10px', backgroundColor: '#f9f9f9' }}
-                >
-                  {(() => {
-                    const {
-                      findContainingPolygon,
-                    } = require('../utils/geoUtils');
-                    const found = findContainingPolygon(
-                      points[0],
-                      polygonGeoJSONForOp,
-                    );
-                    if (found) {
-                      return (
-                        <>
-                          <strong>Containing Polygon Attributes:</strong>
-                          <pre
-                            style={{
-                              fontSize: '0.75rem',
-                              marginTop: '5px',
-                              overflowX: 'auto',
-                            }}
-                          >
-                            {JSON.stringify(found.properties, null, 2)}
-                          </pre>
-                        </>
-                      );
-                    }
-                    return <i>Point is not inside any polygon.</i>;
-                  })()}
-                </div>
-              )}
-              <span className="help-text">
-                Click on map to set your location (P1).
-              </span>
-            </div>
-          )}
+          <ToolConfigurationForms
+            selectedOption={selectedOption}
+            points={points}
+            distance={distance}
+            heading={heading}
+            radius={radius}
+            setRadius={setRadius}
+            hiderLocation={hiderLocation}
+            setHiderLocation={setHiderLocation}
+            splitDirection={splitDirection}
+            setSplitDirection={setSplitDirection}
+            preferredPoint={preferredPoint}
+            setPreferredPoint={setPreferredPoint}
+            areaOpType={areaOpType}
+            setAreaOpType={setAreaOpType}
+            uploadedAreaForOp={uploadedAreaForOp}
+            setUploadedAreaForOp={setUploadedAreaForOp}
+            multiLineStringForOp={multiLineStringForOp}
+            setMultiLineStringForOp={setMultiLineStringForOp}
+            closerFurther={closerFurther}
+            setCloserFurther={setCloserFurther}
+            selectedLineIndex={selectedLineIndex}
+            setSelectedLineIndex={setSelectedLineIndex}
+            polygonGeoJSONForOp={polygonGeoJSONForOp}
+            setPolygonGeoJSONForOp={setPolygonGeoJSONForOp}
+            textFactContent={textFactContent}
+            setTextFactContent={setTextFactContent}
+            OPERATION_ASSETS={OPERATION_ASSETS}
+            fetchGeoJSON={fetchGeoJSON}
+          />
 
           {selectedCategory === 'facts' && (
             <Button
@@ -1032,156 +450,26 @@ const Sidebar: React.FC<SidebarProps> = ({
             </span>
           )}
         </h3>
-        {/* Draft Operations - Local only */}
-        {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).length > 0 && (
-          <div
-            className="operations-container"
-            style={{
-              marginTop: '20px',
-              borderTop: '1px solid #eee',
-              paddingTop: '15px',
-            }}
-          >
-            <h3>Draft Operations</h3>
-            <ul className="flex flex-col space-y-0">
-              {operations.filter(op => !serverOperations.some(serverOp => serverOp.id === op.id)).map((op, index) => (
-                <OperationCard
-                  key={op.id}
-                  op={op}
-                  index={index}
-                  onSave={() => {
-                    setSaveModalTeamId(selectedTeamFilter);
-                    setFactToSave({ type: 'OPERATION', payload: op });
-                  }}
-                  onRemove={() => removeOperation(op.id)}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
+        <DraftOperationsList
+          operations={operations}
+          serverOperations={serverOperationsOrDefault}
+          onSaveOperation={(op) => {
+            setSaveModalTeamId(selectedTeamFilter || '');
+            setFactToSave({ type: 'OPERATION', payload: op });
+          }}
+          removeOperation={removeOperation}
+        />
 
-        {
-          referencePoints && referencePoints.length > 0 && (
-            <div className="mt-4 border-t border-gray-100 pt-5">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Reference Locations</h3>
-                {onClearReferencePoints && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onClearReferencePoints}
-                    className="h-8 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
+        <ReferenceLocationsList
+          referencePoints={referencePoints || []}
+          onClearReferencePoints={onClearReferencePoints}
+        />
 
-              <ul className="flex flex-col space-y-3">
-                {referencePoints.map((point: number[], index: number) => (
-                  <li key={index}>
-                    <Card className="w-full shadow-sm border border-emerald-100 bg-emerald-50/30 rounded-xl overflow-hidden relative">
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-xl"></div>
-                      <CardContent className="p-3 pl-5 flex items-center text-left">
-                        <div
-                          style={{
-                            width: '20px',
-                            height: '24px',
-                            backgroundColor: '#10b981',
-                            color: 'white',
-                            borderRadius: '50% 50% 50% 0',
-                            transform: 'rotate(-45deg)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginRight: '12px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            flexShrink: 0,
-                          }}
-                        >
-                          <span style={{ transform: 'rotate(45deg)' }}>
-                            {String.fromCharCode(65 + index)}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-800 tracking-tight">
-                            Location {String.fromCharCode(65 + index)}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-0.5 font-medium">
-                            {point[1].toFixed(5)}, {point[0].toFixed(5)}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )
-        }
-        {
-          allFacts && allFacts.length > 0 && (
-            <div className="mt-4 border-t border-gray-100 pt-5 text-left">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Saved Facts</h3>
-              <ul className="flex flex-col space-y-3">
-                {allFacts.map((fact: Fact, index: number) => {
-                  const handleDeleteFact = () => {
-                    if (!deleteFactMutation) return;
-                    setFactToDelete(fact);
-                  };
-
-                  const { playerName, teamName, createdDate } = getFactMetadata(fact);
-
-                  return (
-                    <Card key={fact.fact_id} className="w-full shadow-sm hover:shadow-md transition-shadow border border-gray-100 rounded-xl overflow-hidden relative">
-                      {/* Decorative left border */}
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-xl"></div>
-                      <CardContent className="p-4 pl-5 flex justify-between items-start text-left">
-                        <div className="flex-1 pr-4">
-                          <div className="font-semibold text-sm mb-1.5 text-gray-800 tracking-tight">
-                            {index + 1}. {getFactDisplayName(fact)}
-                          </div>
-                          <div className="text-sm text-gray-600 mb-3 leading-relaxed bg-gray-50/80 p-2.5 rounded-lg border border-gray-100 inline-block w-full">
-                            {getFactContent(fact)}
-                          </div>
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="inline-flex items-center justify-center bg-blue-50 text-blue-700 text-[10px] font-medium px-2 py-0.5 rounded-md">
-                              {playerName}
-                            </span>
-                            {teamName && (
-                              <span className="inline-flex items-center justify-center bg-gray-100 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-md border border-gray-200">
-                                {teamName}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-gray-400 mt-2 flex items-center">
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            {createdDate}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={handleDeleteFact}
-                          disabled={deletingId === fact.fact_id}
-                          className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 -mr-2 -mt-1 rounded-full transition-colors flex-shrink-0 disabled:opacity-50"
-                          title="Delete Fact"
-                        >
-                          {deletingId === fact.fact_id ? (
-                            <svg className="w-4 h-4 animate-spin text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          )}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </ul>
-            </div>
-          )
-        }
+        <SavedFactsList
+          allFacts={allFactsOrDefault}
+          deletingId={deletingId}
+          onDeleteFact={(fact) => setFactToDelete(fact)}
+        />
       </div>
 
       <Modal

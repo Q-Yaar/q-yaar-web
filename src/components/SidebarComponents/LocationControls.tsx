@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button } from '../ui/button';
 
 interface LocationControlsProps {
   selectedOption: string;
@@ -21,8 +22,9 @@ export const LocationControls: React.FC<LocationControlsProps> = ({
     <div style={{ marginBottom: '10px' }}>
       {isTwoPointTool ? (
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            className="action-btn"
+          <Button
+            variant="default"
+            className="flex-1"
             onClick={() => handleUseCurrentLocation(0)}
             disabled={!currentLocation}
             title={
@@ -30,22 +32,12 @@ export const LocationControls: React.FC<LocationControlsProps> = ({
                 ? 'Waiting for location...'
                 : 'Set Point 1 to Current Location'
             }
-            style={{
-              flex: 1,
-              padding: '8px',
-              backgroundColor: '#007cbf',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: currentLocation ? 'pointer' : 'not-allowed',
-              opacity: currentLocation ? 1 : 0.6,
-              fontSize: '0.9rem',
-            }}
           >
             📍 Set P1
-          </button>
-          <button
-            className="action-btn"
+          </Button>
+          <Button
+            variant="default"
+            className="flex-1"
             onClick={() => handleUseCurrentLocation(1)}
             disabled={!currentLocation || points.length === 0}
             title={
@@ -55,27 +47,14 @@ export const LocationControls: React.FC<LocationControlsProps> = ({
                   ? 'Set P1 first'
                   : 'Set Point 2 to Current Location'
             }
-            style={{
-              flex: 1,
-              padding: '8px',
-              backgroundColor: '#007cbf',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor:
-                currentLocation && points.length > 0
-                  ? 'pointer'
-                  : 'not-allowed',
-              opacity: currentLocation && points.length > 0 ? 1 : 0.6,
-              fontSize: '0.9rem',
-            }}
           >
             📍 Set P2
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
-          className="action-btn"
+        <Button
+          variant="default"
+          className="w-full"
           onClick={() => handleUseCurrentLocation()}
           disabled={!currentLocation}
           title={
@@ -83,20 +62,9 @@ export const LocationControls: React.FC<LocationControlsProps> = ({
               ? 'Waiting for location...'
               : 'Use/Update Current Location as a Point'
           }
-          style={{
-            width: '100%',
-            padding: '8px',
-            backgroundColor: '#007cbf',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: currentLocation ? 'pointer' : 'not-allowed',
-            opacity: currentLocation ? 1 : 0.6,
-            fontSize: '0.9rem',
-          }}
         >
           📍 Use Current Location
-        </button>
+        </Button>
       )}
     </div>
   );
