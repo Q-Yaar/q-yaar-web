@@ -33,6 +33,7 @@ interface MapProps {
   operations: Operation[];
   currentLocation?: number[] | null;
   referencePoints?: number[][];
+  triggerLocateUser?: number;
 }
 
 const Map: React.FC<MapProps> = ({
@@ -55,6 +56,7 @@ const Map: React.FC<MapProps> = ({
   operations,
   currentLocation,
   referencePoints = [],
+  triggerLocateUser,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -201,8 +203,8 @@ const Map: React.FC<MapProps> = ({
 
         const minPoints =
           action === 'draw-circle' ||
-          action === 'split-by-direction' ||
-          action === 'closer-to-line'
+            action === 'split-by-direction' ||
+            action === 'closer-to-line'
             ? 1
             : action === 'hotter-colder'
               ? 2
@@ -478,9 +480,9 @@ const Map: React.FC<MapProps> = ({
 
         const maxPoints =
           currentAction === 'draw-circle' ||
-          currentAction === 'split-by-direction' ||
-          currentAction === 'closer-to-line' ||
-          currentAction === 'polygon-location'
+            currentAction === 'split-by-direction' ||
+            currentAction === 'closer-to-line' ||
+            currentAction === 'polygon-location'
             ? 1
             : 2;
 
@@ -561,6 +563,12 @@ const Map: React.FC<MapProps> = ({
     );
   };
 
+  useEffect(() => {
+    if (triggerLocateUser && triggerLocateUser > 0) {
+      handleLocateUser();
+    }
+  }, [triggerLocateUser]);
+
   return (
     <div
       style={{
@@ -575,38 +583,6 @@ const Map: React.FC<MapProps> = ({
         ref={mapContainerRef}
         style={{ flex: 1, width: '100%', height: '100%' }}
       />
-      <button
-        onClick={handleLocateUser}
-        style={{
-          position: 'absolute',
-          bottom: '40px',
-          right: '40px',
-          zIndex: 1000,
-          backgroundColor: 'white',
-          border: '2px solid #007cbf',
-          borderRadius: '50%',
-          padding: '10px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-          width: '44px',
-          height: '44px',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = '#f0f0f0';
-          e.currentTarget.style.transform = 'scale(1.05)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'white';
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
-        title="Go to my location"
-      >
-        <LocateFixed size={22} color="#007cbf" />
-      </button>
     </div>
   );
 };

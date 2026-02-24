@@ -5,9 +5,13 @@ import { Fact } from '../models/Fact';
 import { Team } from '../models/Team';
 import { formatDate } from '../utils/dateUtils';
 import { convertOperationToFactInfo } from '../utils/factUtils';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Card, CardContent } from './ui/card';
+import { Modal } from './ui/modal';
 import {
   TeamFilterDropdown,
-  PlayAreaSection,
   CategoryToolSection,
   LocationControls,
   ToolConfigurationForms,
@@ -15,6 +19,7 @@ import {
   ReferenceLocationsList,
   SavedFactsList
 } from './SidebarComponents';
+import { getFactContent } from './SidebarComponents/SavedFactsList';
 
 const PUBLIC_ASSETS = [
   {
@@ -123,6 +128,7 @@ interface SidebarProps {
   allFacts?: Fact[];
   currentUserEmail?: string;
   deleteFactMutation?: ((factId: string) => Promise<any>) | null;
+  isLoadingFacts?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -157,25 +163,55 @@ const Sidebar: React.FC<SidebarProps> = ({
   setOperations,
   setPoints,
   currentLocation,
-  gameId = 'default-game',
   teamId = 'default-team',
   referencePoints = [],
   onClearReferencePoints,
   onToggleSidebar,
   textFacts = [],
-  teamsData = [],
   selectedTeamFilter = '',
-  setSelectedTeamFilter = () => {},
+  setSelectedTeamFilter = () => { },
+  teamsData = [],
   serverOperations = [],
+  gameId = 'default-game',
   createFactMutation = null,
-  refetchFacts = () => {},
+  refetchFacts = () => { },
   allFacts = [],
   currentUserEmail = 'Unknown Player',
   deleteFactMutation = null,
+  isLoadingFacts = false
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [textFactContent, setTextFactContent] = useState<string>('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [factToDelete, setFactToDelete] = useState<Fact | null>(null);
+
+  const [factToSave, setFactToSave] = useState<{ type: 'OPERATION' | 'TEXT', payload: any } | null>(null);
+  const [saveModalTeamId, setSaveModalTeamId] = useState<string>('');
+  const [isSavingFact, setIsSavingFact] = useState<boolean>(false);
+
+  const textFactsOrDefault = textFacts ?? [];
+  const teamsDataOrDefault = teamsData ?? [];
+  const selectedTeamFilterOrDefault = selectedTeamFilter ?? '';
+  const setSelectedTeamFilterOrDefault = setSelectedTeamFilter ?? (() => { });
+  const serverOperationsOrDefault = serverOperations ?? [];
+  const createFactMutationOrDefault = createFactMutation ?? null;
+  const refetchFactsOrDefault = refetchFacts ?? (() => { });
+  const currentUserEmailOrDefault = currentUserEmail ?? 'Unknown Player';
+  const deleteFactMutationOrDefault = deleteFactMutation ?? null;
+
+  // Combine text facts and geo facts for the SavedFactsList
+  // Format text facts to match the structure expected by SavedFactsList if needed
+  const formattedTextFacts = textFactsOrDefault.map(fact => ({
+    ...fact,
+    fact_type: 'TEXT' as const, // Ensure type is set
+  }));
+
+  // Create a combined list avoiding duplicates (assuming fact_id is unique)
+  const existingFactIds = new Set((allFacts || []).map(f => f.fact_id));
+  const newTextFacts = formattedTextFacts.filter(f => !existingFactIds.has(f.fact_id));
+
+  const allFactsOrDefault = [...newTextFacts, ...(allFacts || [])];
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
@@ -224,22 +260,18 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const handleSaveOperation = () => {
     if (!selectedOption) return;
-    
+
     // Handle text facts separately from geo operations
     if (selectedOption === 'text') {
-      handleSaveTextFact(
-        textFactContent,
-        gameId,
-        currentUserEmail,
-        teamsData,
-        selectedTeamFilter,
-        createFactMutation,
-        refetchFacts,
-        setTextFactContent
-      );
+      if (!textFactContent.trim()) {
+        alert('Please enter some text content.');
+        return;
+      }
+      setSaveModalTeamId(selectedTeamFilter);
+      setFactToSave({ type: 'TEXT', payload: textFactContent });
       return;
     }
-    
+
     // For geo operations, check the usual requirements
     if (
       selectedOption !== 'areas' &&
@@ -329,58 +361,16 @@ const Sidebar: React.FC<SidebarProps> = ({
     setOperations(operations.filter((op) => op.id !== id));
   };
 
-  const isTextFactValid = (textContent: string, selectedOption: string | null) => {
-    return selectedOption === 'text' && !textContent.trim();
-  };
-
   return (
     <div className="sidebar">
-      <header style={{ display: 'flex', alignItems: 'center' }}>
-        {onToggleSidebar && (
-          <button
-            onClick={onToggleSidebar}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              marginRight: '10px',
-              display: 'flex',
-              alignItems: 'center',
-              padding: 0,
-            }}
-            title="Hide Sidebar"
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          </button>
-        )}
-        <h2>Map Tools</h2>
-      </header>
-
       {/* Team Filter Dropdown */}
-      <TeamFilterDropdown
-        teamsData={teamsData}
-        selectedTeamFilter={selectedTeamFilter}
-        setSelectedTeamFilter={setSelectedTeamFilter}
-      />
-
-      {/* Play Area Section */}
-      <PlayAreaSection
-        playArea={playArea}
-        setPlayArea={setPlayArea}
-        OPERATION_ASSETS={OPERATION_ASSETS}
-        fetchGeoJSON={fetchGeoJSON}
-      />
+      {teamsData && (
+        <TeamFilterDropdown
+          teamsData={teamsData}
+          selectedTeamFilter={selectedTeamFilter || ''}
+          setSelectedTeamFilter={setSelectedTeamFilter || (() => { })}
+        />
+      )}
 
       {/* Category and Tool Selection */}
       <CategoryToolSection
@@ -390,10 +380,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         handleOptionChange={handleOptionChange}
       />
 
-      {/* Tool Configuration and Controls */}
       {selectedOption && (
-        <>
-          {/* Location Controls */}
+        <div className="tool-details">
           <LocationControls
             selectedOption={selectedOption}
             points={points}
@@ -402,7 +390,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             isTwoPointTool={isTwoPointTool}
           />
 
-          {/* Tool Configuration Forms */}
           <ToolConfigurationForms
             selectedOption={selectedOption}
             points={points}
@@ -434,120 +421,241 @@ const Sidebar: React.FC<SidebarProps> = ({
             fetchGeoJSON={fetchGeoJSON}
           />
 
-          {/* Save Button */}
           {selectedCategory === 'facts' && (
-            <button
-              className="save-btn"
+            <Button
+              variant="default"
+              className="w-full mt-4"
               onClick={handleSaveOperation}
               disabled={
                 !selectedOption ||
-                isTextFactValid(textFactContent, selectedOption) ||
                 (selectedOption === 'areas' && !uploadedAreaForOp) ||
-                (selectedOption === 'closer-to-line' &&
-                  (!multiLineStringForOp || points.length === 0)) ||
-                (selectedOption === 'polygon-location' &&
-                  (!polygonGeoJSONForOp || points.length === 0)) ||
-                ([
-                  'draw-circle',
-                  'split-by-direction',
-                  'hotter-colder',
-                ].includes(selectedOption) &&
-                  points.length === 0)
+                (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) ||
+                (selectedOption === 'polygon-location' && (!polygonGeoJSONForOp || points.length === 0)) ||
+                (['draw-circle', 'split-by-direction', 'hotter-colder'].includes(selectedOption) && points.length === 0) ||
+                (selectedOption === 'text' && !textFactContent.trim())
               }
             >
-              Save as Draft
-            </button>
+              {selectedOption === 'text' ? 'Save Text Fact' : 'Save as Draft'}
+            </Button>
           )}
-        </>
-      )}
+        </div>
+      )
+      }
 
-      {/* Draft Operations List */}
-      <DraftOperationsList
-        operations={operations}
-        serverOperations={serverOperations}
-        teamsData={teamsData}
-        selectedTeamFilter={selectedTeamFilter}
-        currentUserEmail={currentUserEmail}
-        gameId={gameId}
-        createFactMutation={createFactMutation}
-        refetchFacts={refetchFacts}
-        removeOperation={removeOperation}
-      />
+      {/* Synchronized Operations List */}
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-100 pb-2 flex justify-between items-center">
+          Operations & Facts
+          {operations.length > 0 && (
+            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+              {operations.length} Items
+            </span>
+          )}
+        </h3>
+        <DraftOperationsList
+          operations={operations}
+          serverOperations={serverOperationsOrDefault}
+          onSaveOperation={(op) => {
+            setSaveModalTeamId(selectedTeamFilter || '');
+            setFactToSave({ type: 'OPERATION', payload: op });
+          }}
+          removeOperation={removeOperation}
+        />
 
-      {/* Reference Locations List */}
-      <ReferenceLocationsList
-        referencePoints={referencePoints}
-        onClearReferencePoints={onClearReferencePoints}
-      />
+        <ReferenceLocationsList
+          referencePoints={referencePoints || []}
+          onClearReferencePoints={onClearReferencePoints}
+        />
 
-      {/* Saved Facts List */}
-      <SavedFactsList
-        allFacts={allFacts}
-        deleteFactMutation={deleteFactMutation}
-        refetchFacts={refetchFacts}
-      />
+        <SavedFactsList
+          allFacts={allFactsOrDefault}
+          deletingId={deletingId}
+          onDeleteFact={(fact) => setFactToDelete(fact)}
+          isLoadingFacts={isLoadingFacts}
+        />
+      </div>
+
+      <Modal
+        isOpen={!!factToDelete}
+        onClose={() => setFactToDelete(null)}
+        title="Delete Fact"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 text-left">
+            Are you sure you want to delete this fact? This action cannot be undone.
+          </p>
+          {factToDelete && (
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm text-gray-700 font-medium text-left">
+              {getFactContent(factToDelete)}
+            </div>
+          )}
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setFactToDelete(null)}
+              disabled={!!deletingId}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!factToDelete || !deleteFactMutation) return;
+                setDeletingId(factToDelete.fact_id);
+                try {
+                  await deleteFactMutation(factToDelete.fact_id);
+                  console.log('Fact deleted successfully');
+                  refetchFacts();
+                } catch (error) {
+                  console.error('Failed to delete fact:', error);
+                  alert('Failed to delete fact. Please try again.');
+                } finally {
+                  setDeletingId(null);
+                  setFactToDelete(null);
+                }
+              }}
+              disabled={!!deletingId}
+            >
+              {deletingId ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Deleting...
+                </>
+              ) : (
+                'Delete Fact'
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!factToSave}
+        onClose={() => !isSavingFact && setFactToSave(null)}
+        title="Save Fact"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 mb-2 text-left">
+            Select the team you want to save this fact for:
+          </p>
+
+          <div className="flex flex-col space-y-2">
+            <Label className="text-sm font-medium text-left">Target Team</Label>
+            <select
+              value={saveModalTeamId}
+              onChange={(e) => setSaveModalTeamId(e.target.value)}
+              disabled={isSavingFact}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:opacity-50"
+            >
+              <option value="" disabled>Select a team</option>
+              {teamsData.map(team => (
+                <option key={team.team_id} value={team.team_id}>
+                  {team.team_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setFactToSave(null)}
+              disabled={isSavingFact}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!factToSave || !createFactMutation || !gameId) return;
+
+                if (!saveModalTeamId) {
+                  alert('Please select a target team.');
+                  return;
+                }
+
+                const targetTeam = teamsData.find(team => team.team_id === saveModalTeamId);
+                if (!targetTeam) {
+                  alert('Selected team not found.');
+                  return;
+                }
+
+                const currentUserTeam = teamsData.find(team =>
+                  team.players.some((player: any) => player.user_profile.email === currentUserEmail)
+                );
+                if (!currentUserTeam) {
+                  alert('Could not determine your team.');
+                  return;
+                }
+
+                setIsSavingFact(true);
+                try {
+                  if (factToSave.type === 'TEXT') {
+                    await createFactMutation({
+                      game_id: gameId,
+                      fact_type: 'TEXT',
+                      team_id: targetTeam.team_id,
+                      fact_info: {
+                        op_type: 'plain_text',
+                        op_meta: {
+                          text: factToSave.payload,
+                          team_id: currentUserTeam.team_id,
+                          team_name: currentUserTeam.team_name,
+                          player_name: currentUserEmail
+                        }
+                      }
+                    });
+                    setTextFactContent('');
+                  } else if (factToSave.type === 'OPERATION') {
+                    const op = factToSave.payload;
+                    const factInfo = convertOperationToFactInfo(op);
+                    const enhancedFactInfo = op.featureName ? { ...factInfo, featureName: op.featureName } : factInfo;
+
+                    await createFactMutation({
+                      game_id: gameId,
+                      fact_type: 'GEO',
+                      team_id: targetTeam.team_id,
+                      fact_info: {
+                        op_type: op.type,
+                        op_meta: {
+                          ...enhancedFactInfo,
+                          team_id: currentUserTeam.team_id,
+                          team_name: currentUserTeam.team_name,
+                          player_name: currentUserEmail
+                        }
+                      }
+                    });
+                    removeOperation(op.id);
+                  }
+
+                  refetchFacts();
+                  setFactToSave(null);
+                } catch (error) {
+                  console.error('Failed to save fact:', error);
+                  alert('Failed to save fact. Please try again.');
+                } finally {
+                  setIsSavingFact(false);
+                }
+              }}
+              disabled={isSavingFact || !saveModalTeamId}
+            >
+              {isSavingFact ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Saving...
+                </>
+              ) : (
+                'Save Fact'
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 };
 
-// Text Fact Handling Functions
-const handleSaveTextFact = async (
-  textContent: string,
-  gameId: string,
-  currentUserEmail: string,
-  teamsData: Team[],
-  selectedTeamFilter: string,
-  createFactMutation: any,
-  refetchFacts: () => void,
-  setTextFactContent: (content: string) => void
-) => {
-  if (!textContent.trim()) {
-    alert('Please enter some text content.');
-    return;
-  }
-
-  try {
-    // Find the selected team (target team)
-    const targetTeam = teamsData.find(team => team.team_id === selectedTeamFilter);
-    if (!targetTeam) {
-      alert('Selected team not found. Please try again.');
-      return;
-    }
-
-    // Find the current user's team for op_meta
-    const currentUserTeam = teamsData.find(team =>
-      team.players.some((player: any) => player.user_profile.email === currentUserEmail)
-    );
-
-    if (!currentUserTeam) {
-      alert('Could not determine your team. Please try again.');
-      return;
-    }
-
-    // Create TEXT fact directly
-    await createFactMutation({
-      game_id: gameId,
-      fact_type: 'TEXT',
-      team_id: targetTeam.team_id,
-      fact_info: {
-        op_type: 'plain_text',
-        op_meta: {
-          text: textContent,
-          team_id: currentUserTeam.team_id,
-          team_name: currentUserTeam.team_name,
-          player_name: currentUserEmail
-        }
-      }
-    });
-
-    // Clear the text content and refetch facts
-    setTextFactContent('');
-    refetchFacts();
-    alert('Text fact saved successfully!');
-  } catch (error) {
-    console.error('Failed to save text fact:', error);
-    alert('Failed to save text fact. Please try again.');
-  }
-};
+// OperationCard Component - Extracted from the main operations mapping
+// Moved components/helpers above the Sidebar usage
 
 export default Sidebar;
