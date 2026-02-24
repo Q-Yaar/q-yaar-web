@@ -7,3 +7,4 @@ export { OperationCard } from './OperationCard';
 export { DraftOperationsList } from './DraftOperationsList';
 export { ReferenceLocationsList } from './ReferenceLocationsList';
 export { SavedFactsList } from './SavedFactsList';
+export { PointsInformation } from './PointsInformation';

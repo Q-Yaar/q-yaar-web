@@ -116,7 +116,7 @@ export const ToolConfigurationForms: React.FC<ToolConfigurationFormsProps> = ({
         >
           <strong>Relative Heading:</strong>
           <div style={{ fontSize: '0.85rem', marginTop: '4px' }}>
-            P1 is {heading.lat} and {heading.lon} of P2
+            {heading ? `P1 is ${heading.lat} and ${heading.lon} of P2` : 'Click to set two points'}
           </div>
         </div>
       )}

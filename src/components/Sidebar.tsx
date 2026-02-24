@@ -17,7 +17,8 @@ import {
   ToolConfigurationForms,
   DraftOperationsList,
   ReferenceLocationsList,
-  SavedFactsList
+  SavedFactsList,
+  PointsInformation
 } from './SidebarComponents';
 import { getFactContent } from './SidebarComponents/SavedFactsList';
 
@@ -115,12 +116,19 @@ interface SidebarProps {
   currentLocation?: number[] | null;
   teamId?: string;
   referencePoints?: number[][];
+  pointPOIInfo?: Array<{
+    name?: string;
+    type?: string;
+    properties?: any;
+  } | null>;
   onClearReferencePoints?: () => void;
   onToggleSidebar?: () => void;
   textFacts?: Fact[];
   selectedTeamFilter?: string;
   setSelectedTeamFilter?: (teamId: string) => void;
   teamsData?: any[];
+  isTeamsLoading?: boolean;
+  teamsError?: any;
   serverOperations?: any[];
   gameId?: string;
   createFactMutation?: ((arg: any) => Promise<any>) | null;
@@ -165,12 +173,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentLocation,
   teamId = 'default-team',
   referencePoints = [],
+  pointPOIInfo = [],
   onClearReferencePoints,
   onToggleSidebar,
   textFacts = [],
+  teamsData = [],
+  isTeamsLoading = false,
+  teamsError = null,
   selectedTeamFilter = '',
   setSelectedTeamFilter = () => { },
-  teamsData = [],
   serverOperations = [],
   gameId = 'default-game',
   createFactMutation = null,
@@ -364,13 +375,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div className="sidebar">
       {/* Team Filter Dropdown */}
-      {teamsData && (
-        <TeamFilterDropdown
-          teamsData={teamsData}
-          selectedTeamFilter={selectedTeamFilter || ''}
-          setSelectedTeamFilter={setSelectedTeamFilter || (() => { })}
-        />
-      )}
+      <TeamFilterDropdown
+        teamsData={teamsData}
+        selectedTeamFilter={selectedTeamFilter}
+        setSelectedTeamFilter={setSelectedTeamFilter}
+        isLoading={isTeamsLoading}
+        error={teamsError}
+      />
 
       {/* Category and Tool Selection */}
       <CategoryToolSection
@@ -452,15 +463,25 @@ const Sidebar: React.FC<SidebarProps> = ({
             </span>
           )}
         </h3>
-        <DraftOperationsList
-          operations={operations}
-          serverOperations={serverOperationsOrDefault}
-          onSaveOperation={(op) => {
-            setSaveModalTeamId(selectedTeamFilter || '');
-            setFactToSave({ type: 'OPERATION', payload: op });
-          }}
-          removeOperation={removeOperation}
-        />
+      {/* Points Information */}
+      <PointsInformation
+        points={points}
+        currentLocation={currentLocation}
+        referencePoints={referencePoints}
+        pointPOIInfo={pointPOIInfo}
+        showAlways={true}
+      />
+
+      {/* Draft Operations List */}
+      <DraftOperationsList
+        operations={operations}
+        serverOperations={serverOperations}
+        onSaveOperation={(op) => {
+          setSaveModalTeamId(selectedTeamFilter || '');
+          setFactToSave({ type: 'OPERATION', payload: op });
+        }}
+        removeOperation={removeOperation}
+      />
 
         <ReferenceLocationsList
           referencePoints={referencePoints || []}
