@@ -41,6 +41,11 @@ interface MapProps {
   } | null>) => void;
 }
 
+// Helper function to get operation IDs for comparison
+const getOperationIds = (ops: Operation[]): string[] => {
+  return ops.map(op => op.id);
+};
+
 const Map: React.FC<MapProps> = ({
   action,
   points,
@@ -75,6 +80,15 @@ const Map: React.FC<MapProps> = ({
     type?: string;
     properties?: any;
   } | null>>([]);
+  
+  // Performance optimization: Cache the computed hider area to avoid expensive recomputation
+  const hiderAreaCacheRef = useRef<{
+    cachedOperations: Operation[];
+    cachedHiderArea: any;
+  }>({
+    cachedOperations: [],
+    cachedHiderArea: null
+  });
 
   useEffect(() => {
     pointsRef.current = points;
@@ -115,8 +129,44 @@ const Map: React.FC<MapProps> = ({
         });
       }
 
-      // --- Apply Operations via Lib ---
-      let currentHiderArea = computeHiderArea(playArea, operations);
+      // --- Apply Operations via Lib with caching optimization ---
+      let currentHiderArea: any = null;
+      const cachedOps = hiderAreaCacheRef.current.cachedOperations;
+      const currentOpIds = getOperationIds(operations);
+      const cachedOpIds = getOperationIds(cachedOps);
+      
+      // Check if we can reuse cached result
+      const canReuseCache = cachedOps.length > 0 && 
+                           currentOpIds.length >= cachedOpIds.length &&
+                           cachedOpIds.every((id, index) => id === currentOpIds[index]);
+      
+      if (canReuseCache && hiderAreaCacheRef.current.cachedHiderArea) {
+        // Operations were only appended (idempotent assumption) - incremental computation
+        const newOperations = operations.slice(cachedOps.length);
+        currentHiderArea = hiderAreaCacheRef.current.cachedHiderArea;
+        
+        // Apply only the new operations incrementally
+        newOperations.forEach(newOp => {
+          if (currentHiderArea) {
+            currentHiderArea = applySingleOperation(newOp, currentHiderArea);
+          }
+        });
+        
+        // Update cache with new state
+        hiderAreaCacheRef.current = {
+          cachedOperations: operations,
+          cachedHiderArea: currentHiderArea
+        };
+      } else {
+        // Full recomputation needed (first time, cache invalid, or operations were removed/changed)
+        currentHiderArea = computeHiderArea(playArea, operations);
+        
+        // Update cache
+        hiderAreaCacheRef.current = {
+          cachedOperations: operations,
+          cachedHiderArea: currentHiderArea
+        };
+      }
 
       if (action === 'closer-to-line' && multiLineStringForOp) {
         if (multiLineStringForOp.type === 'FeatureCollection') {

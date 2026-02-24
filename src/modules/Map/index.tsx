@@ -147,14 +147,9 @@ const MapPage: React.FC = () => {
       console.log('GEO facts (operations):', serverOperations);
       console.log('TEXT facts:', serverTextFacts);
 
-      // Sort text facts by creation time (newest first)
-      const sortedTextFacts = [...serverTextFacts].sort((a, b) =>
-        new Date(b.created).getTime() - new Date(a.created).getTime()
-      );
-
       // Store server operations for draft detection
       setServerOperations(serverOperations);
-      setTextFacts(sortedTextFacts);
+      setTextFacts(serverTextFacts);
     } else {
       setServerOperations([]);
       setTextFacts([]);
