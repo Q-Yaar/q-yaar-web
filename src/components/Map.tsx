@@ -623,7 +623,7 @@ const Map: React.FC<MapProps> = ({
         try {
           // Check if hovering over base map POIs
           const baseMapFeatures = m.queryRenderedFeatures(e.point, {
-            layers: ['poi_r1', 'poi_r7', 'poi_r20'] // POIs at different resolutions
+            layers: ['poi_r1', 'poi_r7', 'poi_r20', 'poi_transit'] // POIs at different resolutions
           });
 
           if (baseMapFeatures.length > 0) {
@@ -651,16 +651,16 @@ const Map: React.FC<MapProps> = ({
         currentAction === 'polygon-location'
       ) {
         // Use MapLibre GL JS native feature querying
-        // Query both our measurement layers and base map layers for POIs
+        // Query our consolidated points layer and base map layers for POIs
         const measurementFeatures = m.queryRenderedFeatures(e.point, {
-          layers: ['measurement-points', 'reference-points-layer', 'current-location-point']
+          layers: ['all-points']
         });
 
         // Query base map layers for POIs
         let baseMapFeatures: any[] = [];
         try {
           baseMapFeatures = m.queryRenderedFeatures(e.point, {
-            layers: ['poi_r1', 'poi_r7', 'poi_r20'] // POIs at different resolutions
+            layers: ['poi_r1', 'poi_r7', 'poi_r20', 'poi_transit'] // POIs at different resolutions
           });
         } catch (error) {
           console.warn('Error querying POI layers:', error);
