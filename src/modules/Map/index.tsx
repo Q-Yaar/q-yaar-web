@@ -114,6 +114,27 @@ const MapPage: React.FC = () => {
   const currentUser = authState.authData?.user.data;
   const currentUserEmail = currentUser?.email || 'Unknown Player';
 
+  // Determine the team to use for loading facts (first non-user team)
+  const getTargetTeamId = () => {
+    if (!teamsData || teamsData.length === 0) return '';
+    
+    // Find current user's team
+    const currentUserTeam = teamsData.find(team => 
+      team.players.some(player => player.user_profile.email === currentUserEmail)
+    );
+    
+    // If we found the user's team, use the first team that isn't the user's team
+    if (currentUserTeam) {
+      const otherTeams = teamsData.filter(team => team.team_id !== currentUserTeam.team_id);
+      if (otherTeams.length > 0) {
+        return otherTeams[0].team_id;
+      }
+    }
+    
+    // If no other teams found, use the first team
+    return teamsData[0].team_id;
+  };
+
   // Separate GEO facts (operations) from TEXT facts
   const [operations, setOperations] = useState<Operation[]>([]);
   const [serverOperations, setServerOperations] = useState<Operation[]>([]);
@@ -121,18 +142,21 @@ const MapPage: React.FC = () => {
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
 
-  // Fetch facts from the server
-  const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
-    { game_id: gameId!, team_id: selectedTeamFilter },
-    { skip: !gameId || !selectedTeamFilter },
-  );
-
-  // Fetch teams for the game
+  // Fetch teams for the game first
   const { 
     data: teamsData, 
     isLoading: isTeamsLoading, 
     error: teamsError 
   } = useFetchTeamsQuery(gameId!, { skip: !gameId });
+
+  // Determine target team ID for facts loading
+  const targetTeamId = getTargetTeamId();
+
+  // Fetch facts from the server - load immediately when we have a target team
+  const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
+    { game_id: gameId!, team_id: targetTeamId },
+    { skip: !gameId || !targetTeamId },
+  );
 
 
   
@@ -142,12 +166,12 @@ const MapPage: React.FC = () => {
   // Delete fact mutation
   const [deleteFactMutation] = useDeleteFactMutation();
 
-  // Set initial team filter when teamsData is available
+  // Set initial team filter when target team is available
   useEffect(() => {
-    if (teamsData && teamsData.length > 0) {
-      setSelectedTeamFilter(teamsData[0].team_id);
+    if (targetTeamId) {
+      setSelectedTeamFilter(targetTeamId);
     }
-  }, [teamsData]);
+  }, [targetTeamId]);
 
   useEffect(() => {
     if (factsData?.results) {
@@ -191,10 +215,14 @@ const MapPage: React.FC = () => {
     }
   }, [localOperations, serverOperations]);  // Only run when these specific dependencies change
 
-  // Since we're now filtering on the server side, filteredFacts = textFacts
+  // Include all facts (both TEXT and GEO) in filteredFacts for display count
   useEffect(() => {
-    setFilteredFacts(textFacts);
-  }, [textFacts]);
+    if (factsData?.results) {
+      setFilteredFacts(factsData.results);
+    } else {
+      setFilteredFacts([]);
+    }
+  }, [factsData]);
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
