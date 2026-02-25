@@ -244,15 +244,17 @@ export const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoi
 
         const pointToShade = preferredPoint === 'p1' ? p2 : p1;
 
+        // Find the cell to shade by matching the site ID
         let cellToShade = voronoiCells.features.find(f => {
-            if (f && f.properties && f.properties.site && f.properties.site.geometry) {
-                const cp = f.properties.site.geometry.coordinates;
-                return isClose(cp, pointToShade);
+            if (f && f.properties && f.properties.id) {
+                // The Voronoi cell's id property contains the site identifier
+                return f.properties.id === (preferredPoint === 'p1' ? 'p2' : 'p1');
             }
             return false;
         });
 
         if (!cellToShade) {
+            // Fallback: find cell by sampling a point and checking distances
             cellToShade = voronoiCells.features.find(f => {
                 if (f && f.geometry && f.geometry.coordinates && f.geometry.coordinates[0] && f.geometry.coordinates[0][0]) {
                     const samplePt = f.geometry.coordinates[0][0];
