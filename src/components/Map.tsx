@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Heading, Operation } from '../utils/geoTypes';
@@ -73,6 +73,7 @@ const Map: React.FC<MapProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState<boolean>(false);
 
   // Refs to keep track of latest state without triggering re-renders in effects
   const pointsRef = useRef(points);
@@ -99,6 +100,9 @@ const Map: React.FC<MapProps> = ({
     cachedOperations: [],
     cachedHiderArea: null
   });
+  
+  // Queue operations that arrive before the map is ready
+  const pendingOperationsRef = useRef<Operation[] | null>(null);
 
   useEffect(() => {
     pointsRef.current = points;
@@ -108,7 +112,15 @@ const Map: React.FC<MapProps> = ({
       pointPOIInfoRef.current = Array(points.length).fill(null);
     }
 
+    // If map is not ready yet, queue the operations for later processing
+    if (!isMapReady) {
+      pendingOperationsRef.current = operations;
+      return; // Don't process yet
+    }
+
     if (map.current && map.current.getSource('measurement-source')) {
+      // Clear any pending operations since we can process them now
+      pendingOperationsRef.current = null;
       const source = map.current.getSource(
         'measurement-source',
       ) as maplibregl.GeoJSONSource;
@@ -158,6 +170,8 @@ const Map: React.FC<MapProps> = ({
       }
 
       // --- Apply Operations via Lib with caching optimization ---
+      console.log('Processing operations for shading:', operations.length, 'operations');
+      console.log('First operation:', operations[0]);
       let currentHiderArea: any = null;
       const cachedOps = hiderAreaCacheRef.current.cachedOperations;
       const currentOpIds = getOperationIds(operations);
@@ -169,6 +183,7 @@ const Map: React.FC<MapProps> = ({
                            cachedOpIds.every((id, index) => id === currentOpIds[index]);
       
       if (canReuseCache && hiderAreaCacheRef.current.cachedHiderArea) {
+        console.log('Reusing cached hider area');
         // Operations were only appended (idempotent assumption) - incremental computation
         const newOperations = operations.slice(cachedOps.length);
         currentHiderArea = hiderAreaCacheRef.current.cachedHiderArea;
@@ -186,8 +201,21 @@ const Map: React.FC<MapProps> = ({
           cachedHiderArea: currentHiderArea
         };
       } else {
+        console.log('Computing hider area from scratch with playArea:', playArea ? 'defined' : 'null', 'and operations:', operations.length);
+        if (playArea) {
+          console.log('PlayArea type:', playArea.type);
+          if (playArea.geometry) {
+            console.log('PlayArea geometry type:', playArea.geometry.type);
+          }
+        }
         // Full recomputation needed (first time, cache invalid, or operations were removed/changed)
         currentHiderArea = computeHiderArea(playArea, operations);
+        console.log('Computed hider area:', currentHiderArea ? 'success' : 'null/undefined');
+        if (currentHiderArea) {
+          console.log('Hider area type:', currentHiderArea.type, 'coordinates length:', currentHiderArea.coordinates?.length);
+        } else {
+          console.log('Hider area is null - this should not happen!');
+        }
         
         // Update cache
         hiderAreaCacheRef.current = {
@@ -373,6 +401,9 @@ const Map: React.FC<MapProps> = ({
           type: 'Feature',
           properties: { ...shadingFeature.properties, 'is-shading': true },
         } as GeoJSON.Feature);
+        console.log('Added shading feature with', shadingFeature.geometry.coordinates.length, 'coordinates');
+      } else {
+        console.log('No currentHiderArea - no shading will be shown');
       }
 
       if (currentLocation) {
@@ -407,6 +438,8 @@ const Map: React.FC<MapProps> = ({
         });
       }
 
+      console.log('Setting geojson data with', geojson.features.length, 'features');
+      console.log('Features include shading:', geojson.features.some(f => f.properties?.['is-shading']));
       source.setData(geojson);
     }
   }, [
@@ -425,6 +458,7 @@ const Map: React.FC<MapProps> = ({
     operations,
     currentLocation,
     referencePoints,
+    isMapReady,
   ]);
 
   useEffect(() => {
@@ -505,6 +539,10 @@ const Map: React.FC<MapProps> = ({
           features: [],
         },
       });
+      
+      // Mark the map as ready, which will trigger the useEffect to process any queued operations
+      console.log(`[Map ${instanceId}] Setting map ready flag`);
+      setIsMapReady(true);
 
       // Simplified 3-layer structure:
       // 1. Base map (provided by map style)

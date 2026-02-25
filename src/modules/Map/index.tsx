@@ -83,7 +83,6 @@ const MapPage: React.FC = () => {
   );
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
   const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
-  const [localOperations, setLocalOperations] = useState<Operation[]>([]);
 
   // Initialize with cached location if available
   const [currentLocation, setCurrentLocation] = useState<number[] | null>(
@@ -136,8 +135,7 @@ const MapPage: React.FC = () => {
   };
 
   // Separate GEO facts (operations) from TEXT facts
-  const [operations, setOperations] = useState<Operation[]>([]);
-  const [serverOperations, setServerOperations] = useState<Operation[]>([]);
+  const [localOperations, setLocalOperations] = useState<Operation[]>([]);
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
@@ -152,12 +150,34 @@ const MapPage: React.FC = () => {
   // Determine target team ID for facts loading
   const targetTeamId = getTargetTeamId();
 
+  // Determine effective team ID (use selected team filter if available, otherwise use auto-detected target)
+  const effectiveTeamId = selectedTeamFilter || targetTeamId;
+
   // Fetch facts from the server - load immediately when we have a target team
   const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
-    { game_id: gameId!, team_id: targetTeamId },
-    { skip: !gameId || !targetTeamId },
+    { game_id: gameId!, team_id: effectiveTeamId },
+    { skip: !gameId || !effectiveTeamId },
   );
 
+  // Combine server operations with local operations for the map
+  const operations = React.useMemo(() => {
+    if (!factsData?.results) {
+      return localOperations;
+    }
+
+    const serverOperations = factsData.results
+      .filter((fact) => fact.fact_type === 'GEO')
+      .map((fact) => convertBackendFactToOperation(fact))
+      .filter((op): op is Operation => op !== null);
+
+    // Merge server operations with local operations, ensuring no duplicates
+    return [
+      ...serverOperations,
+      ...localOperations.filter(
+        (localOp) => !serverOperations.some((serverOp) => serverOp.id === localOp.id)
+      ),
+    ];
+  }, [factsData?.results, localOperations]);
 
   
   // Create fact mutation for saving drafts
@@ -175,8 +195,6 @@ const MapPage: React.FC = () => {
 
   useEffect(() => {
     if (factsData?.results) {
-      console.log('All received facts:', factsData.results);
-
       const serverOperations = factsData.results
         .filter((fact) => fact.fact_type === 'GEO')
         .map((fact) => convertBackendFactToOperation(fact))
@@ -186,34 +204,11 @@ const MapPage: React.FC = () => {
         (fact) => fact.fact_type === 'TEXT',
       );
 
-      console.log('GEO facts (operations):', serverOperations);
-      console.log('TEXT facts:', serverTextFacts);
-
-      // Store server operations for draft detection
-      setServerOperations(serverOperations);
       setTextFacts(serverTextFacts);
     } else {
-      setServerOperations([]);
       setTextFacts([]);
     }
-  }, [factsData]);  // Only depend on factsData, not localOperations
-
-  // Handle local operations merging separately
-  useEffect(() => {
-    if (serverOperations.length > 0) {
-      // Merge server operations with local operations
-      const mergedOps = [
-        ...serverOperations,
-        ...localOperations.filter(
-          (localOp) =>
-            !serverOperations.some((serverOp) => serverOp.id === localOp.id),
-        ),
-      ];
-      setOperations(mergedOps);
-    } else {
-      setOperations(localOperations);
-    }
-  }, [localOperations, serverOperations]);  // Only run when these specific dependencies change
+  }, [factsData]);
 
   // Include all facts (both TEXT and GEO) in filteredFacts for display count
   useEffect(() => {
@@ -521,7 +516,7 @@ const MapPage: React.FC = () => {
             teamsData={teamsData}
             isTeamsLoading={isTeamsLoading}
             teamsError={teamsError}
-            serverOperations={serverOperations}
+            serverOperations={operations}
             createFactMutation={createFactMutation}
             refetchFacts={refetchFacts}
             deleteFactMutation={deleteFactMutation}
