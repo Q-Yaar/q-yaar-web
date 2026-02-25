@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Heading, Operation } from '../utils/geoTypes';
@@ -11,6 +11,7 @@ import {
   differencePolygons,
   getPerpendicularBisectorLine,
 } from '../utils/geoUtils';
+import { getGeoWorker } from '../utils/geoWorkerWrapper';
 import { LocateFixed } from 'lucide-react';
 
 interface MapProps {
@@ -33,7 +34,8 @@ interface MapProps {
   operations: Operation[];
   currentLocation?: number[] | null;
   referencePoints?: number[][];
-  triggerLocateUser?: number;
+  onLocationUpdate?: (location: number[]) => void;
+  onLocationError?: (error: any) => void;
   onPointPOIInfoChange?: (poiInfo: Array<{
     name?: string;
     type?: string;
@@ -66,11 +68,13 @@ const Map: React.FC<MapProps> = ({
   operations,
   currentLocation,
   referencePoints = [],
-  triggerLocateUser,
+  onLocationUpdate,
+  onLocationError,
   onPointPOIInfoChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const [isMapReady, setIsMapReady] = useState<boolean>(false);
 
   // Refs to keep track of latest state without triggering re-renders in effects
   const pointsRef = useRef(points);
@@ -80,7 +84,15 @@ const Map: React.FC<MapProps> = ({
     type?: string;
     properties?: any;
   } | null>>([]);
-  
+  const poiSelectionRef = useRef<{
+    point?: number[];
+    info?: {
+      name?: string;
+      type?: string;
+      properties?: any;
+    };
+  } | null>(null);
+
   // Performance optimization: Cache the computed hider area to avoid expensive recomputation
   const hiderAreaCacheRef = useRef<{
     cachedOperations: Operation[];
@@ -90,6 +102,13 @@ const Map: React.FC<MapProps> = ({
     cachedHiderArea: null
   });
 
+  const [currentHiderArea, setCurrentHiderArea] = useState<any>(null);
+  const [isComputing, setIsComputing] = useState<boolean>(false);
+  const calculationIdRef = useRef<number>(0);
+
+  // Queue operations that arrive before the map is ready
+  const pendingOperationsRef = useRef<Operation[] | null>(null);
+
   useEffect(() => {
     pointsRef.current = points;
     actionRef.current = action;
@@ -98,7 +117,15 @@ const Map: React.FC<MapProps> = ({
       pointPOIInfoRef.current = Array(points.length).fill(null);
     }
 
+    // If map is not ready yet, queue the operations for later processing
+    if (!isMapReady) {
+      pendingOperationsRef.current = operations;
+      return; // Don't process yet
+    }
+
     if (map.current && map.current.getSource('measurement-source')) {
+      // Clear any pending operations since we can process them now
+      pendingOperationsRef.current = null;
       const source = map.current.getSource(
         'measurement-source',
       ) as maplibregl.GeoJSONSource;
@@ -122,88 +149,46 @@ const Map: React.FC<MapProps> = ({
         (action === 'distance' || action === 'heading') &&
         points.length === 2
       ) {
+        const distanceKm = calculateDistance(points[0], points[1]);
+        const distanceMeters = Math.round(distanceKm * 1000);
+
+        // Add the line
         geojson.features.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: points },
           properties: {},
         });
-      }
 
-      // --- Apply Operations via Lib with caching optimization ---
-      let currentHiderArea: any = null;
-      const cachedOps = hiderAreaCacheRef.current.cachedOperations;
-      const currentOpIds = getOperationIds(operations);
-      const cachedOpIds = getOperationIds(cachedOps);
-      
-      // Check if we can reuse cached result
-      const canReuseCache = cachedOps.length > 0 && 
-                           currentOpIds.length >= cachedOpIds.length &&
-                           cachedOpIds.every((id, index) => id === currentOpIds[index]);
-      
-      if (canReuseCache && hiderAreaCacheRef.current.cachedHiderArea) {
-        // Operations were only appended (idempotent assumption) - incremental computation
-        const newOperations = operations.slice(cachedOps.length);
-        currentHiderArea = hiderAreaCacheRef.current.cachedHiderArea;
-        
-        // Apply only the new operations incrementally
-        newOperations.forEach(newOp => {
-          if (currentHiderArea) {
-            currentHiderArea = applySingleOperation(newOp, currentHiderArea);
-          }
+        // Add a point at the midpoint for the distance label
+        const midpoint = [
+          (points[0][0] + points[1][0]) / 2,
+          (points[0][1] + points[1][1]) / 2
+        ];
+        geojson.features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: midpoint },
+          properties: {
+            'distance-text': `${distanceMeters} meters`,
+            'is-distance-label': true,
+          },
         });
-        
-        // Update cache with new state
-        hiderAreaCacheRef.current = {
-          cachedOperations: operations,
-          cachedHiderArea: currentHiderArea
-        };
-      } else {
-        // Full recomputation needed (first time, cache invalid, or operations were removed/changed)
-        currentHiderArea = computeHiderArea(playArea, operations);
-        
-        // Update cache
-        hiderAreaCacheRef.current = {
-          cachedOperations: operations,
-          cachedHiderArea: currentHiderArea
-        };
       }
 
       if (action === 'closer-to-line' && multiLineStringForOp) {
         if (multiLineStringForOp.type === 'FeatureCollection') {
-          if (
-            selectedLineIndex !== undefined &&
-            multiLineStringForOp.features[selectedLineIndex]
-          ) {
+          if (selectedLineIndex !== undefined && multiLineStringForOp.features[selectedLineIndex]) {
             const feat = multiLineStringForOp.features[selectedLineIndex];
-            if (
-              feat.geometry.type === 'LineString' ||
-              feat.geometry.type === 'MultiLineString'
-            ) {
+            if (feat.geometry.type === 'LineString' || feat.geometry.type === 'MultiLineString') {
               geojson.features.push(feat);
             }
           } else {
-            const lines = multiLineStringForOp.features.filter(
-              (f: any) =>
-                f.geometry.type === 'LineString' ||
-                f.geometry.type === 'MultiLineString',
-            );
+            const lines = multiLineStringForOp.features.filter((f: any) => f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString');
             geojson.features.push(...lines);
           }
-        } else if (
-          multiLineStringForOp.type === 'Feature' &&
-          (multiLineStringForOp.geometry.type === 'LineString' ||
-            multiLineStringForOp.geometry.type === 'MultiLineString')
-        ) {
+        } else if (multiLineStringForOp.type === 'Feature' && (multiLineStringForOp.geometry.type === 'LineString' || multiLineStringForOp.geometry.type === 'MultiLineString')) {
           geojson.features.push(multiLineStringForOp);
-        } else if (
-          multiLineStringForOp.type === 'LineString' ||
-          multiLineStringForOp.type === 'MultiLineString'
-        ) {
-          geojson.features.push({
-            type: 'Feature',
-            geometry: multiLineStringForOp,
-            properties: {},
-          });
+        } else if (multiLineStringForOp.type === 'LineString' || multiLineStringForOp.type === 'MultiLineString') {
+          geojson.features.push({ type: 'Feature', geometry: multiLineStringForOp, properties: {} });
         }
       }
 
@@ -213,11 +198,7 @@ const Map: React.FC<MapProps> = ({
         } else if (polygonGeoJSONForOp.type === 'Feature') {
           geojson.features.push(polygonGeoJSONForOp);
         } else {
-          geojson.features.push({
-            type: 'Feature',
-            geometry: polygonGeoJSONForOp,
-            properties: {},
-          });
+          geojson.features.push({ type: 'Feature', geometry: polygonGeoJSONForOp, properties: {} });
         }
       }
 
@@ -231,123 +212,177 @@ const Map: React.FC<MapProps> = ({
         } else if (uploadedAreaForOp.type === 'Feature') {
           geojson.features.push(uploadedAreaForOp);
         } else {
-          geojson.features.push({
-            type: 'Feature',
-            geometry: uploadedAreaForOp,
-            properties: {},
-          });
+          geojson.features.push({ type: 'Feature', geometry: uploadedAreaForOp, properties: {} });
         }
-      }
-
-      // Apply current active operation (if not yet saved)
-      if (
-        [
-          'draw-circle',
-          'split-by-direction',
-          'hotter-colder',
-          'closer-to-line',
-          'polygon-location',
-          'areas',
-        ].includes(action)
-      ) {
-        const currentOp: Operation = {
-          id: 'current',
-          type: action as any,
-          points: [...points],
-          radius,
-          hiderLocation,
-          splitDirection,
-          preferredPoint,
-          areaOpType,
-          uploadedArea: uploadedAreaForOp,
-          multiLineString: multiLineStringForOp,
-          closerFurther,
-          selectedLineIndex,
-          polygonGeoJSON: polygonGeoJSONForOp,
-        };
-
-        const minPoints =
-          action === 'draw-circle' ||
-            action === 'split-by-direction' ||
-            action === 'closer-to-line'
-            ? 1
-            : action === 'hotter-colder'
-              ? 2
-              : 0;
-        const hasRequiredInputs =
-          action === 'areas'
-            ? !!uploadedAreaForOp
-            : action === 'closer-to-line'
-              ? !!multiLineStringForOp && points.length >= 1
-              : action === 'polygon-location'
-                ? !!polygonGeoJSONForOp && points.length >= 1
-                : points.length >= minPoints;
-
-        if (hasRequiredInputs) {
-          currentHiderArea = applySingleOperation(
-            currentOp,
-            currentHiderArea as any,
-          );
-
-          // If hotter-colder, also show lines for the current operation
-          if (action === 'hotter-colder' && points.length === 2) {
-            geojson.features.push({
-              type: 'Feature',
-              geometry: { type: 'LineString', coordinates: points },
-              properties: { 'line-type': 'p1-p2' },
-            });
-            const initialArea = computeHiderArea(playArea, []); // Base area for bisector calculation
-            const bisectorLine = getPerpendicularBisectorLine(
-              points[0],
-              points[1],
-              initialArea as any,
-            );
-            geojson.features.push({
-              ...bisectorLine,
-              type: 'Feature',
-              properties: {
-                ...bisectorLine.properties,
-                'line-type': 'bisector',
-              },
-            } as GeoJSON.Feature);
-          }
-        }
-      }
-
-      // --- Final Shading ---
-      if (currentHiderArea) {
-        const shadingFeature = differencePolygons(
-          globalWorld,
-          currentHiderArea as any,
-        );
-        geojson.features.push({
-          ...shadingFeature,
-          type: 'Feature',
-          properties: { ...shadingFeature.properties, 'is-shading': true },
-        } as GeoJSON.Feature);
       }
 
       if (currentLocation) {
         geojson.features.push({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: currentLocation },
-          properties: { 'is-current-location': true },
+          type: 'Feature', geometry: { type: 'Point', coordinates: currentLocation },
+          properties: { 'is-current-location': true }
         });
       }
 
-      // Reference Points
-      if (referencePoints && referencePoints.length > 0) {
+      if (referencePoints?.length > 0) {
         referencePoints.forEach((p, index) => {
-          const label = String.fromCharCode(65 + index); // A, B, C...
           geojson.features.push({
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: p },
-            properties: { 'is-reference-point': true, label },
+            type: 'Feature', geometry: { type: 'Point', coordinates: p },
+            properties: { 'is-reference-point': true, label: String.fromCharCode(65 + index) }
           });
         });
       }
 
+      if (poiSelectionRef.current?.point) {
+        geojson.features.push({
+          type: 'Feature', geometry: { type: 'Point', coordinates: poiSelectionRef.current.point },
+          properties: { 'is-poi-selection': true, ...poiSelectionRef.current.info }
+        });
+      }
+
+      // Initial fast render of points and lines
       source.setData(geojson);
+
+      // --- Apply Operations via Lib with caching optimization ---
+      const processGeom = async () => {
+        const computationId = ++calculationIdRef.current;
+        setIsComputing(true);
+        console.log('Processing operations for shading:', operations.length, 'operations');
+
+        try {
+          const worker = await getGeoWorker();
+          let hiderArea: any = null;
+          const cachedOps = hiderAreaCacheRef.current.cachedOperations;
+          const currentOpIds = getOperationIds(operations);
+          const cachedOpIds = getOperationIds(cachedOps);
+
+          // Check if we can reuse cached result
+          const canReuseCache = cachedOps.length > 0 &&
+            currentOpIds.length >= cachedOpIds.length &&
+            cachedOpIds.every((id, index) => id === currentOpIds[index]);
+
+          if (canReuseCache && hiderAreaCacheRef.current.cachedHiderArea) {
+            console.log('Reusing cached hider area (incremental)');
+            const newOperations = operations.slice(cachedOps.length);
+            hiderArea = hiderAreaCacheRef.current.cachedHiderArea;
+
+            for (const newOp of newOperations) {
+              if (hiderArea) {
+                hiderArea = await worker.applySingleOperation(newOp, hiderArea);
+              }
+            }
+          } else {
+            console.log('Computing hider area from scratch');
+            hiderArea = await worker.computeHiderArea(playArea, operations);
+          }
+
+          // Apply current active operation
+          let previewHiderArea = hiderArea; // hiderArea at this point is result of saved operations
+
+          if (['draw-circle', 'split-by-direction', 'hotter-colder', 'closer-to-line', 'polygon-location', 'areas'].includes(action)) {
+            const currentOp: Operation = {
+              id: 'current',
+              type: action as any,
+              points: [...points],
+              radius,
+              hiderLocation,
+              splitDirection,
+              preferredPoint,
+              areaOpType,
+              uploadedArea: uploadedAreaForOp,
+              multiLineString: multiLineStringForOp,
+              closerFurther,
+              selectedLineIndex,
+              polygonGeoJSON: polygonGeoJSONForOp,
+            };
+
+            const minPoints = ['draw-circle', 'split-by-direction', 'closer-to-line'].includes(action) ? 1 : action === 'hotter-colder' ? 2 : 0;
+            const hasRequiredInputs = action === 'areas' ? !!uploadedAreaForOp :
+              action === 'closer-to-line' ? !!multiLineStringForOp && points.length >= 1 :
+                action === 'polygon-location' ? !!polygonGeoJSONForOp && points.length >= 1 :
+                  points.length >= minPoints;
+
+            if (hasRequiredInputs) {
+              previewHiderArea = await worker.applySingleOperation(currentOp, previewHiderArea);
+
+              if (action === 'hotter-colder' && points.length === 2) {
+                const distanceKm = await worker.calculateDistance(points[0], points[1]);
+                const distanceMeters = Math.round(distanceKm * 1000);
+
+                geojson.features.push({
+                  type: 'Feature',
+                  geometry: { type: 'LineString', coordinates: points },
+                  properties: { 'line-type': 'p1-p2' },
+                });
+
+                const midpoint = [(points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2];
+                geojson.features.push({
+                  type: 'Feature',
+                  geometry: { type: 'Point', coordinates: midpoint },
+                  properties: { 'distance-text': `${distanceMeters} meters`, 'is-distance-label': true },
+                });
+
+                const initialArea = await worker.computeHiderArea(playArea, []);
+                const bisectorLine = await worker.getPerpendicularBisectorLine(points[0], points[1], initialArea);
+                geojson.features.push({
+                  ...bisectorLine,
+                  type: 'Feature',
+                  properties: { ...bisectorLine.properties, 'line-type': 'bisector' },
+                } as GeoJSON.Feature);
+              }
+            }
+          }
+
+          // Update cache if this is still the latest request
+          if (computationId === calculationIdRef.current) {
+            // CACHE stage: Only cache the result of SAVED operations
+            hiderAreaCacheRef.current = {
+              cachedOperations: operations,
+              cachedHiderArea: hiderArea
+            };
+
+            // Final Shading based on PREVIEW area
+            if (previewHiderArea) {
+              const shadingFeature = await worker.differencePolygons(globalWorld, previewHiderArea);
+              geojson.features.push({
+                ...shadingFeature,
+                type: 'Feature',
+                properties: { ...shadingFeature.properties, 'is-shading': true },
+              } as GeoJSON.Feature);
+            }
+
+            // Reference Points etc. (these are fast, but we need to add them after async part)
+            if (currentLocation) {
+              geojson.features.push({
+                type: 'Feature', geometry: { type: 'Point', coordinates: currentLocation },
+                properties: { 'is-current-location': true }
+              });
+            }
+            if (referencePoints?.length > 0) {
+              referencePoints.forEach((p, index) => {
+                geojson.features.push({
+                  type: 'Feature', geometry: { type: 'Point', coordinates: p },
+                  properties: { 'is-reference-point': true, label: String.fromCharCode(65 + index) }
+                });
+              });
+            }
+            if (poiSelectionRef.current?.point) {
+              geojson.features.push({
+                type: 'Feature', geometry: { type: 'Point', coordinates: poiSelectionRef.current.point },
+                properties: { 'is-poi-selection': true, ...poiSelectionRef.current.info }
+              });
+            }
+
+            // Heavy results update
+            source.setData(geojson);
+            setIsComputing(false);
+          }
+        } catch (error) {
+          console.error('Worker error:', error);
+          if (computationId === calculationIdRef.current) setIsComputing(false);
+        }
+      };
+
+      processGeom();
     }
   }, [
     points,
@@ -365,6 +400,7 @@ const Map: React.FC<MapProps> = ({
     operations,
     currentLocation,
     referencePoints,
+    isMapReady,
   ]);
 
   useEffect(() => {
@@ -383,6 +419,46 @@ const Map: React.FC<MapProps> = ({
 
     map.current = m;
     m.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Add GeolocateControl
+    const geolocateControl = new maplibregl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      },
+      trackUserLocation: true,
+      showUserLocation: true,
+      showAccuracyCircle: false
+    });
+
+    m.addControl(geolocateControl, 'top-right');
+
+    // Handle geolocation events
+    geolocateControl.on('geolocate', (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      const userLocation = [longitude, latitude];
+      console.log(`[Map ${instanceId}] Geolocation update:`, userLocation);
+
+      // Update current location if it's different from the last known location
+      if (currentLocation &&
+        currentLocation[0] === userLocation[0] &&
+        currentLocation[1] === userLocation[1]) {
+        return; // Location hasn't changed
+      }
+
+      // Call the onLocationUpdate callback if provided
+      if (onLocationUpdate) {
+        onLocationUpdate(userLocation);
+      }
+    });
+
+    geolocateControl.on('error', (error: GeolocationPositionError) => {
+      console.warn(`[Map ${instanceId}] Geolocation error:`, error);
+      if (onLocationError) {
+        onLocationError(error);
+      }
+    });
 
     // Use ResizeObserver to ensure the map resizes whenever the container size changes
     const resizeObserver = new ResizeObserver(() => {
@@ -406,44 +482,16 @@ const Map: React.FC<MapProps> = ({
         },
       });
 
-      // Layer for lines
-      m.addLayer({
-        id: 'measurement-line',
-        type: 'line',
-        source: 'measurement-source',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': [
-            'case',
-            ['==', ['get', 'line-type'], 'bisector'],
-            '#ff00ff',
-            ['==', ['get', 'is-selected-line'], true],
-            '#ff9800',
-            '#0000ff',
-          ],
-          'line-width': [
-            'case',
-            ['==', ['get', 'line-type'], 'bisector'],
-            2,
-            ['==', ['get', 'is-selected-line'], true],
-            6,
-            4,
-          ],
-          'line-dasharray': [
-            'case',
-            ['==', ['get', 'line-type'], 'bisector'],
-            ['literal', [2, 2]],
-            ['literal', [1, 0]],
-          ],
-        },
-        filter: ['==', '$type', 'LineString'],
-      });
+      // Mark the map as ready, which will trigger the useEffect to process any queued operations
+      console.log(`[Map ${instanceId}] Setting map ready flag`);
+      setIsMapReady(true);
 
-      // Layer for shading
-      // Layer for shading
+      // Simplified 3-layer structure:
+      // 1. Base map (provided by map style)
+      // 2. Area overlay for showing facts (shading-fill)
+      // 3. Points for selected points (all-points)
+
+      // Layer for shading (area overlay for facts)
       m.addLayer({
         id: 'shading-fill',
         type: 'fill',
@@ -455,92 +503,104 @@ const Map: React.FC<MapProps> = ({
         filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]],
       });
 
-      // Layer for current location (Add BEFORE points so points appear on top)
+      // Layer for lines (between points)
       m.addLayer({
-        id: 'current-location-point',
-        type: 'circle',
+        id: 'measurement-lines',
+        type: 'line',
         source: 'measurement-source',
-        paint: {
-          'circle-radius': 8,
-          'circle-color': '#007cbf',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
         },
-        filter: ['==', 'is-current-location', true],
+        paint: {
+          'line-color': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'], '#ff00ff',
+            '#0000ff'
+          ],
+          'line-width': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'], 2,
+            4
+          ],
+          'line-dasharray': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'], ['literal', [2, 2]],
+            ['literal', [1, 0]]
+          ],
+        },
+        filter: ['==', '$type', 'LineString']
       });
 
-      // Add custom pin image
-      const pinSvg = `
-        <svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
-          <path d="M15 0C6.7 0 0 6.7 0 15c0 10 15 25 15 25s15-15 15-25c0-8.3-6.7-15-15-15z" fill="#FF5722" stroke="white" stroke-width="2"/>
-        </svg>
-      `;
-      const pinImage = new Image(30, 40);
-      pinImage.onload = () => {
-        if (!m.hasImage('custom-pin')) {
-          m.addImage('custom-pin', pinImage);
-        }
-      };
-      pinImage.src =
-        'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(pinSvg);
-
-      // Layer for reference points (Symbols)
+      // Layer for distance labels on lines
       m.addLayer({
-        id: 'reference-points-layer',
+        id: 'distance-labels',
         type: 'symbol',
         source: 'measurement-source',
         layout: {
-          'icon-image': 'custom-pin',
-          'icon-anchor': 'bottom',
-          'icon-size': 0.8,
-          'text-field': ['get', 'label'],
-          'text-font': ['Noto Sans Regular'],
-          'text-offset': [0, -1.2], // Adjust to center in the pin head
-          'text-anchor': 'bottom',
+          'text-field': ['get', 'distance-text'],
+          'text-font': ['Noto Sans Bold'],
           'text-size': 14,
-          'icon-allow-overlap': true,
+          'text-offset': [0, 1.5],
+          'text-anchor': 'center',
           'text-allow-overlap': true,
+          'text-ignore-placement': true,
         },
         paint: {
-          'text-color': '#FFFFFF',
+          'text-color': '#000000',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 1,
         },
-        filter: ['==', 'is-reference-point', true],
+        filter: ['all', ['==', '$type', 'Point'], ['has', 'distance-text'], ['==', 'is-distance-label', true]]
       });
 
-      // Layer for points
+      // Single consolidated layer for all points
       m.addLayer({
-        id: 'measurement-points',
+        id: 'all-points',
         type: 'circle',
         source: 'measurement-source',
         paint: {
-          'circle-radius': 6,
-          'circle-color': '#ff0000',
+          'circle-radius': [
+            'case',
+            ['==', ['get', 'is-poi-selection'], true], 12,
+            ['==', ['get', 'is-current-location'], true], 8,
+            ['==', ['get', 'is-reference-point'], true], 8,
+            6
+          ],
+          'circle-color': [
+            'case',
+            ['==', ['get', 'is-poi-selection'], true], '#4CAF50',
+            ['==', ['get', 'is-current-location'], true], '#007cbf',
+            ['==', ['get', 'is-reference-point'], true], '#FF5722',
+            '#ff0000'
+          ],
+          'circle-stroke-width': [
+            'case',
+            ['==', ['get', 'is-poi-selection'], true], 3,
+            ['==', ['get', 'is-current-location'], true], 2,
+            ['==', ['get', 'is-reference-point'], true], 2,
+            0
+          ],
+          'circle-stroke-color': [
+            'case',
+            ['==', ['get', 'is-poi-selection'], true], '#FFFFFF',
+            ['==', ['get', 'is-current-location'], true], '#ffffff',
+            ['==', ['get', 'is-reference-point'], true], '#ffffff',
+            'transparent'
+          ],
+          'circle-opacity': [
+            'case',
+            ['==', ['get', 'is-poi-selection'], true], 0.8,
+            1
+          ]
         },
         filter: [
           'all',
           ['==', '$type', 'Point'],
-          ['!has', 'is-current-location'],
-        ],
-      });
-
-      // Layer for POI selection confirmation (temporary)
-      m.addLayer({
-        id: 'poi-selection-marker',
-        type: 'circle',
-        source: {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: [],
-          },
-        },
-        paint: {
-          'circle-radius': 10,
-          'circle-color': '#4CAF50',
-          'circle-stroke-width': 3,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-opacity': 0.8,
-        },
+          ['!has', 'is-shading'],
+          ['!has', 'is-distance-label']
+        ]
       });
     });
 
@@ -563,7 +623,7 @@ const Map: React.FC<MapProps> = ({
         try {
           // Check if hovering over base map POIs
           const baseMapFeatures = m.queryRenderedFeatures(e.point, {
-            layers: ['poi_r1', 'poi_r7', 'poi_r20'] // POIs at different resolutions
+            layers: ['poi_r1', 'poi_r7', 'poi_r20', 'poi_transit'] // POIs at different resolutions
           });
 
           if (baseMapFeatures.length > 0) {
@@ -591,26 +651,24 @@ const Map: React.FC<MapProps> = ({
         currentAction === 'polygon-location'
       ) {
         // Use MapLibre GL JS native feature querying
-        // Query both our measurement layers and base map layers for POIs
+        // Query our consolidated points layer and base map layers for POIs
         const measurementFeatures = m.queryRenderedFeatures(e.point, {
-          layers: ['measurement-points', 'reference-points-layer', 'current-location-point']
+          layers: ['all-points']
         });
 
         // Query base map layers for POIs
         let baseMapFeatures: any[] = [];
         try {
           baseMapFeatures = m.queryRenderedFeatures(e.point, {
-            layers: ['poi_r1', 'poi_r7', 'poi_r20'] // POIs at different resolutions
+            layers: ['poi_r1', 'poi_r7', 'poi_r20', 'poi_transit'] // POIs at different resolutions
           });
         } catch (error) {
           console.warn('Error querying POI layers:', error);
         }
 
         // Check if we clicked on an existing measurement point
-        const clickedOnMeasurementPoint = measurementFeatures.some(feature => 
-          feature.layer.id === 'measurement-points' ||
-          feature.layer.id === 'reference-points-layer' ||
-          feature.layer.id === 'current-location-point'
+        const clickedOnMeasurementPoint = measurementFeatures.some(feature =>
+          feature.layer.id === 'all-points'
         );
 
         if (clickedOnMeasurementPoint) {
@@ -621,18 +679,18 @@ const Map: React.FC<MapProps> = ({
         // If we clicked on a base map POI, use its coordinates
         let newPoint = [e.lngLat.lng, e.lngLat.lat];
         let poiInfo = null;
-        
+
         // Debug: Log available layers if no POIs found (only once per session)
         if (baseMapFeatures.length === 0 && !((window as any).poiLayersLogged)) {
-          console.log('Available base map layers:', 
-            m.getStyle().layers.map(l => l.id).filter(id => 
-              !id.startsWith('measurement-') && !id.startsWith('shading-') && 
+          console.log('Available base map layers:',
+            m.getStyle().layers.map(l => l.id).filter(id =>
+              !id.startsWith('measurement-') && !id.startsWith('shading-') &&
               !id.startsWith('current-') && !id.startsWith('reference-')
             )
           );
           (window as any).poiLayersLogged = true;
         }
-        
+
         if (baseMapFeatures.length > 0) {
           // Use the first POI feature's coordinates
           const poiFeature = baseMapFeatures[0];
@@ -686,31 +744,18 @@ const Map: React.FC<MapProps> = ({
           onPointPOIInfoChange([...pointPOIInfoRef.current]);
         }
 
-        // Show visual confirmation if POI was selected
+        // Update POI selection ref for visual confirmation
         if (poiInfo) {
-          // Add persistent POI marker (stays until new selection or reset)
-          const poiMarkerSource = m.getSource('poi-selection-marker') as maplibregl.GeoJSONSource;
-          poiMarkerSource.setData({
-            type: 'FeatureCollection',
-            features: [{
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: newPoint
-              },
-              properties: {
-                ...poiInfo,
-                selectedAt: new Date().toISOString()
-              }
-            }]
-          });
+          poiSelectionRef.current = {
+            point: newPoint,
+            info: {
+              name: poiInfo.name,
+              type: poiInfo.type,
+              properties: poiInfo.properties
+            }
+          };
         } else {
-          // If no POI selected, clear any existing POI marker
-          const poiMarkerSource = m.getSource('poi-selection-marker') as maplibregl.GeoJSONSource;
-          poiMarkerSource.setData({
-            type: 'FeatureCollection',
-            features: []
-          });
+          poiSelectionRef.current = null;
         }
       }
     });
@@ -737,53 +782,6 @@ const Map: React.FC<MapProps> = ({
       setHeading(null);
     }
   }, [points, action, setDistance, setHeading]);
-
-  const handleLocateUser = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by this browser.');
-      return;
-    }
-
-    // Request current position and zoom to it
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const userLocation = [longitude, latitude];
-
-        if (map.current) {
-          map.current.flyTo({
-            center: userLocation as [number, number],
-            zoom: 18,
-            essential: true,
-          });
-        }
-      },
-      (err) => {
-        console.warn('Geolocation request failed:', err);
-        let message = `Failed to get location: ${err.message}`;
-        if (err.code === err.PERMISSION_DENIED) {
-          message +=
-            '\n\nPlease enable location services for this site in your browser settings.';
-        } else if (err.code === err.TIMEOUT) {
-          message = 'Location request timed out. Please try again.';
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          message = 'Location information is unavailable.';
-        }
-        alert(message);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      },
-    );
-  };
-
-  useEffect(() => {
-    if (triggerLocateUser && triggerLocateUser > 0) {
-      handleLocateUser();
-    }
-  }, [triggerLocateUser]);
 
   return (
     <div

@@ -1,60 +1,55 @@
-import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance, union, along, length, booleanPointInPolygon } from '@turf/turf';
-import { Heading, Operation } from './geoTypes';
+// Web Worker for expensive geometric computations
+import { expose } from 'comlink';
 import { Feature, Point, Polygon, MultiPolygon, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
+import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance, union, along, length, booleanPointInPolygon } from '@turf/turf';
 
-/**
- * Helper to compare coordinates with tolerance.
- */
+// Helper to compare coordinates with tolerance
 const isClose = (c1: number[], c2: number[]) => {
     return Math.abs(c1[0] - c2[0]) < 1e-8 && Math.abs(c1[1] - c2[1]) < 1e-8;
 };
 
-/**
- * Calculates the distance between two points on the Earth's surface using Turf.js.
- * @param p1
- * @param p2
- * @returns distance in kilometers
- */
-export const calculateDistance = (p1: Feature<Point> | number[], p2: Feature<Point> | number[]): number => {
+// Global World Polygon for default shading/play area
+const globalWorld: Feature<Polygon> = {
+    type: 'Feature',
+    geometry: {
+        type: 'Polygon',
+        coordinates: [[
+            [-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]
+        ]]
+    },
+    properties: {}
+};
+
+const calculateDistance = (p1: Feature<Point> | number[], p2: Feature<Point> | number[]): number => {
     const from = Array.isArray(p1) ? point(p1) : p1;
     const to = Array.isArray(p2) ? point(p2) : p2;
     return distance(from, to, { units: 'kilometers' });
 };
 
-/**
- * Determines the relative heading of point 1 from point 2.
- * @param p1
- * @param p2
- * @returns heading object with lat and lon descriptors
- */
-export const getRelativeHeading = (p1: Feature<Point> | number[], p2: Feature<Point> | number[]): Heading => {
-    const c1 = Array.isArray(p1) ? p1 : p1.geometry.coordinates;
-    const c2 = Array.isArray(p2) ? p2 : p2.geometry.coordinates;
-    return {
-        lat: c1[1] > c2[1] ? 'North' : 'South',
-        lon: c1[0] > c2[0] ? 'East' : 'West'
-    };
-};
+// Type definitions for Operation
+interface Operation {
+    id: string;
+    type: string;
+    points: number[][];
+    radius?: number;
+    hiderLocation?: 'inside' | 'outside';
+    splitDirection?: 'North' | 'South' | 'East' | 'West';
+    preferredPoint?: 'p1' | 'p2';
+    areaOpType?: 'inside' | 'outside';
+    uploadedArea?: any;
+    multiLineString?: any;
+    closerFurther?: 'closer' | 'further';
+    selectedLineIndex?: number;
+    polygonGeoJSON?: any;
+    featureName?: string;
+}
 
-/**
- * Generates a circle polygon as a GeoJSON Feature.
- * @param center
- * @param radiusKm radius in kilometers
- * @param steps number of steps in the polygon (default 64)
- * @returns
- */
-export const getCirclePolygon = (center: Feature<Point> | number[], radiusKm: number, steps = 64): Feature<Polygon> => {
+const getCirclePolygon = (center: Feature<Point> | number[], radiusKm: number, steps = 64): Feature<Polygon> => {
     const centerPoint = Array.isArray(center) ? point(center) : center;
     return circle(centerPoint, radiusKm, { steps, units: 'kilometers' }) as Feature<Polygon>;
 };
 
-/**
- * Compute the difference between outer and hole
- * @param outerFeature
- * @param holeFeature
- * @returns
- */
-export const differencePolygons = (outerFeature: Feature<Polygon | MultiPolygon>, holeFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+const differencePolygons = (outerFeature: Feature<Polygon | MultiPolygon>, holeFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
     try {
         const diff = difference(featureCollection([outerFeature, holeFeature]));
         return (diff as Feature<Polygon | MultiPolygon>) || {
@@ -72,13 +67,7 @@ export const differencePolygons = (outerFeature: Feature<Polygon | MultiPolygon>
     }
 };
 
-/**
- * Intersects two polygons or multipolygons.
- * @param f1
- * @param f2
- * @returns
- */
-export const intersectPolygons = (f1: Feature<Polygon | MultiPolygon>, f2: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+const intersectPolygons = (f1: Feature<Polygon | MultiPolygon>, f2: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
     try {
         const intersection = intersect(featureCollection([f1, f2]));
         return (intersection as Feature<Polygon | MultiPolygon>) || {
@@ -96,34 +85,22 @@ export const intersectPolygons = (f1: Feature<Polygon | MultiPolygon>, f2: Featu
     }
 };
 
-/**
- * Split the polygon by direction, i.e. North, South, East, West.
- * @param pointFeature
- * @param direction 'North', 'South', 'East', or 'West'
- * @param playAreaFeature
- * @returns
- */
-export const getSplitByDirectionPolygon = (pointFeature: Feature<Point>, direction: string, playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+const getSplitByDirectionPolygon = (pointFeature: Feature<Point>, direction: string, playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
     const coords = pointFeature.geometry.coordinates;
     const [lng, lat] = coords;
 
     let b: [number, number, number, number];
-    // The result should be the area WHERE THE HIDER IS.
     switch (direction) {
         case 'North':
-            // Hider is North of lat
             b = [-180, lat, 180, 90];
             break;
         case 'South':
-            // Hider is South of lat
             b = [-180, -90, 180, lat];
             break;
         case 'East':
-            // Hider is East of lng
             b = [lng, -90, 180, 90];
             break;
         case 'West':
-            // Hider is West of lng
             b = [-180, -90, lng, 90];
             break;
         default:
@@ -151,14 +128,7 @@ export const getSplitByDirectionPolygon = (pointFeature: Feature<Point>, directi
     }
 };
 
-/**
- * Generates a LineString representing the perpendicular bisector of p1-p2.
- * @param p1
- * @param p2
- * @param playAreaFeature
- * @returns
- */
-export const getPerpendicularBisectorLine = (p1: number[], p2: number[], playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<LineString> => {
+const getPerpendicularBisectorLine = (p1: number[], p2: number[], playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<LineString> => {
     try {
         const areaBbox = bbox(playAreaFeature);
         const pointsBbox = bbox(featureCollection([point(p1), point(p2)]));
@@ -182,7 +152,6 @@ export const getPerpendicularBisectorLine = (p1: number[], p2: number[], playAre
         const c1 = voronoiCells.features[0]!.geometry.coordinates[0];
         const c2 = voronoiCells.features[1]!.geometry.coordinates[0];
 
-        // Find common coordinates using tolerance
         const common = c1.filter(coord =>
             c2.some(c2Coord => isClose(coord, c2Coord))
         );
@@ -213,15 +182,7 @@ export const getPerpendicularBisectorLine = (p1: number[], p2: number[], playAre
     }
 };
 
-/**
- * Generates a Feature<Polygon> representing the area to be SHADED for Hotter/Colder.
- * @param p1
- * @param p2
- * @param preferredPoint
- * @param playAreaFeature
- * @returns
- */
-export const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoint: 'p1' | 'p2', playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoint: 'p1' | 'p2', playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
     try {
         const areaBbox = bbox(playAreaFeature);
         const pointsBbox = bbox(featureCollection([point(p1), point(p2)]));
@@ -244,17 +205,14 @@ export const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoi
 
         const pointToShade = preferredPoint === 'p1' ? p2 : p1;
 
-        // Find the cell to shade by matching the site ID
         let cellToShade = voronoiCells.features.find(f => {
             if (f && f.properties && f.properties.id) {
-                // The Voronoi cell's id property contains the site identifier
                 return f.properties.id === (preferredPoint === 'p1' ? 'p2' : 'p1');
             }
             return false;
         });
 
         if (!cellToShade) {
-            // Fallback: find cell by sampling a point and checking distances
             cellToShade = voronoiCells.features.find(f => {
                 if (f && f.geometry && f.geometry.coordinates && f.geometry.coordinates[0] && f.geometry.coordinates[0][0]) {
                     const samplePt = f.geometry.coordinates[0][0];
@@ -284,37 +242,22 @@ export const splitPolygonByTwoPoints = (p1: number[], p2: number[], preferredPoi
     }
 };
 
-/**
- * Splits a polygon based on whether points are closer or further from a MultiLineString
- * than a given seeker point.
- * @param seekerPoint 
- * @param multiLineString 
- * @param preference 'closer' or 'further'
- * @param selectedLineIndex index of the line in FeatureCollection
- * @param playAreaFeature 
- * @returns 
- */
-export const splitPolygonByLineDistance = (seekerPoint: number[], multiLineString: any, preference: 'closer' | 'further', selectedLineIndex: number | undefined, playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+const splitPolygonByLineDistance = (seekerPoint: number[], multiLineString: any, preference: 'closer' | 'further', selectedLineIndex: number | undefined, playAreaFeature: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
     try {
         const p = point(seekerPoint);
 
-        // Ensure we have a Feature or Geometry suitable for pointToLineDistance
         let lineFeature: any = multiLineString;
         if (multiLineString.type === 'FeatureCollection' && multiLineString.features.length > 0) {
-            lineFeature = multiLineString.features[selectedLineIndex !== undefined ? selectedLineIndex : 0]; // Take selected or first
+            lineFeature = multiLineString.features[selectedLineIndex !== undefined ? selectedLineIndex : 0];
         }
 
         const d = pointToLineDistance(p, lineFeature, { units: 'kilometers' });
 
-        // Create a buffer around the line with radius d
-        // We use a slightly large number of steps for smoothness
         const lineBuffer = buffer(lineFeature, d, { units: 'kilometers', steps: 64 }) as Feature<Polygon | MultiPolygon>;
 
         if (preference === 'closer') {
-            // Hider is closer than seeker -> Hider is inside the buffer
             return intersectPolygons(playAreaFeature, lineBuffer);
         } else {
-            // Hider is further than seeker -> Hider is outside the buffer
             return differencePolygons(playAreaFeature, lineBuffer);
         }
     } catch (e) {
@@ -323,15 +266,7 @@ export const splitPolygonByLineDistance = (seekerPoint: number[], multiLineStrin
     }
 };
 
-
-
-/**
- * Finds the first polygon or multipolygon in a GeoJSON that contains the given point.
- * @param pt 
- * @param geojson 
- * @returns 
- */
-export const findContainingPolygon = (pt: number[], geojson: any): Feature<Polygon | MultiPolygon> | null => {
+const findContainingPolygon = (pt: number[], geojson: any): Feature<Polygon | MultiPolygon> | null => {
     if (!geojson) return null;
 
     const p = point(pt);
@@ -361,27 +296,7 @@ export const findContainingPolygon = (pt: number[], geojson: any): Feature<Polyg
     return foundFeature;
 };
 
-/**
- * Global World Polygon for default shading/play area.
- */
-export const globalWorld: Feature<Polygon> = {
-    type: 'Feature',
-    geometry: {
-        type: 'Polygon',
-        coordinates: [[
-            [-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]
-        ]]
-    },
-    properties: {}
-};
-
-/**
- * Applies a single geometric operation to an area.
- * @param op 
- * @param area 
- * @returns 
- */
-export const applySingleOperation = (op: Operation, area: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
+const applySingleOperation = (op: Operation, area: Feature<Polygon | MultiPolygon>): Feature<Polygon | MultiPolygon> => {
     if (op.type === 'draw-circle' && op.points.length > 0) {
         const centerFeature = {
             type: 'Feature' as const,
@@ -437,14 +352,11 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
         return splitPolygonByLineDistance(op.points[0], op.multiLineString, op.closerFurther || 'closer', op.selectedLineIndex, area);
     }
 
-
-
     if (op.type === 'polygon-location' && op.points.length > 0 && op.polygonGeoJSON) {
         const found = findContainingPolygon(op.points[0], op.polygonGeoJSON);
         if (found) {
             return intersectPolygons(area, found);
         } else {
-            // User outside all polygons -> return empty area
             return {
                 type: 'Feature',
                 geometry: { type: 'Polygon', coordinates: [] },
@@ -456,13 +368,7 @@ export const applySingleOperation = (op: Operation, area: Feature<Polygon | Mult
     return area;
 };
 
-/**
- * Computes the final hider area by applying a sequence of operations to a starting area.
- * @param playArea 
- * @param operations 
- * @returns 
- */
-export const computeHiderArea = (playArea: any, operations: Operation[]): Feature<Polygon | MultiPolygon> => {
+const computeHiderArea = (playArea: any, operations: Operation[]): Feature<Polygon | MultiPolygon> => {
     let currentArea: Feature<Polygon | MultiPolygon> | null = null;
 
     if (playArea) {
@@ -488,3 +394,18 @@ export const computeHiderArea = (playArea: any, operations: Operation[]): Featur
 
     return currentArea;
 };
+
+// Expose the functions to be used by the main thread
+expose({
+    computeHiderArea,
+    applySingleOperation,
+    getCirclePolygon,
+    differencePolygons,
+    intersectPolygons,
+    getSplitByDirectionPolygon,
+    getPerpendicularBisectorLine,
+    splitPolygonByTwoPoints,
+    splitPolygonByLineDistance,
+    findContainingPolygon,
+    calculateDistance
+});
