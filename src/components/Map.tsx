@@ -33,7 +33,8 @@ interface MapProps {
   operations: Operation[];
   currentLocation?: number[] | null;
   referencePoints?: number[][];
-  triggerLocateUser?: number;
+  onLocationUpdate?: (location: number[]) => void;
+  onLocationError?: (error: any) => void;
   onPointPOIInfoChange?: (poiInfo: Array<{
     name?: string;
     type?: string;
@@ -66,7 +67,8 @@ const Map: React.FC<MapProps> = ({
   operations,
   currentLocation,
   referencePoints = [],
-  triggerLocateUser,
+  onLocationUpdate,
+  onLocationError,
   onPointPOIInfoChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +82,14 @@ const Map: React.FC<MapProps> = ({
     type?: string;
     properties?: any;
   } | null>>([]);
+  const poiSelectionRef = useRef<{
+    point?: number[];
+    info?: {
+      name?: string;
+      type?: string;
+      properties?: any;
+    };
+  } | null>(null);
   
   // Performance optimization: Cache the computed hider area to avoid expensive recomputation
   const hiderAreaCacheRef = useRef<{
@@ -347,6 +357,18 @@ const Map: React.FC<MapProps> = ({
         });
       }
 
+      // POI Selection (if any)
+      if (poiSelectionRef.current && poiSelectionRef.current.point) {
+        geojson.features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: poiSelectionRef.current.point },
+          properties: { 
+            'is-poi-selection': true,
+            ...poiSelectionRef.current.info
+          },
+        });
+      }
+
       source.setData(geojson);
     }
   }, [
@@ -384,6 +406,46 @@ const Map: React.FC<MapProps> = ({
     map.current = m;
     m.addControl(new maplibregl.NavigationControl(), 'top-right');
 
+    // Add GeolocateControl
+    const geolocateControl = new maplibregl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      },
+      trackUserLocation: true,
+      showUserLocation: true,
+      showAccuracyCircle: false
+    });
+
+    m.addControl(geolocateControl, 'top-right');
+
+    // Handle geolocation events
+    geolocateControl.on('geolocate', (position: GeolocationPosition) => {
+      const { latitude, longitude } = position.coords;
+      const userLocation = [longitude, latitude];
+      console.log(`[Map ${instanceId}] Geolocation update:`, userLocation);
+      
+      // Update current location if it's different from the last known location
+      if (currentLocation && 
+          currentLocation[0] === userLocation[0] && 
+          currentLocation[1] === userLocation[1]) {
+        return; // Location hasn't changed
+      }
+      
+      // Call the onLocationUpdate callback if provided
+      if (onLocationUpdate) {
+        onLocationUpdate(userLocation);
+      }
+    });
+
+    geolocateControl.on('error', (error: GeolocationPositionError) => {
+      console.warn(`[Map ${instanceId}] Geolocation error:`, error);
+      if (onLocationError) {
+        onLocationError(error);
+      }
+    });
+
     // Use ResizeObserver to ensure the map resizes whenever the container size changes
     const resizeObserver = new ResizeObserver(() => {
       if (m) {
@@ -420,6 +482,7 @@ const Map: React.FC<MapProps> = ({
           'fill-color': '#000000',
           'fill-opacity': 0.4,
         },
+        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]],
       });
 
       // Single consolidated layer for all points
@@ -430,29 +493,44 @@ const Map: React.FC<MapProps> = ({
         paint: {
           'circle-radius': [
             'case',
+            ['==', ['get', 'is-poi-selection'], true], 12,
             ['==', ['get', 'is-current-location'], true], 8,
             ['==', ['get', 'is-reference-point'], true], 8,
             6
           ],
           'circle-color': [
             'case',
+            ['==', ['get', 'is-poi-selection'], true], '#4CAF50',
             ['==', ['get', 'is-current-location'], true], '#007cbf',
             ['==', ['get', 'is-reference-point'], true], '#FF5722',
             '#ff0000'
           ],
           'circle-stroke-width': [
             'case',
+            ['==', ['get', 'is-poi-selection'], true], 3,
             ['==', ['get', 'is-current-location'], true], 2,
             ['==', ['get', 'is-reference-point'], true], 2,
             0
           ],
           'circle-stroke-color': [
             'case',
+            ['==', ['get', 'is-poi-selection'], true], '#FFFFFF',
             ['==', ['get', 'is-current-location'], true], '#ffffff',
             ['==', ['get', 'is-reference-point'], true], '#ffffff',
             'transparent'
           ],
+          'circle-opacity': [
+            'case',
+            ['==', ['get', 'is-poi-selection'], true], 0.8,
+            1
+          ]
         },
+        filter: [
+          'all',
+          ['==', '$type', 'Point'],
+          ['!has', 'is-shading'],
+          ['!has', 'line-type']
+        ]
       });
     });
 
@@ -596,7 +674,19 @@ const Map: React.FC<MapProps> = ({
           onPointPOIInfoChange([...pointPOIInfoRef.current]);
         }
 
-        // POI selection confirmation removed for simplified 3-layer structure
+        // Update POI selection ref for visual confirmation
+        if (poiInfo) {
+          poiSelectionRef.current = {
+            point: newPoint,
+            info: {
+              name: poiInfo.name,
+              type: poiInfo.type,
+              properties: poiInfo.properties
+            }
+          };
+        } else {
+          poiSelectionRef.current = null;
+        }
       }
     });
 
@@ -622,53 +712,6 @@ const Map: React.FC<MapProps> = ({
       setHeading(null);
     }
   }, [points, action, setDistance, setHeading]);
-
-  const handleLocateUser = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by this browser.');
-      return;
-    }
-
-    // Request current position and zoom to it
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const userLocation = [longitude, latitude];
-
-        if (map.current) {
-          map.current.flyTo({
-            center: userLocation as [number, number],
-            zoom: 18,
-            essential: true,
-          });
-        }
-      },
-      (err) => {
-        console.warn('Geolocation request failed:', err);
-        let message = `Failed to get location: ${err.message}`;
-        if (err.code === err.PERMISSION_DENIED) {
-          message +=
-            '\n\nPlease enable location services for this site in your browser settings.';
-        } else if (err.code === err.TIMEOUT) {
-          message = 'Location request timed out. Please try again.';
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          message = 'Location information is unavailable.';
-        }
-        alert(message);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      },
-    );
-  };
-
-  useEffect(() => {
-    if (triggerLocateUser && triggerLocateUser > 0) {
-      handleLocateUser();
-    }
-  }, [triggerLocateUser]);
 
   return (
     <div

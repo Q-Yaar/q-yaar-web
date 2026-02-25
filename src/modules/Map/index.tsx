@@ -90,6 +90,25 @@ const MapPage: React.FC = () => {
     lastKnownLocation,
   );
 
+  // Handle location updates from GeolocateControl
+  const handleLocationUpdate = (location: number[]) => {
+    setCurrentLocation(location);
+    lastKnownLocation = location; // Update cache
+  };
+
+  const handleLocationError = (error: any) => {
+    console.warn('Geolocation error:', error);
+    let message = `Failed to get location: ${error.message || 'Unknown error'}`;
+    if (error.code === error.PERMISSION_DENIED) {
+      message += '\n\nPlease enable location services for this site in your browser settings.';
+    } else if (error.code === error.TIMEOUT) {
+      message = 'Location request timed out. Please try again.';
+    } else if (error.code === error.POSITION_UNAVAILABLE) {
+      message = 'Location information is unavailable.';
+    }
+    alert(message);
+  };
+
   // Get auth state to access current user information
   const authState = useSelector(selectAuthState);
   const currentUser = authState.authData?.user.data;
@@ -101,7 +120,6 @@ const MapPage: React.FC = () => {
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
-  const [triggerLocateUser, setTriggerLocateUser] = useState<number>(0);
 
   // Fetch facts from the server
   const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
@@ -177,38 +195,6 @@ const MapPage: React.FC = () => {
   useEffect(() => {
     setFilteredFacts(textFacts);
   }, [textFacts]);
-
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      console.warn('Geolocation is not supported by this browser.');
-      return;
-    }
-
-    const success = (position: GeolocationPosition) => {
-      const { latitude, longitude } = position.coords;
-      const newLoc = [longitude, latitude];
-      setCurrentLocation(newLoc);
-      lastKnownLocation = newLoc; // Update cache
-    };
-
-    const error = (err: GeolocationPositionError) => {
-      console.warn(`Geolocation error(${err.code}): ${err.message} `);
-    };
-
-    const options = {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000,
-    };
-
-    const watchId = navigator.geolocation.watchPosition(
-      success,
-      error,
-      options,
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
@@ -288,6 +274,8 @@ const MapPage: React.FC = () => {
         operations={operations}
         currentLocation={currentLocation}
         referencePoints={referencePoints}
+        onLocationUpdate={handleLocationUpdate}
+        onLocationError={handleLocationError}
       />
 
       {/* Bottom Sheet */}
@@ -447,34 +435,6 @@ const MapPage: React.FC = () => {
             backgroundColor: '#e0e0e0',
             margin: '0 8px'
           }} />
-
-          {/* Right Section: Locate User */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setTriggerLocateUser(prev => prev + 1);
-            }}
-            title="Find my location"
-            style={{
-              backgroundColor: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: '44px',
-              height: '44px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#007cbf',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <LocateFixed size={24} />
-          </button>
         </div>
 
         {/* Sheet Content */}
@@ -585,6 +545,8 @@ const MapPage: React.FC = () => {
             currentLocation={currentLocation}
             referencePoints={referencePoints}
             onPointPOIInfoChange={setPointPOIInfo}
+            onLocationUpdate={handleLocationUpdate}
+            onLocationError={handleLocationError}
           />
         </div>
       </div>
