@@ -406,44 +406,12 @@ const Map: React.FC<MapProps> = ({
         },
       });
 
-      // Layer for lines
-      m.addLayer({
-        id: 'measurement-line',
-        type: 'line',
-        source: 'measurement-source',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': [
-            'case',
-            ['==', ['get', 'line-type'], 'bisector'],
-            '#ff00ff',
-            ['==', ['get', 'is-selected-line'], true],
-            '#ff9800',
-            '#0000ff',
-          ],
-          'line-width': [
-            'case',
-            ['==', ['get', 'line-type'], 'bisector'],
-            2,
-            ['==', ['get', 'is-selected-line'], true],
-            6,
-            4,
-          ],
-          'line-dasharray': [
-            'case',
-            ['==', ['get', 'line-type'], 'bisector'],
-            ['literal', [2, 2]],
-            ['literal', [1, 0]],
-          ],
-        },
-        filter: ['==', '$type', 'LineString'],
-      });
-
-      // Layer for shading
-      // Layer for shading
+      // Simplified 3-layer structure:
+      // 1. Base map (provided by map style)
+      // 2. Area overlay for showing facts (shading-fill)
+      // 3. Points for selected points (all-points)
+      
+      // Layer for shading (area overlay for facts)
       m.addLayer({
         id: 'shading-fill',
         type: 'fill',
@@ -452,94 +420,38 @@ const Map: React.FC<MapProps> = ({
           'fill-color': '#000000',
           'fill-opacity': 0.4,
         },
-        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]],
       });
 
-      // Layer for current location (Add BEFORE points so points appear on top)
+      // Single consolidated layer for all points
       m.addLayer({
-        id: 'current-location-point',
+        id: 'all-points',
         type: 'circle',
         source: 'measurement-source',
         paint: {
-          'circle-radius': 8,
-          'circle-color': '#007cbf',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
-        },
-        filter: ['==', 'is-current-location', true],
-      });
-
-      // Add custom pin image
-      const pinSvg = `
-        <svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
-          <path d="M15 0C6.7 0 0 6.7 0 15c0 10 15 25 15 25s15-15 15-25c0-8.3-6.7-15-15-15z" fill="#FF5722" stroke="white" stroke-width="2"/>
-        </svg>
-      `;
-      const pinImage = new Image(30, 40);
-      pinImage.onload = () => {
-        if (!m.hasImage('custom-pin')) {
-          m.addImage('custom-pin', pinImage);
-        }
-      };
-      pinImage.src =
-        'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(pinSvg);
-
-      // Layer for reference points (Symbols)
-      m.addLayer({
-        id: 'reference-points-layer',
-        type: 'symbol',
-        source: 'measurement-source',
-        layout: {
-          'icon-image': 'custom-pin',
-          'icon-anchor': 'bottom',
-          'icon-size': 0.8,
-          'text-field': ['get', 'label'],
-          'text-font': ['Noto Sans Regular'],
-          'text-offset': [0, -1.2], // Adjust to center in the pin head
-          'text-anchor': 'bottom',
-          'text-size': 14,
-          'icon-allow-overlap': true,
-          'text-allow-overlap': true,
-        },
-        paint: {
-          'text-color': '#FFFFFF',
-        },
-        filter: ['==', 'is-reference-point', true],
-      });
-
-      // Layer for points
-      m.addLayer({
-        id: 'measurement-points',
-        type: 'circle',
-        source: 'measurement-source',
-        paint: {
-          'circle-radius': 6,
-          'circle-color': '#ff0000',
-        },
-        filter: [
-          'all',
-          ['==', '$type', 'Point'],
-          ['!has', 'is-current-location'],
-        ],
-      });
-
-      // Layer for POI selection confirmation (temporary)
-      m.addLayer({
-        id: 'poi-selection-marker',
-        type: 'circle',
-        source: {
-          type: 'geojson',
-          data: {
-            type: 'FeatureCollection',
-            features: [],
-          },
-        },
-        paint: {
-          'circle-radius': 10,
-          'circle-color': '#4CAF50',
-          'circle-stroke-width': 3,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-opacity': 0.8,
+          'circle-radius': [
+            'case',
+            ['==', ['get', 'is-current-location'], true], 8,
+            ['==', ['get', 'is-reference-point'], true], 8,
+            6
+          ],
+          'circle-color': [
+            'case',
+            ['==', ['get', 'is-current-location'], true], '#007cbf',
+            ['==', ['get', 'is-reference-point'], true], '#FF5722',
+            '#ff0000'
+          ],
+          'circle-stroke-width': [
+            'case',
+            ['==', ['get', 'is-current-location'], true], 2,
+            ['==', ['get', 'is-reference-point'], true], 2,
+            0
+          ],
+          'circle-stroke-color': [
+            'case',
+            ['==', ['get', 'is-current-location'], true], '#ffffff',
+            ['==', ['get', 'is-reference-point'], true], '#ffffff',
+            'transparent'
+          ],
         },
       });
     });
@@ -608,9 +520,7 @@ const Map: React.FC<MapProps> = ({
 
         // Check if we clicked on an existing measurement point
         const clickedOnMeasurementPoint = measurementFeatures.some(feature => 
-          feature.layer.id === 'measurement-points' ||
-          feature.layer.id === 'reference-points-layer' ||
-          feature.layer.id === 'current-location-point'
+          feature.layer.id === 'all-points'
         );
 
         if (clickedOnMeasurementPoint) {
@@ -686,32 +596,7 @@ const Map: React.FC<MapProps> = ({
           onPointPOIInfoChange([...pointPOIInfoRef.current]);
         }
 
-        // Show visual confirmation if POI was selected
-        if (poiInfo) {
-          // Add persistent POI marker (stays until new selection or reset)
-          const poiMarkerSource = m.getSource('poi-selection-marker') as maplibregl.GeoJSONSource;
-          poiMarkerSource.setData({
-            type: 'FeatureCollection',
-            features: [{
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: newPoint
-              },
-              properties: {
-                ...poiInfo,
-                selectedAt: new Date().toISOString()
-              }
-            }]
-          });
-        } else {
-          // If no POI selected, clear any existing POI marker
-          const poiMarkerSource = m.getSource('poi-selection-marker') as maplibregl.GeoJSONSource;
-          poiMarkerSource.setData({
-            type: 'FeatureCollection',
-            features: []
-          });
-        }
+        // POI selection confirmation removed for simplified 3-layer structure
       }
     });
 
