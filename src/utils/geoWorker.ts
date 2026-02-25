@@ -20,6 +20,12 @@ const globalWorld: Feature<Polygon> = {
     properties: {}
 };
 
+const calculateDistance = (p1: Feature<Point> | number[], p2: Feature<Point> | number[]): number => {
+    const from = Array.isArray(p1) ? point(p1) : p1;
+    const to = Array.isArray(p2) ? point(p2) : p2;
+    return distance(from, to, { units: 'kilometers' });
+};
+
 // Type definitions for Operation
 interface Operation {
     id: string;
@@ -400,5 +406,6 @@ expose({
     getPerpendicularBisectorLine,
     splitPolygonByTwoPoints,
     splitPolygonByLineDistance,
-    findContainingPolygon
+    findContainingPolygon,
+    calculateDistance
 });

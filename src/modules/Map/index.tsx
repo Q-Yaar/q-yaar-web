@@ -116,12 +116,12 @@ const MapPage: React.FC = () => {
   // Determine the team to use for loading facts (first non-user team)
   const getTargetTeamId = () => {
     if (!teamsData || teamsData.length === 0) return '';
-    
+
     // Find current user's team
-    const currentUserTeam = teamsData.find(team => 
+    const currentUserTeam = teamsData.find(team =>
       team.players.some(player => player.user_profile.email === currentUserEmail)
     );
-    
+
     // If we found the user's team, use the first team that isn't the user's team
     if (currentUserTeam) {
       const otherTeams = teamsData.filter(team => team.team_id !== currentUserTeam.team_id);
@@ -129,7 +129,7 @@ const MapPage: React.FC = () => {
         return otherTeams[0].team_id;
       }
     }
-    
+
     // If no other teams found, use the first team
     return teamsData[0].team_id;
   };
@@ -141,10 +141,10 @@ const MapPage: React.FC = () => {
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
 
   // Fetch teams for the game first
-  const { 
-    data: teamsData, 
-    isLoading: isTeamsLoading, 
-    error: teamsError 
+  const {
+    data: teamsData,
+    isLoading: isTeamsLoading,
+    error: teamsError
   } = useFetchTeamsQuery(gameId!, { skip: !gameId });
 
   // Determine target team ID for facts loading
@@ -179,7 +179,7 @@ const MapPage: React.FC = () => {
     ];
   }, [factsData?.results, localOperations]);
 
-  
+
   // Create fact mutation for saving drafts
   const [createFactMutation] = useCreateFactMutation();
 
@@ -297,6 +297,7 @@ const MapPage: React.FC = () => {
         operations={operations}
         currentLocation={currentLocation}
         referencePoints={referencePoints}
+        onPointPOIInfoChange={setPointPOIInfo}
         onLocationUpdate={handleLocationUpdate}
         onLocationError={handleLocationError}
       />
@@ -521,55 +522,6 @@ const MapPage: React.FC = () => {
             refetchFacts={refetchFacts}
             deleteFactMutation={deleteFactMutation}
             isLoadingFacts={isLoadingFacts}
-          />
-        </div>
-        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
-          {!isSidebarOpen && (
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                left: '10px',
-                zIndex: 1000,
-                backgroundColor: 'white',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                padding: '5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              }}
-              title={isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-            >
-              {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
-            </button>
-          )}
-          <Map
-            action={action}
-            points={points}
-            setPoints={setPoints}
-            setDistance={setDistance}
-            setHeading={setHeading}
-            radius={radius}
-            hiderLocation={hiderLocation}
-            playArea={playArea}
-            splitDirection={splitDirection}
-            preferredPoint={preferredPoint}
-            areaOpType={areaOpType}
-            uploadedAreaForOp={uploadedAreaForOp}
-            multiLineStringForOp={multiLineStringForOp}
-            closerFurther={closerFurther}
-            selectedLineIndex={selectedLineIndex}
-            polygonGeoJSONForOp={polygonGeoJSON}
-            operations={operations}
-            currentLocation={currentLocation}
-            referencePoints={referencePoints}
-            onPointPOIInfoChange={setPointPOIInfo}
-            onLocationUpdate={handleLocationUpdate}
-            onLocationError={handleLocationError}
           />
         </div>
       </div>
