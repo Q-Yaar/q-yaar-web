@@ -132,10 +132,28 @@ const Map: React.FC<MapProps> = ({
         (action === 'distance' || action === 'heading') &&
         points.length === 2
       ) {
+        const distanceKm = calculateDistance(points[0], points[1]);
+        const distanceMeters = Math.round(distanceKm * 1000);
+        
+        // Add the line
         geojson.features.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: points },
           properties: {},
+        });
+        
+        // Add a point at the midpoint for the distance label
+        const midpoint = [
+          (points[0][0] + points[1][0]) / 2,
+          (points[0][1] + points[1][1]) / 2
+        ];
+        geojson.features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: midpoint },
+          properties: {
+            'distance-text': `${distanceMeters} meters`,
+            'is-distance-label': true,
+          },
         });
       }
 
@@ -301,10 +319,30 @@ const Map: React.FC<MapProps> = ({
 
           // If hotter-colder, also show lines for the current operation
           if (action === 'hotter-colder' && points.length === 2) {
+            const distanceKm = calculateDistance(points[0], points[1]);
+            const distanceMeters = Math.round(distanceKm * 1000);
+            
+            // Add the line
             geojson.features.push({
               type: 'Feature',
               geometry: { type: 'LineString', coordinates: points },
-              properties: { 'line-type': 'p1-p2' },
+              properties: { 
+                'line-type': 'p1-p2',
+              },
+            });
+            
+            // Add a point at the midpoint for the distance label
+            const midpoint = [
+              (points[0][0] + points[1][0]) / 2,
+              (points[0][1] + points[1][1]) / 2
+            ];
+            geojson.features.push({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: midpoint },
+              properties: {
+                'distance-text': `${distanceMeters} meters`,
+                'is-distance-label': true,
+              },
             });
             const initialArea = computeHiderArea(playArea, []); // Base area for bisector calculation
             const bisectorLine = getPerpendicularBisectorLine(
@@ -485,6 +523,58 @@ const Map: React.FC<MapProps> = ({
         filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]],
       });
 
+      // Layer for lines (between points)
+      m.addLayer({
+        id: 'measurement-lines',
+        type: 'line',
+        source: 'measurement-source',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'], '#ff00ff',
+            '#0000ff'
+          ],
+          'line-width': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'], 2,
+            4
+          ],
+          'line-dasharray': [
+            'case',
+            ['==', ['get', 'line-type'], 'bisector'], ['literal', [2, 2]],
+            ['literal', [1, 0]]
+          ],
+        },
+        filter: ['==', '$type', 'LineString']
+      });
+
+      // Layer for distance labels on lines
+      m.addLayer({
+        id: 'distance-labels',
+        type: 'symbol',
+        source: 'measurement-source',
+        layout: {
+          'text-field': ['get', 'distance-text'],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 14,
+          'text-offset': [0, 1.5],
+          'text-anchor': 'center',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#000000',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 1,
+        },
+        filter: ['all', ['==', '$type', 'Point'], ['has', 'distance-text'], ['==', 'is-distance-label', true]]
+      });
+
       // Single consolidated layer for all points
       m.addLayer({
         id: 'all-points',
@@ -529,7 +619,7 @@ const Map: React.FC<MapProps> = ({
           'all',
           ['==', '$type', 'Point'],
           ['!has', 'is-shading'],
-          ['!has', 'line-type']
+          ['!has', 'is-distance-label']
         ]
       });
     });
