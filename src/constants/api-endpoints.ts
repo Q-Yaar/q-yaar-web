@@ -1,4 +1,4 @@
-export const BASE_URL = 'https://game.moneydew.in';
+export const BASE_URL = process.env.API_BASE_URL;
 
 export const AUTH_LOGIN_API = 'api/v1/auth/login';
 export const AUTH_SIGNUP_API = 'api/v1/auth/signup';
