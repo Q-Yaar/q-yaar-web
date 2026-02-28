@@ -12,7 +12,6 @@ import { Card, CardContent } from './ui/card';
 import { Modal } from './ui/modal';
 import {
   TeamFilterDropdown,
-  CategoryToolSection,
   LocationControls,
   ToolConfigurationForms,
   DraftOperationsList,
@@ -191,7 +190,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   deleteFactMutation = null,
   isLoadingFacts = false
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [textFactContent, setTextFactContent] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -244,17 +242,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       fetchGeoJSON(OPERATION_ASSETS['play-area'][0].path, setPlayArea);
     }
   }, [playArea, setPlayArea]);
-
-  const handleCategoryChange = (
-    event: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
-    const category = event.target.value;
-    setSelectedCategory(category);
-    setSelectedOption('');
-    onSelectOption('');
-    setPoints([]);
-    setTextFactContent('');
-  };
 
   const handleOptionChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const value = event.target.value;
@@ -383,13 +370,26 @@ const Sidebar: React.FC<SidebarProps> = ({
         error={teamsError}
       />
 
-      {/* Category and Tool Selection */}
-      <CategoryToolSection
-        selectedCategory={selectedCategory}
-        selectedOption={selectedOption}
-        handleCategoryChange={handleCategoryChange}
-        handleOptionChange={handleOptionChange}
-      />
+      {/* Tool Selection */}
+      <section className="flex flex-col space-y-2 mt-4">
+        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider text-left">Tool</Label>
+        <select
+          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          value={selectedOption}
+          onChange={handleOptionChange}
+        >
+          <option value="">Select Tool</option>
+          <option value="text">Text Fact</option>
+          <option value="distance">Distance Measurement</option>
+          <option value="heading">Relative Heading</option>
+          <option value="draw-circle">Draw Circle</option>
+          <option value="split-by-direction">Split by Direction</option>
+          <option value="hotter-colder">Hotter / Colder</option>
+          <option value="polygon-location">Polygon Location</option>
+          <option value="areas">Area Operations</option>
+          <option value="closer-to-line">Distance from Metro Line</option>
+        </select>
+      </section>
 
       {selectedOption && (
         <div className="tool-details">
@@ -432,23 +432,21 @@ const Sidebar: React.FC<SidebarProps> = ({
             fetchGeoJSON={fetchGeoJSON}
           />
 
-          {selectedCategory === 'facts' && (
-            <Button
-              variant="default"
-              className="w-full mt-4"
-              onClick={handleSaveOperation}
-              disabled={
-                !selectedOption ||
-                (selectedOption === 'areas' && !uploadedAreaForOp) ||
-                (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) ||
-                (selectedOption === 'polygon-location' && (!polygonGeoJSONForOp || points.length === 0)) ||
-                (['draw-circle', 'split-by-direction', 'hotter-colder'].includes(selectedOption) && points.length === 0) ||
-                (selectedOption === 'text' && !textFactContent.trim())
-              }
-            >
-              {selectedOption === 'text' ? 'Save Text Fact' : 'Save as Draft'}
-            </Button>
-          )}
+          <Button
+            variant="default"
+            className="w-full mt-4"
+            onClick={handleSaveOperation}
+            disabled={
+              !selectedOption ||
+              (selectedOption === 'areas' && !uploadedAreaForOp) ||
+              (selectedOption === 'closer-to-line' && (!multiLineStringForOp || points.length === 0)) ||
+              (selectedOption === 'polygon-location' && (!polygonGeoJSONForOp || points.length === 0)) ||
+              (['draw-circle', 'split-by-direction', 'hotter-colder'].includes(selectedOption) && points.length === 0) ||
+              (selectedOption === 'text' && !textFactContent.trim())
+            }
+          >
+            {selectedOption === 'text' ? 'Save Text Fact' : 'Save as Draft'}
+          </Button>
         </div>
       )
       }

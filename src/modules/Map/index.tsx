@@ -83,58 +83,118 @@ const MapPage: React.FC = () => {
   );
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
   const [polygonGeoJSON, setPolygonGeoJSON] = useState<any>(null);
-  const [localOperations, setLocalOperations] = useState<Operation[]>([]);
 
   // Initialize with cached location if available
   const [currentLocation, setCurrentLocation] = useState<number[] | null>(
     lastKnownLocation,
   );
 
+  // Handle location updates from GeolocateControl
+  const handleLocationUpdate = (location: number[]) => {
+    setCurrentLocation(location);
+    lastKnownLocation = location; // Update cache
+  };
+
+  const handleLocationError = (error: any) => {
+    console.warn('Geolocation error:', error);
+    let message = `Failed to get location: ${error.message || 'Unknown error'}`;
+    if (error.code === error.PERMISSION_DENIED) {
+      message += '\n\nPlease enable location services for this site in your browser settings.';
+    } else if (error.code === error.TIMEOUT) {
+      message = 'Location request timed out. Please try again.';
+    } else if (error.code === error.POSITION_UNAVAILABLE) {
+      message = 'Location information is unavailable.';
+    }
+    alert(message);
+  };
+
   // Get auth state to access current user information
   const authState = useSelector(selectAuthState);
   const currentUser = authState.authData?.user.data;
   const currentUserEmail = currentUser?.email || 'Unknown Player';
 
+  // Determine the team to use for loading facts (first non-user team)
+  const getTargetTeamId = () => {
+    if (!teamsData || teamsData.length === 0) return '';
+
+    // Find current user's team
+    const currentUserTeam = teamsData.find(team =>
+      team.players.some(player => player.user_profile.email === currentUserEmail)
+    );
+
+    // If we found the user's team, use the first team that isn't the user's team
+    if (currentUserTeam) {
+      const otherTeams = teamsData.filter(team => team.team_id !== currentUserTeam.team_id);
+      if (otherTeams.length > 0) {
+        return otherTeams[0].team_id;
+      }
+    }
+
+    // If no other teams found, use the first team
+    return teamsData[0].team_id;
+  };
+
   // Separate GEO facts (operations) from TEXT facts
-  const [operations, setOperations] = useState<Operation[]>([]);
-  const [serverOperations, setServerOperations] = useState<Operation[]>([]);
+  const [localOperations, setLocalOperations] = useState<Operation[]>([]);
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
-  const [triggerLocateUser, setTriggerLocateUser] = useState<number>(0);
 
-  // Fetch facts from the server
-  const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
-    { game_id: gameId!, team_id: selectedTeamFilter },
-    { skip: !gameId || !selectedTeamFilter },
-  );
-
-  // Fetch teams for the game
-  const { 
-    data: teamsData, 
-    isLoading: isTeamsLoading, 
-    error: teamsError 
+  // Fetch teams for the game first
+  const {
+    data: teamsData,
+    isLoading: isTeamsLoading,
+    error: teamsError
   } = useFetchTeamsQuery(gameId!, { skip: !gameId });
 
+  // Determine target team ID for facts loading
+  const targetTeamId = getTargetTeamId();
 
-  
+  // Determine effective team ID (use selected team filter if available, otherwise use auto-detected target)
+  const effectiveTeamId = selectedTeamFilter || targetTeamId;
+
+  // Fetch facts from the server - load immediately when we have a target team
+  const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
+    { game_id: gameId!, team_id: effectiveTeamId },
+    { skip: !gameId || !effectiveTeamId },
+  );
+
+  // Combine server operations with local operations for the map
+  const operations = React.useMemo(() => {
+    if (!factsData?.results) {
+      return localOperations;
+    }
+
+    const serverOperations = factsData.results
+      .filter((fact) => fact.fact_type === 'GEO')
+      .map((fact) => convertBackendFactToOperation(fact))
+      .filter((op): op is Operation => op !== null);
+
+    // Merge server operations with local operations, ensuring no duplicates
+    return [
+      ...serverOperations,
+      ...localOperations.filter(
+        (localOp) => !serverOperations.some((serverOp) => serverOp.id === localOp.id)
+      ),
+    ];
+  }, [factsData?.results, localOperations]);
+
+
   // Create fact mutation for saving drafts
   const [createFactMutation] = useCreateFactMutation();
 
   // Delete fact mutation
   const [deleteFactMutation] = useDeleteFactMutation();
 
-  // Set initial team filter when teamsData is available
+  // Set initial team filter when target team is available
   useEffect(() => {
-    if (teamsData && teamsData.length > 0) {
-      setSelectedTeamFilter(teamsData[0].team_id);
+    if (targetTeamId) {
+      setSelectedTeamFilter(targetTeamId);
     }
-  }, [teamsData]);
+  }, [targetTeamId]);
 
   useEffect(() => {
     if (factsData?.results) {
-      console.log('All received facts:', factsData.results);
-
       const serverOperations = factsData.results
         .filter((fact) => fact.fact_type === 'GEO')
         .map((fact) => convertBackendFactToOperation(fact))
@@ -144,71 +204,20 @@ const MapPage: React.FC = () => {
         (fact) => fact.fact_type === 'TEXT',
       );
 
-      console.log('GEO facts (operations):', serverOperations);
-      console.log('TEXT facts:', serverTextFacts);
-
-      // Store server operations for draft detection
-      setServerOperations(serverOperations);
       setTextFacts(serverTextFacts);
     } else {
-      setServerOperations([]);
       setTextFacts([]);
     }
-  }, [factsData]);  // Only depend on factsData, not localOperations
+  }, [factsData]);
 
-  // Handle local operations merging separately
+  // Include all facts (both TEXT and GEO) in filteredFacts for display count
   useEffect(() => {
-    if (serverOperations.length > 0) {
-      // Merge server operations with local operations
-      const mergedOps = [
-        ...serverOperations,
-        ...localOperations.filter(
-          (localOp) =>
-            !serverOperations.some((serverOp) => serverOp.id === localOp.id),
-        ),
-      ];
-      setOperations(mergedOps);
+    if (factsData?.results) {
+      setFilteredFacts(factsData.results);
     } else {
-      setOperations(localOperations);
+      setFilteredFacts([]);
     }
-  }, [localOperations, serverOperations]);  // Only run when these specific dependencies change
-
-  // Since we're now filtering on the server side, filteredFacts = textFacts
-  useEffect(() => {
-    setFilteredFacts(textFacts);
-  }, [textFacts]);
-
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      console.warn('Geolocation is not supported by this browser.');
-      return;
-    }
-
-    const success = (position: GeolocationPosition) => {
-      const { latitude, longitude } = position.coords;
-      const newLoc = [longitude, latitude];
-      setCurrentLocation(newLoc);
-      lastKnownLocation = newLoc; // Update cache
-    };
-
-    const error = (err: GeolocationPositionError) => {
-      console.warn(`Geolocation error(${err.code}): ${err.message} `);
-    };
-
-    const options = {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000,
-    };
-
-    const watchId = navigator.geolocation.watchPosition(
-      success,
-      error,
-      options,
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  }, [factsData]);
 
   const fetchGeoJSON = async (path: string, setter: (data: any) => void) => {
     try {
@@ -288,6 +297,9 @@ const MapPage: React.FC = () => {
         operations={operations}
         currentLocation={currentLocation}
         referencePoints={referencePoints}
+        onPointPOIInfoChange={setPointPOIInfo}
+        onLocationUpdate={handleLocationUpdate}
+        onLocationError={handleLocationError}
       />
 
       {/* Bottom Sheet */}
@@ -447,34 +459,6 @@ const MapPage: React.FC = () => {
             backgroundColor: '#e0e0e0',
             margin: '0 8px'
           }} />
-
-          {/* Right Section: Locate User */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setTriggerLocateUser(prev => prev + 1);
-            }}
-            title="Find my location"
-            style={{
-              backgroundColor: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: '44px',
-              height: '44px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#007cbf',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <LocateFixed size={24} />
-          </button>
         </div>
 
         {/* Sheet Content */}
@@ -533,58 +517,11 @@ const MapPage: React.FC = () => {
             teamsData={teamsData}
             isTeamsLoading={isTeamsLoading}
             teamsError={teamsError}
-            serverOperations={serverOperations}
+            serverOperations={operations}
             createFactMutation={createFactMutation}
             refetchFacts={refetchFacts}
             deleteFactMutation={deleteFactMutation}
             isLoadingFacts={isLoadingFacts}
-          />
-        </div>
-        <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
-          {!isSidebarOpen && (
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                left: '10px',
-                zIndex: 1000,
-                backgroundColor: 'white',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                padding: '5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              }}
-              title={isSidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-            >
-              {isSidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
-            </button>
-          )}
-          <Map
-            action={action}
-            points={points}
-            setPoints={setPoints}
-            setDistance={setDistance}
-            setHeading={setHeading}
-            radius={radius}
-            hiderLocation={hiderLocation}
-            playArea={playArea}
-            splitDirection={splitDirection}
-            preferredPoint={preferredPoint}
-            areaOpType={areaOpType}
-            uploadedAreaForOp={uploadedAreaForOp}
-            multiLineStringForOp={multiLineStringForOp}
-            closerFurther={closerFurther}
-            selectedLineIndex={selectedLineIndex}
-            polygonGeoJSONForOp={polygonGeoJSON}
-            operations={operations}
-            currentLocation={currentLocation}
-            referencePoints={referencePoints}
-            onPointPOIInfoChange={setPointPOIInfo}
           />
         </div>
       </div>
