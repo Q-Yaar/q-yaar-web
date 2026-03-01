@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../../components/ui/header';
 import { useNavigate } from 'react-router-dom';
-import { Radio, Shield, Info, QrCode } from 'lucide-react';
+import { Radio, Shield, Info, QrCode, Copy, Check } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import {
     Card,
@@ -115,6 +115,7 @@ export function LocationSettings() {
         useResetLocationSettingsMutation();
 
     const [isEnabled, setIsEnabled] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (settings) {
@@ -276,6 +277,23 @@ export function LocationSettings() {
                                 <p className="text-xs text-gray-400 italic">
                                     Verify that this code matches the one shown in the mobile app. Do not share this code with other teams.
                                 </p>
+                                {/* Copy Server URL */}
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(qrData);
+                                        setCopied(true);
+                                        setTimeout(() => setCopied(false), 2000);
+                                    }}
+                                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+                                    title="Copy server URL for manual configuration"
+                                >
+                                    {copied ? (
+                                        <Check className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                        <Copy className="w-3 h-3" />
+                                    )}
+                                    <span className="truncate max-w-[200px]">{copied ? 'Copied!' : qrData}</span>
+                                </button>
                             </div>
                         </CardContent>
                     </Card>
