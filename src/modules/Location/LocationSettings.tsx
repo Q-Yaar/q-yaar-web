@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../../components/ui/header';
 import { useNavigate } from 'react-router-dom';
-import { Radio, Shield, Info } from 'lucide-react';
+import { Radio, Shield, Info, QrCode } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import {
     Card,
@@ -21,14 +21,43 @@ import { BASE_URL, LOCATION_TRACCAR_API } from 'constants/api-endpoints';
 const QR_API_BASE = 'https://api.qrserver.com/v1/create-qr-code/';
 const TRACCAR_SERVER_URL = BASE_URL + LOCATION_TRACCAR_API;
 
+const APP_STORE_URL = 'https://apps.apple.com/in/app/traccar-client/id843156974';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=org.traccar.client&hl=en_IN';
+
 const SETUP_STEPS = [
     {
         step: 1,
         text: (
-            <>
-                Download the <strong>Gaming Tracker</strong> app from the Play Store or
-                App Store.
-            </>
+            <div className="space-y-2">
+                <span>
+                    Download the <strong>Traccar Client</strong> app from the Play Store or
+                    App Store.
+                </span>
+                <div className="flex flex-wrap gap-2 pt-1">
+                    <a
+                        href={PLAY_STORE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-md transition-colors no-underline"
+                    >
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 0 1-.61-.92V2.734a1 1 0 0 1 .609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-1.2l2.585 1.493a1 1 0 0 1 0 1.732l-2.586 1.493-2.537-2.537 2.538-2.18zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z" />
+                        </svg>
+                        Play Store
+                    </a>
+                    <a
+                        href={APP_STORE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-md transition-colors no-underline"
+                    >
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                        </svg>
+                        App Store
+                    </a>
+                </div>
+            </div>
         ),
     },
     {
@@ -44,16 +73,12 @@ const SETUP_STEPS = [
     {
         step: 3,
         text: (
-            <>
+            <span className="inline-flex items-center flex-wrap gap-1">
                 Tap the{' '}
-                <span className="font-semibold">
-                    <span role="img" aria-label="qr">
-                        📱
-                    </span>{' '}
-                    QR Code icon
-                </span>{' '}
+                <QrCode className="w-4 h-4" />
+                <strong>QR Code icon</strong>{' '}
                 in the top right corner.
-            </>
+            </span>
         ),
     },
     {
@@ -242,7 +267,7 @@ export function LocationSettings() {
                                     Device Identifier
                                 </p>
                                 <div className="bg-orange-50 border-2 border-orange-200 rounded-lg py-3 px-6">
-                                    <span className="text-2xl font-mono font-bold text-orange-500 tracking-[0.25em]">
+                                    <span className="text-2xl font-mono font-bold text-orange-500 tracking-[0.5em]">
                                         {trackingCode
                                             ? trackingCode
                                             : '------'}
