@@ -469,14 +469,6 @@ const MapPage: React.FC = () => {
               {isBottomSheetOpen ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
             </div>
           </div>
-
-          {/* Divider */}
-          <div style={{
-            width: '1px',
-            height: '32px',
-            backgroundColor: '#e0e0e0',
-            margin: '0 8px'
-          }} />
         </div>
 
         {/* Sheet Content */}
