@@ -156,7 +156,7 @@ export function LocationSettings() {
 
     const { data: lastLocations, isLoading: isLocationLoading } = useGetLastLocationQuery(
         { player_ids: playerId ? [playerId] : [] },
-        { skip: !playerId },
+        { skip: !playerId, pollingInterval: 30000 },
     );
 
     useEffect(() => {
