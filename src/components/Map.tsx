@@ -414,7 +414,7 @@ const Map: React.FC<MapProps> = ({
       container: container,
       style: `https://tiles.openfreemap.org/styles/liberty`,
       center: [77.591, 12.979],
-      zoom: 14,
+      zoom: 10,
     });
 
     map.current = m;
