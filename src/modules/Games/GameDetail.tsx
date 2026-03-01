@@ -10,7 +10,7 @@ import {
 import { useFetchMyTeamQuery } from '../../apis/gameApi';
 import { Header } from '../../components/ui/header';
 import { ModulesSection, GameModule } from './ModulesSection';
-import { TeamSection } from './TeamSection';
+import { LocationCard } from './LocationCard';
 import { TeamModal } from './TeamModal';
 import { useState } from 'react';
 import { useFetchTeamsQuery, useFetchGameDetailsQuery } from '../../apis/gameApi';
@@ -122,12 +122,17 @@ export default function GameDetail() {
         currentTeam={team || null}
       />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <ModulesSection
-          modules={modules}
-          gameId={gameId || '123'}
-          teamId={team?.team_id || '123'}
-        />
+        <LocationCard gameId={gameId || '123'} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <ModulesSection
+            modules={modules}
+            gameId={gameId || '123'}
+            teamId={team?.team_id || '123'}
+          />
+          
+        </div>
       </div>
     </div>
   );
 }
+
