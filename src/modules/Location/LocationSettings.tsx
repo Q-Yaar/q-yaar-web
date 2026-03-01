@@ -189,7 +189,18 @@ export function LocationSettings() {
         );
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-12">
+        <div className="min-h-screen bg-gray-50 pb-12 relative">
+            {/* Loading Overlay for mutations */}
+            {(isUpdating || isResetting) && (
+                <div className="fixed inset-0 bg-white/60 z-50 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
+                        <p className="text-gray-500 text-sm">
+                            {isResetting ? 'Resetting settings...' : 'Updating settings...'}
+                        </p>
+                    </div>
+                </div>
+            )}
             {/* Header */}
             <Header
                 title="Location Sharing Settings"
@@ -314,7 +325,7 @@ export function LocationSettings() {
                                     </div>
                                     <div className="text-sm text-gray-700 leading-relaxed pt-1 text-left">
                                         {text}
-                                        {hasAction && (
+                                        {hasAction && trackingCode && (
                                             <button
                                                 onClick={() => {
                                                     navigator.clipboard.writeText(qrData);
