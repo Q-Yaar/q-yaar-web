@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Heading, Operation } from '../utils/geoTypes';
+import { LocationPing } from '../models/Location';
+import { formatLastSeen } from '../utils/formatTime';
 import {
   applySingleOperation,
   calculateDistance,
@@ -34,6 +36,7 @@ interface MapProps {
   operations: Operation[];
   currentLocation?: number[] | null;
   referencePoints?: number[][];
+  playerLocations?: LocationPing[];
   onLocationUpdate?: (location: number[]) => void;
   onLocationError?: (error: any) => void;
   onPointPOIInfoChange?: (poiInfo: Array<{
@@ -68,6 +71,7 @@ const Map: React.FC<MapProps> = ({
   operations,
   currentLocation,
   referencePoints = [],
+  playerLocations,
   onLocationUpdate,
   onLocationError,
   onPointPOIInfoChange,
@@ -232,6 +236,25 @@ const Map: React.FC<MapProps> = ({
         });
       }
 
+      // Add player last-location markers
+      if (playerLocations && playerLocations.length > 0) {
+        playerLocations.forEach((loc) => {
+          const lon = parseFloat(loc.lon);
+          const lat = parseFloat(loc.lat);
+          if (!isNaN(lon) && !isNaN(lat)) {
+            geojson.features.push({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [lon, lat] },
+              properties: {
+                'is-player-location': true,
+                'player-name': loc.player_name || 'Unknown',
+                'last-seen': formatLastSeen(loc.timestamp),
+              },
+            });
+          }
+        });
+      }
+
       if (poiSelectionRef.current?.point) {
         geojson.features.push({
           type: 'Feature', geometry: { type: 'Point', coordinates: poiSelectionRef.current.point },
@@ -365,6 +388,24 @@ const Map: React.FC<MapProps> = ({
                 });
               });
             }
+            // Re-add player location markers after async computation
+            if (playerLocations && playerLocations.length > 0) {
+              playerLocations.forEach((loc) => {
+                const lon = parseFloat(loc.lon);
+                const lat = parseFloat(loc.lat);
+                if (!isNaN(lon) && !isNaN(lat)) {
+                  geojson.features.push({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [lon, lat] },
+                    properties: {
+                      'is-player-location': true,
+                      'player-name': loc.player_name || 'Unknown',
+                      'last-seen': formatLastSeen(loc.timestamp),
+                    },
+                  });
+                }
+              });
+            }
             if (poiSelectionRef.current?.point) {
               geojson.features.push({
                 type: 'Feature', geometry: { type: 'Point', coordinates: poiSelectionRef.current.point },
@@ -400,6 +441,7 @@ const Map: React.FC<MapProps> = ({
     operations,
     currentLocation,
     referencePoints,
+    playerLocations,
     isMapReady,
   ]);
 
@@ -414,7 +456,7 @@ const Map: React.FC<MapProps> = ({
       container: container,
       style: `https://tiles.openfreemap.org/styles/liberty`,
       center: [77.591, 12.979],
-      zoom: 14,
+      zoom: 10,
     });
 
     map.current = m;
@@ -566,6 +608,7 @@ const Map: React.FC<MapProps> = ({
             ['==', ['get', 'is-poi-selection'], true], 12,
             ['==', ['get', 'is-current-location'], true], 8,
             ['==', ['get', 'is-reference-point'], true], 8,
+            ['==', ['get', 'is-player-location'], true], 8,
             6
           ],
           'circle-color': [
@@ -573,6 +616,7 @@ const Map: React.FC<MapProps> = ({
             ['==', ['get', 'is-poi-selection'], true], '#4CAF50',
             ['==', ['get', 'is-current-location'], true], '#007cbf',
             ['==', ['get', 'is-reference-point'], true], '#FF5722',
+            ['==', ['get', 'is-player-location'], true], '#009688',
             '#ff0000'
           ],
           'circle-stroke-width': [
@@ -580,6 +624,7 @@ const Map: React.FC<MapProps> = ({
             ['==', ['get', 'is-poi-selection'], true], 3,
             ['==', ['get', 'is-current-location'], true], 2,
             ['==', ['get', 'is-reference-point'], true], 2,
+            ['==', ['get', 'is-player-location'], true], 2,
             0
           ],
           'circle-stroke-color': [
@@ -587,6 +632,7 @@ const Map: React.FC<MapProps> = ({
             ['==', ['get', 'is-poi-selection'], true], '#FFFFFF',
             ['==', ['get', 'is-current-location'], true], '#ffffff',
             ['==', ['get', 'is-reference-point'], true], '#ffffff',
+            ['==', ['get', 'is-player-location'], true], '#ffffff',
             'transparent'
           ],
           'circle-opacity': [
@@ -601,6 +647,29 @@ const Map: React.FC<MapProps> = ({
           ['!has', 'is-shading'],
           ['!has', 'is-distance-label']
         ]
+      });
+
+      // Player location labels (name + last seen)
+      m.addLayer({
+        id: 'player-location-labels',
+        type: 'symbol',
+        source: 'measurement-source',
+        layout: {
+          'text-field': ['concat', ['get', 'player-name'], '\n', ['get', 'last-seen']],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 12,
+          'text-offset': [0, 2],
+          'text-anchor': 'top',
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
+        },
+        paint: {
+          'text-color': '#009688',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 2,
+          'text-halo-blur': 0.5,
+        },
+        filter: ['all', ['==', '$type', 'Point'], ['==', 'is-player-location', true]]
       });
     });
 

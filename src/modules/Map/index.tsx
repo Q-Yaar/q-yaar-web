@@ -7,6 +7,7 @@ import { LocateFixed, Menu, ChevronUp, ChevronDown, ChevronLeft, Layers, Check }
 import { Button } from '../../components/ui/button';
 import { useGetFactsQuery, useCreateFactMutation, useDeleteFactMutation } from '../../apis/api';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
+import { useGetLastLocationQuery } from '../../apis/locationApi';
 import { useSelector } from 'react-redux';
 import { selectAuthState } from '../../redux/auth-reducer';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
@@ -153,6 +154,22 @@ const MapPage: React.FC = () => {
   // Determine effective team ID (use selected team filter if available, otherwise use auto-detected target)
   const effectiveTeamId = selectedTeamFilter || targetTeamId;
 
+  // Get player IDs for the selected team to fetch their last locations
+  const selectedTeamPlayerIds = React.useMemo(() => {
+    if (!teamsData || !effectiveTeamId) return [];
+    const team = teamsData.find(t => t.team_id === effectiveTeamId);
+    if (!team) return [];
+    return team.players
+      .map(p => p.user_profile.user_id)
+      .filter(Boolean);
+  }, [teamsData, effectiveTeamId]);
+
+  // Fetch last locations for selected team's players
+  const { data: playerLocations } = useGetLastLocationQuery(
+    { player_ids: selectedTeamPlayerIds },
+    { skip: selectedTeamPlayerIds.length === 0, pollingInterval: 30000 },
+  );
+
   // Fetch facts from the server - load immediately when we have a target team
   const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
     { game_id: gameId!, team_id: effectiveTeamId },
@@ -297,6 +314,7 @@ const MapPage: React.FC = () => {
         operations={operations}
         currentLocation={currentLocation}
         referencePoints={referencePoints}
+        playerLocations={playerLocations}
         onPointPOIInfoChange={setPointPOIInfo}
         onLocationUpdate={handleLocationUpdate}
         onLocationError={handleLocationError}
