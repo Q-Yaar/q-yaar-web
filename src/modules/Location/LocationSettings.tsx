@@ -87,6 +87,23 @@ const SETUP_STEPS = [
     },
     {
         step: 5,
+        hasAction: true,
+        text: (
+            <>
+                Alternatively, you can enter the Server URL manually in the app.
+            </>
+        ),
+    },
+    {
+        step: 6,
+        text: (
+            <>
+                Verify that the <strong>Device Identifier</strong> shown in the app matches the one displayed on this screen.
+            </>
+        ),
+    },
+    {
+        step: 7,
         text: (
             <>
                 Turn on{' '}
@@ -277,23 +294,7 @@ export function LocationSettings() {
                                 <p className="text-xs text-gray-400 italic">
                                     Verify that this code matches the one shown in the mobile app. Do not share this code with other teams.
                                 </p>
-                                {/* Copy Server URL */}
-                                <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(qrData);
-                                        setCopied(true);
-                                        setTimeout(() => setCopied(false), 2000);
-                                    }}
-                                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
-                                    title="Copy server URL for manual configuration"
-                                >
-                                    {copied ? (
-                                        <Check className="w-3 h-3 text-emerald-500" />
-                                    ) : (
-                                        <Copy className="w-3 h-3" />
-                                    )}
-                                    <span className="truncate max-w-[200px]">{copied ? 'Copied!' : qrData}</span>
-                                </button>
+
                             </div>
                         </CardContent>
                     </Card>
@@ -306,14 +307,31 @@ export function LocationSettings() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {SETUP_STEPS.map(({ step, text }) => (
+                            {SETUP_STEPS.map(({ step, text, hasAction }: any) => (
                                 <div key={step} className="flex items-start gap-3">
                                     <div className="w-7 h-7 rounded-full bg-orange-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
                                         {step}
                                     </div>
-                                    <p className="text-sm text-gray-700 leading-relaxed pt-1 text-left">
+                                    <div className="text-sm text-gray-700 leading-relaxed pt-1 text-left">
                                         {text}
-                                    </p>
+                                        {hasAction && (
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(qrData);
+                                                    setCopied(true);
+                                                    setTimeout(() => setCopied(false), 2000);
+                                                }}
+                                                className="mt-1.5 flex items-center gap-1 text-xs font-medium text-orange-500 hover:text-orange-700 transition-colors"
+                                            >
+                                                {copied ? (
+                                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                                ) : (
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                )}
+                                                {copied ? 'Copied!' : 'Copy Server URL'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
 
