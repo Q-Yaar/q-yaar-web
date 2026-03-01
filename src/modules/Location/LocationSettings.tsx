@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../../components/ui/header';
 import { useNavigate } from 'react-router-dom';
-import { Radio, Shield, Info, QrCode, Copy, Check } from 'lucide-react';
+import { Radio, Shield, Info, QrCode, Copy, Check, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import {
     Card,
@@ -34,7 +34,7 @@ const SETUP_STEPS = [
         text: (
             <div className="space-y-2">
                 <span>
-                    Download the <strong>Traccar Client</strong> app from the Play Store or
+                    Download the <strong className="text-orange-500 font-semibold">Traccar Client</strong> app from the Play Store or
                     App Store.
                 </span>
                 <div className="flex flex-wrap gap-2 pt-1">
@@ -79,8 +79,8 @@ const SETUP_STEPS = [
         text: (
             <span className="inline-flex items-center flex-wrap gap-1">
                 Tap the{' '}
-                <QrCode className="w-4 h-4" />
-                <strong>QR Code icon</strong>{' '}
+                <QrCode className="w-4 h-4 text-orange-500" />
+                <strong className="text-orange-500 font-semibold">QR Code icon</strong>{' '}
                 in the top right corner.
             </span>
         ),
@@ -102,7 +102,7 @@ const SETUP_STEPS = [
         step: 6,
         text: (
             <>
-                Verify that the <strong>Device Identifier</strong> shown in the app matches the one displayed on this screen.
+                Verify that the <strong className="text-orange-500 font-semibold">Device Identifier</strong> shown in the app matches the one displayed on this screen.
             </>
         ),
     },
@@ -167,7 +167,7 @@ export function LocationSettings() {
     const handleReset = async () => {
         if (
             !window.confirm(
-                'Are you sure you want to reset location settings? This will clear the tracking code.',
+                'Are you sure you want to reset location settings? This will clear the tracking code and you will need to set up the app again.',
             )
         )
             return;
@@ -175,14 +175,6 @@ export function LocationSettings() {
             await resetSettings().unwrap();
         } catch (error) {
             console.error('Failed to reset location settings:', error);
-        }
-    };
-
-    const handleSave = async () => {
-        try {
-            await updateSettings({ is_sharing_enabled: isEnabled }).unwrap();
-        } catch (error) {
-            console.error('Failed to save location settings:', error);
         }
     };
 
@@ -225,9 +217,12 @@ export function LocationSettings() {
                         variant="outline"
                         onClick={handleReset}
                         disabled={isResetting}
-                        className="w-full sm:w-auto px-8 py-2.5 border-gray-300 text-gray-700 hover:bg-gray-100 font-medium"
+                        className="p-2.5 sm:px-8 sm:py-2.5 border-gray-300 text-gray-700 hover:bg-gray-100 font-medium"
                     >
-                        {isResetting ? 'Resetting...' : 'Reset Settings'}
+                        <RotateCcw className={`w-4 h-4 ${isResetting ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline ml-2">
+                            {isResetting ? 'Resetting...' : 'Reset Settings'}
+                        </span>
                     </Button>
                 }
             />
@@ -245,7 +240,7 @@ export function LocationSettings() {
                                     <h3 className="font-semibold text-gray-900 text-left">
                                         Location Sharing
                                     </h3>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-sm text-gray-500 text-left">
                                         Enable or disable real-time location tracking for this
                                         device.
                                     </p>
