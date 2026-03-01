@@ -5,8 +5,6 @@ import { LOCATION_SETTINGS_ROUTE } from '../../constants/routes';
 import {
     Card,
     CardContent,
-    CardFooter,
-    CardHeader,
     CardTitle,
 } from 'components/ui/card';
 import {
@@ -29,37 +27,29 @@ export function LocationCard({ gameId }: LocationCardProps) {
                 navigate(getRoute(LOCATION_SETTINGS_ROUTE, { gameId }))
             }
         >
-            <CardHeader className="pb-2">
-                <div className="relative w-12 h-12 rounded-lg bg-gradient-to-br from-teal-100 to-emerald-100 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform mx-auto">
-                    <Radio className="w-6 h-6 text-teal-600" />
+            <CardContent className="flex items-center gap-4 py-4">
+                <div className="relative w-10 h-10 rounded-lg bg-gradient-to-br from-teal-100 to-emerald-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                    <Radio className="w-5 h-5 text-teal-600" />
                     {!isLoading && isEnabled && (
                         <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                     )}
                 </div>
-                <CardTitle className="group-hover:text-indigo-600 transition-colors">
-                    Location Sharing
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center space-y-1">
-                {isLoading ? (
-                    <div className="animate-pulse space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
-                    </div>
-                ) : (
-                    <p
-                        className={`text-sm font-medium ${isEnabled ? 'text-emerald-600' : 'text-gray-500'
-                            }`}
-                    >
-                        Location Sharing: {isEnabled ? 'Enabled' : 'Disabled'}
-                    </p>
-                )}
-            </CardContent>
-            <CardFooter className="justify-center">
-                <div className="flex items-center text-indigo-600 text-sm font-medium">
-                    <span>Settings</span>
-                    <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                <div className="flex flex-col min-w-0 flex-1 text-left">
+                    <CardTitle className="text-base group-hover:text-indigo-600 transition-colors">
+                        Location Sharing
+                    </CardTitle>
+                    {isLoading ? (
+                        <div className="animate-pulse mt-1">
+                            <div className="h-3 bg-gray-200 rounded w-24"></div>
+                        </div>
+                    ) : (
+                        <p className={`text-sm ${isEnabled ? 'text-emerald-600' : 'text-gray-500'}`}>
+                            {isEnabled ? 'Enabled' : 'Disabled'}
+                        </p>
+                    )}
                 </div>
-            </CardFooter>
+                <ChevronRight className="w-5 h-5 text-indigo-400 shrink-0 group-hover:translate-x-1 group-hover:text-indigo-600 transition-all" />
+            </CardContent>
         </Card>
     );
 }
