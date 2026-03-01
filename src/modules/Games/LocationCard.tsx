@@ -19,7 +19,7 @@ interface LocationCardProps {
 
 export function LocationCard({ gameId }: LocationCardProps) {
     const navigate = useNavigate();
-    const { data: settings } = useGetLocationSettingsQuery();
+    const { data: settings, isLoading } = useGetLocationSettingsQuery();
     const isEnabled = settings?.is_sharing_enabled ?? false;
 
     return (
@@ -32,7 +32,7 @@ export function LocationCard({ gameId }: LocationCardProps) {
             <CardHeader className="pb-2">
                 <div className="relative w-12 h-12 rounded-lg bg-gradient-to-br from-teal-100 to-emerald-100 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform mx-auto">
                     <Radio className="w-6 h-6 text-teal-600" />
-                    {isEnabled && (
+                    {!isLoading && isEnabled && (
                         <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                     )}
                 </div>
@@ -41,12 +41,18 @@ export function LocationCard({ gameId }: LocationCardProps) {
                 </CardTitle>
             </CardHeader>
             <CardContent className="text-center space-y-1">
-                <p
-                    className={`text-sm font-medium ${isEnabled ? 'text-emerald-600' : 'text-gray-500'
-                        }`}
-                >
-                    Location Sharing: {isEnabled ? 'Enabled' : 'Disabled'}
-                </p>
+                {isLoading ? (
+                    <div className="animate-pulse space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                    </div>
+                ) : (
+                    <p
+                        className={`text-sm font-medium ${isEnabled ? 'text-emerald-600' : 'text-gray-500'
+                            }`}
+                    >
+                        Location Sharing: {isEnabled ? 'Enabled' : 'Disabled'}
+                    </p>
+                )}
             </CardContent>
             <CardFooter className="justify-center">
                 <div className="flex items-center text-indigo-600 text-sm font-medium">
