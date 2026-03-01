@@ -13,7 +13,10 @@ import {
     useGetLocationSettingsQuery,
     useUpdateLocationSettingsMutation,
     useResetLocationSettingsMutation,
+    useGetLastLocationQuery,
 } from '../../apis/locationApi';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../redux/store';
 import LoadingScreen from 'components/LoadingScreen';
 import ErrorScreen from 'components/ErrorScreen';
 import { BASE_URL, LOCATION_TRACCAR_API } from 'constants/api-endpoints';
@@ -116,6 +119,20 @@ const SETUP_STEPS = [
     },
 ];
 
+function formatLastSeen(timestamp: string): string {
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now.getTime() - then.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+}
+
 export function LocationSettings() {
     const navigate = useNavigate();
 
@@ -133,6 +150,14 @@ export function LocationSettings() {
 
     const [isEnabled, setIsEnabled] = useState(false);
     const [copied, setCopied] = useState(false);
+
+    const auth = useSelector((state: RootState) => state.auth.authData);
+    const playerId = auth?.profiles?.['PLAYER']?.data?.user_profile?.user_id;
+
+    const { data: lastLocations, isLoading: isLocationLoading } = useGetLastLocationQuery(
+        { player_ids: playerId ? [playerId] : [] },
+        { skip: !playerId },
+    );
 
     useEffect(() => {
         if (settings) {
@@ -236,6 +261,37 @@ export function LocationSettings() {
                                         Enable or disable real-time location tracking for this
                                         device.
                                     </p>
+                                    {isEnabled && (
+                                        isLocationLoading ? (
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-pulse relative inline-flex rounded-full h-2 w-2 bg-gray-300"></span>
+                                                </span>
+                                                <span className="text-sm font-medium text-gray-400">
+                                                    Checking tracking status…
+                                                </span>
+                                            </div>
+                                        ) : lastLocations?.[0]?.timestamp ? (
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                                </span>
+                                                <span className="text-sm font-medium text-emerald-600">
+                                                    Last seen: {formatLastSeen(lastLocations[0].timestamp)}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 mt-1">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                                                </span>
+                                                <span className="text-sm font-medium text-amber-600">
+                                                    No location received yet — set up the client app below
+                                                </span>
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                             </div>
                             <button
