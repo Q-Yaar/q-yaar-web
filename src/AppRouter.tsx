@@ -8,6 +8,7 @@ import {
   FACTS_ROUTE,
   GAME_DETAIL_ROUTE,
   HOME_ROUTE,
+  LOCATION_SETTINGS_ROUTE,
   LOGIN_ROUTE,
   MAP_ROUTE,
   ROOT_ROUTE,
@@ -26,6 +27,7 @@ import DeckPage from './modules/DeckPage';
 import { AskQuestionModule } from './modules/QuestionAndAnswer/AskQuestionModule';
 import { AnswerQuestionModule } from './modules/QuestionAndAnswer/AnswerQuestionModule';
 import { FactsModule } from './modules/Facts/FactsModule';
+import { LocationSettings } from './modules/Location/LocationSettings';
 
 function ProtectedRoutes(): JSX.Element {
   return (
@@ -43,6 +45,7 @@ function ProtectedRoutes(): JSX.Element {
             element={<AnswerQuestionModule />}
           />
           <Route path={FACTS_ROUTE} element={<FactsModule />} />
+          <Route path={LOCATION_SETTINGS_ROUTE} element={<LocationSettings />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BaseLayout>

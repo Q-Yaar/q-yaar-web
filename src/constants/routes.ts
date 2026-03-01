@@ -10,3 +10,4 @@ export const DECK_ROUTE = '/games/:gameId/:teamId/deck';
 export const ASK_QUESTION_ROUTE = '/games/:gameId/ask';
 export const ANSWER_QUESTION_ROUTE = '/games/:gameId/answer';
 export const FACTS_ROUTE = '/games/:gameId/facts';
+export const LOCATION_SETTINGS_ROUTE = '/games/:gameId/location';
