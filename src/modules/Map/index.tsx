@@ -113,27 +113,6 @@ const MapPage: React.FC = () => {
   const currentUser = authState.authData?.user.data;
   const currentUserEmail = currentUser?.email || 'Unknown Player';
 
-  // Determine the team to use for loading facts (first non-user team)
-  const getTargetTeamId = () => {
-    if (!teamsData || teamsData.length === 0) return '';
-
-    // Find current user's team
-    const currentUserTeam = teamsData.find(team =>
-      team.players.some(player => player.user_profile.email === currentUserEmail)
-    );
-
-    // If we found the user's team, use the first team that isn't the user's team
-    if (currentUserTeam) {
-      const otherTeams = teamsData.filter(team => team.team_id !== currentUserTeam.team_id);
-      if (otherTeams.length > 0) {
-        return otherTeams[0].team_id;
-      }
-    }
-
-    // If no other teams found, use the first team
-    return teamsData[0].team_id;
-  };
-
   // Separate GEO facts (operations) from TEXT facts
   const [localOperations, setLocalOperations] = useState<Operation[]>([]);
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
@@ -147,6 +126,30 @@ const MapPage: React.FC = () => {
     error: teamsError
   } = useFetchTeamsQuery(gameId!, { skip: !gameId });
 
+  // Find current user's team once
+  const currentUserTeam = (() => {
+    if (!teamsData || teamsData.length === 0) return null;
+    return teamsData.find(team =>
+      team.players.some((player: any) => player.user_profile.email === currentUserEmail)
+    );
+  })();
+
+  // Determine the team to use for loading facts (first non-user team)
+  const getTargetTeamId = () => {
+    if (!currentUserTeam || !teamsData) {
+      return teamsData?.[0]?.team_id || '';
+    }
+
+    // If we found the user's team, use the first team that isn't the user's team
+    const otherTeams = teamsData.filter(team => team.team_id !== currentUserTeam.team_id);
+    if (otherTeams.length > 0) {
+      return otherTeams[0].team_id;
+    }
+
+    // If no other teams found, use the first team
+    return teamsData[0].team_id;
+  };
+
   // Determine target team ID for facts loading
   const targetTeamId = getTargetTeamId();
 
@@ -159,25 +162,27 @@ const MapPage: React.FC = () => {
     { skip: !gameId || !effectiveTeamId },
   );
 
-  // Combine server operations with local operations for the map
-  const operations = React.useMemo(() => {
+  // Extract server operations (GEO facts from the server)
+  const serverOperations = React.useMemo(() => {
     if (!factsData?.results) {
-      return localOperations;
+      return [];
     }
 
-    const serverOperations = factsData.results
+    return factsData.results
       .filter((fact) => fact.fact_type === 'GEO')
       .map((fact) => convertBackendFactToOperation(fact))
       .filter((op): op is Operation => op !== null);
+  }, [factsData?.results]);
 
-    // Merge server operations with local operations, ensuring no duplicates
+  // Combine server operations with local operations for the map
+  const operations = React.useMemo(() => {
     return [
       ...serverOperations,
       ...localOperations.filter(
         (localOp) => !serverOperations.some((serverOp) => serverOp.id === localOp.id)
       ),
     ];
-  }, [factsData?.results, localOperations]);
+  }, [serverOperations, localOperations]);
 
 
   // Create fact mutation for saving drafts
@@ -517,11 +522,12 @@ const MapPage: React.FC = () => {
             teamsData={teamsData}
             isTeamsLoading={isTeamsLoading}
             teamsError={teamsError}
-            serverOperations={operations}
+            serverOperations={serverOperations}
             createFactMutation={createFactMutation}
             refetchFacts={refetchFacts}
             deleteFactMutation={deleteFactMutation}
             isLoadingFacts={isLoadingFacts}
+            currentUserEmail={currentUserEmail}
           />
         </div>
       </div>

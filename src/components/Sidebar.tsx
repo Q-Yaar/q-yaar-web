@@ -555,25 +555,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       >
         <div className="space-y-4">
           <p className="text-gray-600 mb-2 text-left">
-            Select the team you want to save this fact for:
+            {saveModalTeamId 
+              ? `This fact will be saved for team: ${teamsData.find(team => team.team_id === saveModalTeamId)?.team_name || saveModalTeamId}`
+              : 'No team selected'}
           </p>
-
-          <div className="flex flex-col space-y-2">
-            <Label className="text-sm font-medium text-left">Target Team</Label>
-            <select
-              value={saveModalTeamId}
-              onChange={(e) => setSaveModalTeamId(e.target.value)}
-              disabled={isSavingFact}
-              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:opacity-50"
-            >
-              <option value="" disabled>Select a team</option>
-              {teamsData.map(team => (
-                <option key={team.team_id} value={team.team_id}>
-                  {team.team_name}
-                </option>
-              ))}
-            </select>
-          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <Button
@@ -586,11 +571,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             <Button
               onClick={async () => {
                 if (!factToSave || !createFactMutation || !gameId) return;
-
-                if (!saveModalTeamId) {
-                  alert('Please select a target team.');
-                  return;
-                }
 
                 const targetTeam = teamsData.find(team => team.team_id === saveModalTeamId);
                 if (!targetTeam) {
@@ -655,7 +635,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   setIsSavingFact(false);
                 }
               }}
-              disabled={isSavingFact || !saveModalTeamId}
+              disabled={isSavingFact}
             >
               {isSavingFact ? (
                 <>

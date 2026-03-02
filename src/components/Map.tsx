@@ -500,7 +500,7 @@ const Map: React.FC<MapProps> = ({
           'fill-color': '#000000',
           'fill-opacity': 0.4,
         },
-        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true]],
+        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-shading', true], ['!=', 'is-draft-fact', true]],
       });
 
       // Layer for lines (between points)
@@ -601,6 +601,18 @@ const Map: React.FC<MapProps> = ({
           ['!has', 'is-shading'],
           ['!has', 'is-distance-label']
         ]
+      });
+
+      // Layer for draft geo facts
+      m.addLayer({
+        id: 'draft-geo-facts',
+        type: 'fill',
+        source: 'measurement-source',
+        paint: {
+          'fill-color': '#000000',
+          'fill-opacity': 0.4,
+        },
+        filter: ['all', ['==', '$type', 'Polygon'], ['==', 'is-draft-fact', true]]
       });
     });
 
