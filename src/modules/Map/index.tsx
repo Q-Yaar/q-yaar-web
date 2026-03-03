@@ -159,13 +159,12 @@ const MapPage: React.FC = () => {
 
   // Get player IDs for the selected team to fetch their last locations
   const selectedTeamPlayerIds = React.useMemo(() => {
-    if (!teamsData || !effectiveTeamId) return [];
-    const team = teamsData.find(t => t.team_id === effectiveTeamId);
-    if (!team) return [];
-    return team.players
+    if (!teamsData) return [];
+    return teamsData
+      .flatMap(team => team.players)
       .map(p => p.user_profile.user_id)
       .filter(Boolean);
-  }, [teamsData, effectiveTeamId]);
+  }, [teamsData]);
 
   // Fetch last locations for selected team's players
   const { data: playerLocations } = useGetLastLocationQuery(
