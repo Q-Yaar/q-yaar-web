@@ -179,7 +179,7 @@ export function LocationSettings() {
     };
 
     const trackingCode = settings?.tracking_code || '';
-    const qrData = `${TRACCAR_SERVER_URL}?id=${trackingCode}`;
+    const qrData = `${TRACCAR_SERVER_URL}?id=${trackingCode}&wakelock=true`;
     const qrUrl = `${QR_API_BASE}?size=200x200&data=${encodeURIComponent(qrData)}`;
 
     if (isLoading) return <LoadingScreen />;
@@ -367,7 +367,7 @@ export function LocationSettings() {
                                         {hasAction && trackingCode && (
                                             <button
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(qrData);
+                                                    navigator.clipboard.writeText(TRACCAR_SERVER_URL);
                                                     setCopied(true);
                                                     setTimeout(() => setCopied(false), 2000);
                                                 }}
