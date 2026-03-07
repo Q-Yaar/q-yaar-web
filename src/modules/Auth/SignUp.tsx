@@ -367,7 +367,7 @@ export default function SignUp() {
         </Card>
 
         <p className="text-center text-xs text-gray-500">
-          By signing up, you agree to our Terms of Service and Privacy Policy.
+          By signing up, you agree to our rules and accept the service 'as is' without any warranty of any kind.
         </p>
       </div>
     </div>
