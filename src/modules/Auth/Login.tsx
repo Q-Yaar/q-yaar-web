@@ -207,7 +207,7 @@ export default function Login() {
         </Card>
 
         <p className="text-center text-xs text-gray-500">
-          By signing in, you agree to play our games.
+          By signing in, you agree to our rules and accept the service 'as is' without any warranty of any kind.
         </p>
       </div>
     </div>
