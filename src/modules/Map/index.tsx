@@ -3,8 +3,7 @@ import { useParams, useSearchParams, useLocation, useNavigate } from 'react-rout
 import Map from '../../components/Map';
 import Sidebar from '../../components/Sidebar';
 import { Heading, Operation } from '../../utils/geoTypes';
-import { LocateFixed, Menu, ChevronUp, ChevronDown, ChevronLeft, Layers, Check } from 'lucide-react';
-import { Button } from '../../components/ui/button';
+import { ChevronUp, ChevronDown, ChevronLeft, Layers, Check } from 'lucide-react';
 import { useGetFactsQuery, useCreateFactMutation, useDeleteFactMutation } from '../../apis/api';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
 import { useGetLastLocationQuery } from '../../apis/locationApi';
@@ -12,7 +11,7 @@ import { useSelector } from 'react-redux';
 import { selectAuthState } from '../../redux/auth-reducer';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
 import { Fact } from '../../models/Fact';
-import { Team } from '../../models/Team';
+import { useTeamFilter } from './useTeamFilter';
 
 // Simple in-memory cache for the last known location
 let lastKnownLocation: number[] | null = null;
@@ -118,7 +117,6 @@ const MapPage: React.FC = () => {
   const [localOperations, setLocalOperations] = useState<Operation[]>([]);
   const [textFacts, setTextFacts] = useState<Fact[]>([]);
   const [filteredFacts, setFilteredFacts] = useState<Fact[]>([]);
-  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>('');
 
   // Fetch teams for the game first
   const {
@@ -127,35 +125,9 @@ const MapPage: React.FC = () => {
     error: teamsError
   } = useFetchTeamsQuery(gameId!, { skip: !gameId });
 
-  // Find current user's team once
-  const currentUserTeam = (() => {
-    if (!teamsData || teamsData.length === 0) return null;
-    return teamsData.find(team =>
-      team.players.some((player: any) => player.user_profile.email === currentUserEmail)
-    );
-  })();
 
-  // Determine the team to use for loading facts (first non-user team)
-  const getTargetTeamId = () => {
-    if (!currentUserTeam || !teamsData) {
-      return teamsData?.[0]?.team_id || '';
-    }
 
-    // If we found the user's team, use the first team that isn't the user's team
-    const otherTeams = teamsData.filter(team => team.team_id !== currentUserTeam.team_id);
-    if (otherTeams.length > 0) {
-      return otherTeams[0].team_id;
-    }
-
-    // If no other teams found, use the first team
-    return teamsData[0].team_id;
-  };
-
-  // Determine target team ID for facts loading
-  const targetTeamId = getTargetTeamId();
-
-  // Determine effective team ID (use selected team filter if available, otherwise use auto-detected target)
-  const effectiveTeamId = selectedTeamFilter || targetTeamId;
+  const { selectedTeamFilter, setSelectedTeamFilter } = useTeamFilter(teamsData ?? []);
 
   // Get player IDs for the selected team to fetch their last locations
   const selectedTeamPlayerIds = React.useMemo(() => {
@@ -174,8 +146,8 @@ const MapPage: React.FC = () => {
 
   // Fetch facts from the server - load immediately when we have a target team
   const { data: factsData, refetch: refetchFacts, isLoading: isLoadingFacts } = useGetFactsQuery(
-    { game_id: gameId!, team_id: effectiveTeamId },
-    { skip: !gameId || !effectiveTeamId },
+    { game_id: gameId!, team_id: selectedTeamFilter },
+    { skip: !gameId || !selectedTeamFilter },
   );
 
   // Extract server operations (GEO facts from the server)
@@ -206,13 +178,6 @@ const MapPage: React.FC = () => {
 
   // Delete fact mutation
   const [deleteFactMutation] = useDeleteFactMutation();
-
-  // Set initial team filter when target team is available
-  useEffect(() => {
-    if (targetTeamId) {
-      setSelectedTeamFilter(targetTeamId);
-    }
-  }, [targetTeamId]);
 
   useEffect(() => {
     if (factsData?.results) {
