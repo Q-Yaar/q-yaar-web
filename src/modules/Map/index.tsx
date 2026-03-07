@@ -295,7 +295,7 @@ const MapPage: React.FC = () => {
           position: 'absolute',
           bottom: 0,
           left: '50%',
-          transform: `translateX(-50%) translateY(${isBottomSheetOpen ? '0' : 'calc(100% - 76px)'})`,
+          transform: `translateX(-50%) translateY(${isBottomSheetOpen ? '0' : 'calc(100% - 120px)'})`,
           width: '100%',
           maxWidth: '800px',
           display: 'flex',
@@ -443,6 +443,8 @@ const MapPage: React.FC = () => {
         {/* Sheet Content */}
         <div
           style={{
+            opacity: isBottomSheetOpen ? 1 : 0,
+            transition: 'opacity 0.2s',
             pointerEvents: 'auto',
             backgroundColor: 'white',
             height: '70vh',
