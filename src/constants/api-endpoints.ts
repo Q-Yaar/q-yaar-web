@@ -10,8 +10,6 @@ export const QNA_API = '/api/v1/qna/';
 export const FACTS_API = '/api/v1/facts/';
 
 // Location
-export const LOCATION_PINGS_API = '/api/v1/location/pings/';
-export const LOCATION_SETTINGS_API = '/api/v1/location/settings/';
-export const LOCATION_SETTINGS_RESET_API = '/api/v1/location/settings/reset/';
-export const LOCATION_LAST_API = '/api/v1/location/last/';
-export const LOCATION_TRACCAR_API = '/api/v1/location/external/traccar/';
+export const LIVE_LOCATION_SETTINGS_API = '/api/v1/live-location/settings';
+export const LIVE_LOCATION_ENABLE_API = '/api/v1/live-location/enable';
+export const LIVE_LOCATION_GAMES_API = '/api/v1/live-location/games';

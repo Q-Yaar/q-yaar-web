@@ -6,7 +6,7 @@ import { Heading, Operation } from '../../utils/geoTypes';
 import { ChevronUp, ChevronDown, ChevronLeft, Layers, Check } from 'lucide-react';
 import { useGetFactsQuery, useCreateFactMutation, useDeleteFactMutation } from '../../apis/api';
 import { useFetchTeamsQuery } from '../../apis/gameApi';
-import { useGetLastLocationQuery } from '../../apis/locationApi';
+import { useGetLocationsForGameQuery } from '../../apis/locationApi';
 import { useSelector } from 'react-redux';
 import { selectAuthState } from '../../redux/auth-reducer';
 import { convertBackendFactToOperation } from '../../utils/factUtils';
@@ -129,19 +129,10 @@ const MapPage: React.FC = () => {
 
   const { selectedTeamFilter, setSelectedTeamFilter } = useTeamFilter(teamsData ?? []);
 
-  // Get player IDs for the selected team to fetch their last locations
-  const selectedTeamPlayerIds = React.useMemo(() => {
-    if (!teamsData) return [];
-    return teamsData
-      .flatMap(team => team.players)
-      .map(p => p.user_profile.user_id)
-      .filter(Boolean);
-  }, [teamsData]);
-
-  // Fetch last locations for selected team's players
-  const { data: playerLocations } = useGetLastLocationQuery(
-    { player_ids: selectedTeamPlayerIds },
-    { skip: selectedTeamPlayerIds.length === 0, pollingInterval: 30000 },
+  // Fetch live locations for the current game
+  const { data: playerLocations } = useGetLocationsForGameQuery(
+    gameId!,
+    { skip: !gameId, pollingInterval: 30000 },
   );
 
   // Fetch facts from the server - load immediately when we have a target team

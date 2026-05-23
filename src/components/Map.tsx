@@ -239,16 +239,15 @@ const Map: React.FC<MapProps> = ({
       // Add player last-location markers
       if (playerLocations && playerLocations.length > 0) {
         playerLocations.forEach((loc) => {
-          const lon = parseFloat(loc.lon);
-          const lat = parseFloat(loc.lat);
-          if (!isNaN(lon) && !isNaN(lat)) {
+          const { lat, lng } = loc.location_pnt;
+          if (!isNaN(lat) && !isNaN(lng)) {
             geojson.features.push({
               type: 'Feature',
-              geometry: { type: 'Point', coordinates: [lon, lat] },
+              geometry: { type: 'Point', coordinates: [lng, lat] },
               properties: {
                 'is-player-location': true,
-                'player-name': loc.player_name || 'Unknown',
-                'last-seen': formatLastSeen(loc.timestamp),
+                'player-name': loc.player.profile_name || 'Unknown',
+                'last-seen': formatLastSeen(loc.modified),
               },
             });
           }
@@ -391,16 +390,15 @@ const Map: React.FC<MapProps> = ({
             // Re-add player location markers after async computation
             if (playerLocations && playerLocations.length > 0) {
               playerLocations.forEach((loc) => {
-                const lon = parseFloat(loc.lon);
-                const lat = parseFloat(loc.lat);
-                if (!isNaN(lon) && !isNaN(lat)) {
+                const { lat, lng } = loc.location_pnt;
+                if (!isNaN(lat) && !isNaN(lng)) {
                   geojson.features.push({
                     type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [lon, lat] },
+                    geometry: { type: 'Point', coordinates: [lng, lat] },
                     properties: {
                       'is-player-location': true,
-                      'player-name': loc.player_name || 'Unknown',
-                      'last-seen': formatLastSeen(loc.timestamp),
+                      'player-name': loc.player.profile_name || 'Unknown',
+                      'last-seen': formatLastSeen(loc.modified),
                     },
                   });
                 }

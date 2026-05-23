@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../../components/ui/header';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Radio, Shield, Info, QrCode, Copy, Check, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import {
@@ -11,19 +11,19 @@ import {
 } from '../../components/ui/card';
 import {
     useGetLocationSettingsQuery,
-    useUpdateLocationSettingsMutation,
-    useResetLocationSettingsMutation,
-    useGetLastLocationQuery,
+    useEnableLocationSharingMutation,
+    useDisableLocationSharingMutation,
+    useDeleteLocationSettingsMutation,
+    useGetLocationsForGameQuery,
 } from '../../apis/locationApi';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
 import LoadingScreen from 'components/LoadingScreen';
 import ErrorScreen from 'components/ErrorScreen';
-import { BASE_URL, LOCATION_TRACCAR_API } from 'constants/api-endpoints';
+import { BASE_URL } from 'constants/api-endpoints';
 import { formatLastSeen } from '../../utils/formatTime';
 
 const QR_API_BASE = 'https://api.qrserver.com/v1/create-qr-code/';
-const TRACCAR_SERVER_URL = BASE_URL + LOCATION_TRACCAR_API;
 
 const APP_STORE_URL = 'https://apps.apple.com/in/app/traccar-client/id843156974';
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=org.traccar.client&hl=en_IN';
@@ -102,14 +102,6 @@ const SETUP_STEPS = [
         step: 6,
         text: (
             <>
-                Verify that the <strong className="text-orange-500 font-semibold">Device Identifier</strong> shown in the app matches the one displayed on this screen.
-            </>
-        ),
-    },
-    {
-        step: 7,
-        text: (
-            <>
                 Turn on{' '}
                 <span className="text-orange-500 font-semibold">
                     "Continuous Tracking"
@@ -123,6 +115,7 @@ const SETUP_STEPS = [
 
 export function LocationSettings() {
     const navigate = useNavigate();
+    const { gameId } = useParams<{ gameId: string }>();
 
     const {
         data: settings,
@@ -131,10 +124,12 @@ export function LocationSettings() {
         refetch,
     } = useGetLocationSettingsQuery();
 
-    const [updateSettings, { isLoading: isUpdating }] =
-        useUpdateLocationSettingsMutation();
-    const [resetSettings, { isLoading: isResetting }] =
-        useResetLocationSettingsMutation();
+    const [enableSharing, { isLoading: isEnabling }] = useEnableLocationSharingMutation();
+    const [disableSharing, { isLoading: isDisabling }] = useDisableLocationSharingMutation();
+    const [deleteSettings, { isLoading: isDeleting }] = useDeleteLocationSettingsMutation();
+
+    const isUpdating = isEnabling || isDisabling;
+    const isResetting = isDeleting;
 
     const [isEnabled, setIsEnabled] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -142,9 +137,13 @@ export function LocationSettings() {
     const auth = useSelector((state: RootState) => state.auth.authData);
     const playerId = auth?.profiles?.['PLAYER']?.data?.user_profile?.user_id;
 
-    const { data: lastLocations, isLoading: isLocationLoading } = useGetLastLocationQuery(
-        { player_ids: playerId ? [playerId] : [] },
-        { skip: !playerId, pollingInterval: 30000 },
+    const { data: gameLocations, isLoading: isLocationLoading } = useGetLocationsForGameQuery(
+        gameId!,
+        { skip: !gameId, pollingInterval: 30000 },
+    );
+
+    const myLastLocation = gameLocations?.find(
+        (loc) => loc.player.user_profile.user_id === playerId,
     );
 
     useEffect(() => {
@@ -157,10 +156,14 @@ export function LocationSettings() {
         const newValue = !isEnabled;
         setIsEnabled(newValue);
         try {
-            await updateSettings({ is_sharing_enabled: newValue }).unwrap();
+            if (newValue) {
+                await enableSharing().unwrap();
+            } else {
+                await disableSharing().unwrap();
+            }
         } catch (error) {
             console.error('Failed to update location settings:', error);
-            setIsEnabled(!newValue); // revert
+            setIsEnabled(!newValue);
         }
     };
 
@@ -172,15 +175,17 @@ export function LocationSettings() {
         )
             return;
         try {
-            await resetSettings().unwrap();
+            await deleteSettings().unwrap();
         } catch (error) {
             console.error('Failed to reset location settings:', error);
         }
     };
 
-    const trackingCode = settings?.tracking_code || '';
-    const qrData = `${TRACCAR_SERVER_URL}?id=${trackingCode}&wakelock=true`;
-    const qrUrl = `${QR_API_BASE}?size=200x200&data=${encodeURIComponent(qrData)}`;
+    const trackingId = settings?.tracking_id || '';
+    const trackingEndpoint = settings?.tracking_endpoint?.replace('<location_client>', 'TRACCAR') || '';
+    const traccarServerUrl = trackingEndpoint ? `${BASE_URL}${trackingEndpoint}` : '';
+    const qrData = traccarServerUrl ? `${traccarServerUrl}?id=${trackingId}&wakelock=true` : '';
+    const qrUrl = qrData ? `${QR_API_BASE}?size=200x200&data=${encodeURIComponent(qrData)}` : '';
 
     if (isLoading) return <LoadingScreen />;
 
@@ -254,14 +259,14 @@ export function LocationSettings() {
                                                     Checking tracking status…
                                                 </span>
                                             </div>
-                                        ) : lastLocations?.[0]?.timestamp ? (
+                                        ) : myLastLocation?.modified ? (
                                             <div className="flex items-center gap-1.5 mt-1">
                                                 <span className="relative flex h-2 w-2">
                                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                                                 </span>
                                                 <span className="text-sm font-medium text-emerald-600">
-                                                    Last seen: {formatLastSeen(lastLocations[0].timestamp)}
+                                                    Last seen: {formatLastSeen(myLastLocation.modified)}
                                                 </span>
                                             </div>
                                         ) : (
@@ -314,7 +319,7 @@ export function LocationSettings() {
                                 <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-orange-400 rounded-bl-md" />
                                 <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-orange-400 rounded-br-md" />
                                 <div className="bg-teal-700/10 rounded-lg p-4">
-                                    {trackingCode ? (
+                                    {trackingId ? (
                                         <img
                                             src={qrUrl}
                                             alt="QR Code for location tracking setup"
@@ -329,23 +334,6 @@ export function LocationSettings() {
                                 </div>
                             </div>
 
-                            {/* Verification Code */}
-                            <div className="text-center space-y-2 w-full">
-                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                    Device Identifier
-                                </p>
-                                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg py-3 px-6">
-                                    <span className="text-2xl font-mono font-bold text-orange-500 tracking-[0.5em]">
-                                        {trackingCode
-                                            ? trackingCode
-                                            : '------'}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-gray-400 italic">
-                                    Verify that this code matches the one shown in the mobile app. Do not share this code with other teams.
-                                </p>
-
-                            </div>
                         </CardContent>
                     </Card>
 
@@ -364,10 +352,10 @@ export function LocationSettings() {
                                     </div>
                                     <div className="text-sm text-gray-700 leading-relaxed pt-1 text-left">
                                         {text}
-                                        {hasAction && trackingCode && (
+                                        {hasAction && trackingId && (
                                             <button
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(TRACCAR_SERVER_URL);
+                                                    navigator.clipboard.writeText(traccarServerUrl);
                                                     setCopied(true);
                                                     setTimeout(() => setCopied(false), 2000);
                                                 }}

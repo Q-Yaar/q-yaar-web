@@ -1,17 +1,34 @@
+export interface LocationPlayer {
+  profile_name: string;
+  user_profile: {
+    user_id: string;
+    email: string;
+    phone: string;
+    is_active: boolean;
+  };
+  profile_pic: object;
+  created: string;
+  modified: string;
+  is_suspended: boolean;
+}
+
 export interface LocationSettings {
+  tracking_id: string;
+  player: LocationPlayer;
   is_sharing_enabled: boolean;
-  tracking_code: string;
+  tracking_endpoint: string;
+  created: string;
+  modified: string;
 }
 
 export interface LocationPing {
-  external_id: string;
-  player_id?: string;
-  player_name?: string;
-  game_id: string | null;
-  team_id: string | null;
-  lat: string;
-  lon: string;
-  accuracy: string | null;
-  timestamp: string;
-  client: string | number;
+  player: LocationPlayer;
+  client: string;
+  accuracy: number;
+  location_pnt: {
+    lat: number;
+    lng: number;
+  };
+  created: string;
+  modified: string;
 }
