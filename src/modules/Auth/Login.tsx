@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Gamepad, Lock, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react';
 import { useLoginMutation } from '../../apis/api';
 import { setToken } from '../../redux/auth-reducer';
 import { useDispatch } from 'react-redux';
@@ -72,7 +72,7 @@ export default function Login() {
         {/* Logo/Brand Section */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <Gamepad className="w-8 h-8 text-white" />
+            <img src="/icon512_maskable.png" alt="Q Yaar" className="w-16 h-16 rounded-lg" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Game Game</h1>
           <p className="text-gray-600">Sign in to continue to your account</p>
@@ -207,7 +207,7 @@ export default function Login() {
         </Card>
 
         <p className="text-center text-xs text-gray-500">
-          By signing in, you agree to play our games.
+          By signing in, you agree to our rules and accept the service 'as is' without any warranty of any kind.
         </p>
       </div>
     </div>

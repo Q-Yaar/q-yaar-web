@@ -8,3 +8,8 @@ export const GAMES_API = '/api/v1/games/';
 export const TEAMS_API = 'team/';
 export const QNA_API = '/api/v1/qna/';
 export const FACTS_API = '/api/v1/facts/';
+
+// Location
+export const LIVE_LOCATION_SETTINGS_API = '/api/v1/live-location/settings';
+export const LIVE_LOCATION_ENABLE_API = '/api/v1/live-location/enable';
+export const LIVE_LOCATION_GAMES_API = '/api/v1/live-location/games';
