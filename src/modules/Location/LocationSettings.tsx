@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '../../components/ui/header';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Radio, Shield, Info, QrCode, Copy, Check, RotateCcw } from 'lucide-react';
+import { Radio, Shield, Info, QrCode, Copy, Check, RotateCcw, Smartphone } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import {
     Card,
@@ -20,6 +20,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
 import LoadingScreen from 'components/LoadingScreen';
 import ErrorScreen from 'components/ErrorScreen';
+import { Modal } from '../../components/ui/modal';
 import { BASE_URL } from 'constants/api-endpoints';
 import { formatLastSeen } from '../../utils/formatTime';
 
@@ -133,6 +134,7 @@ export function LocationSettings() {
 
     const [isEnabled, setIsEnabled] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [showAppModal, setShowAppModal] = useState(false);
 
     const auth = useSelector((state: RootState) => state.auth.authData);
     const playerId = auth?.profiles?.['PLAYER']?.data?.user_profile?.user_id;
@@ -186,6 +188,18 @@ export function LocationSettings() {
     const traccarServerUrl = trackingEndpoint ? `${BASE_URL}${trackingEndpoint}` : '';
     const qrData = traccarServerUrl ? `${traccarServerUrl}?id=${trackingId}&wakelock=true` : '';
     const qrUrl = qrData ? `${QR_API_BASE}?size=200x200&data=${encodeURIComponent(qrData)}` : '';
+
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isMobile = isAndroid || isIOS;
+
+    const deepLink = qrData
+        ? isAndroid
+            ? `intent://${qrData.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=org.traccar.client;end`
+            : qrData
+        : '';
+    const storeUrl = isIOS ? APP_STORE_URL : PLAY_STORE_URL;
+    const storeLabel = isIOS ? 'App Store' : 'Play Store';
 
     if (isLoading) return <LoadingScreen />;
 
@@ -334,6 +348,15 @@ export function LocationSettings() {
                                 </div>
                             </div>
 
+                            {isMobile && trackingId && (
+                                <button
+                                    onClick={() => setShowAppModal(true)}
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors w-full justify-center"
+                                >
+                                    <Smartphone className="w-4 h-4" />
+                                    Open in Traccar App
+                                </button>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -388,6 +411,38 @@ export function LocationSettings() {
                     </Card>
                 </div>
             </div>
+
+            <Modal
+                isOpen={showAppModal}
+                onClose={() => setShowAppModal(false)}
+                title="Open in Traccar Client"
+            >
+                <p className="text-sm text-gray-600 mb-6">
+                    Do you have the <strong className="text-gray-900">Traccar Client</strong> app installed on your device?
+                </p>
+                <div className="flex flex-col gap-3">
+                    <Button
+                        onClick={() => {
+                            window.location.href = deepLink;
+                            setShowAppModal(false);
+                        }}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                        <Smartphone className="w-4 h-4 mr-2" />
+                        Yes, open in app
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            window.open(storeUrl, '_blank', 'noopener,noreferrer');
+                            setShowAppModal(false);
+                        }}
+                        className="w-full border-gray-300 text-gray-700"
+                    >
+                        Get from {storeLabel}
+                    </Button>
+                </div>
+            </Modal>
         </div>
     );
 }
