@@ -696,7 +696,8 @@ const Map: React.FC<MapProps> = ({
         currentAction === 'split-by-direction' ||
         currentAction === 'hotter-colder' ||
         currentAction === 'closer-to-line' ||
-        currentAction === 'polygon-location'
+        currentAction === 'polygon-location' ||
+        currentAction === 'select-target'
       ) {
         try {
           // Check if hovering over base map POIs
@@ -726,7 +727,8 @@ const Map: React.FC<MapProps> = ({
         currentAction === 'split-by-direction' ||
         currentAction === 'hotter-colder' ||
         currentAction === 'closer-to-line' ||
-        currentAction === 'polygon-location'
+        currentAction === 'polygon-location' ||
+        currentAction === 'select-target'
       ) {
         // Use MapLibre GL JS native feature querying
         // Query our consolidated points layer and base map layers for POIs
@@ -784,6 +786,27 @@ const Map: React.FC<MapProps> = ({
             properties: poiFeature.properties
           };
           console.log('Selected POI:', poiInfo, 'at', newPoint);
+        }
+
+        // Special handling for select-target action
+        if (currentAction === 'select-target') {
+          // For select-target, just pass the selected point via callback
+          const targetInfo = poiInfo ? {
+            name: poiInfo.name,
+            type: poiInfo.type,
+            properties: { ...poiInfo.properties, coordinates: newPoint }
+          } : { properties: { coordinates: newPoint } };
+          
+          if (onPointPOIInfoChange) {
+            onPointPOIInfoChange([targetInfo]);
+          }
+          
+          // Update POI selection ref for visual confirmation
+          poiSelectionRef.current = {
+            point: newPoint,
+            info: poiInfo || { name: 'Selected Location', type: 'custom' }
+          };
+          return;
         }
 
         let currentPoints = pointsRef.current;

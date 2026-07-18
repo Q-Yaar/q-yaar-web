@@ -183,6 +183,8 @@ export function pointInAnnulus(point: Coord, center: Coord, minDistance: number,
 
 /**
  * Extract all coordinates from a question's metadata and rendered question
+ * Supports both legacy field names (myLocation, hidingLocation) and new
+ * explicit field names (seekerLocation, hiderLocation, targetLocation, etc.)
  */
 export function extractAllCoordsFromQuestion(question: any): Coord[] {
   const coords: Coord[] = [];
@@ -199,42 +201,54 @@ export function extractAllCoordsFromQuestion(question: any): Coord[] {
     }
   }
   
+  const meta = question.question_meta || {};
+  
   // Extract from question_meta.location_points
-  if (question.question_meta?.location_points) {
-    for (const point of question.question_meta.location_points) {
+  if (meta.location_points) {
+    for (const point of meta.location_points) {
       const parsed = parseLocationPoint(point);
       if (parsed) coords.push(parsed);
     }
   }
   
-  // Extract from question_meta.myLocation
-  if (question.question_meta?.myLocation) {
-    const parsed = parseCoord(question.question_meta.myLocation);
-    if (parsed) coords.push(parsed);
-  }
-  
-  // Extract from question_meta.hidingLocation
-  if (question.question_meta?.hidingLocation) {
-    const parsed = parseCoord(question.question_meta.hidingLocation);
-    if (parsed) coords.push(parsed);
-  }
-  
-  // Extract from question_meta.center
-  if (question.question_meta?.center) {
-    const parsed = parseCoord(question.question_meta.center);
-    if (parsed) coords.push(parsed);
-  }
-  
-  // Extract from question_meta.target
-  if (question.question_meta?.target) {
-    const parsed = parseCoord(question.question_meta.target);
-    if (parsed) coords.push(parsed);
+  // Extract from line_points (array of points)
+  if (meta.line_points) {
+    for (const point of meta.line_points) {
+      const parsed = parseLocationPoint(point);
+      if (parsed) coords.push(parsed);
+    }
   }
   
   // Extract from polygon vertices
-  if (question.question_meta?.polygon_vertices) {
-    for (const vertex of question.question_meta.polygon_vertices) {
+  if (meta.polygon_vertices) {
+    for (const vertex of meta.polygon_vertices) {
       const parsed = parseCoord(vertex);
+      if (parsed) coords.push(parsed);
+    }
+  }
+  
+  // Extract from named location fields - NEW explicit names
+  const namedFields = [
+    'seekerLocation',
+    'hiderLocation', 
+    'targetLocation',
+    'center',
+    'previousLocation',
+    'currentLocation',
+  ] as const;
+  
+  for (const field of namedFields) {
+    if (meta[field]) {
+      const parsed = parseCoord(meta[field]);
+      if (parsed) coords.push(parsed);
+    }
+  }
+  
+  // Extract from legacy field names (for backward compatibility)
+  const legacyFields = ['myLocation', 'hidingLocation', 'target'] as const;
+  for (const field of legacyFields) {
+    if (meta[field]) {
+      const parsed = parseCoord(meta[field]);
       if (parsed) coords.push(parsed);
     }
   }

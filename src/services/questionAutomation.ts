@@ -14,6 +14,20 @@ import {
   extractAllCoordsFromQuestion
 } from '../utils/geo';
 import type { Coord } from '../utils/geo';
+import {
+  MeasuringQuestionMeta,
+  PolygonLocationQuestionMeta,
+  DistanceQuestionMeta,
+  CircleQuestionMeta,
+  HeadingQuestionMeta,
+  HotterColderQuestionMeta,
+  AreaOperationsQuestionMeta,
+  CloserToLineQuestionMeta,
+  TextFactQuestionMeta,
+  LocationPoint,
+  getLocationFromMeta,
+  isCategory,
+} from '../models/QuestionMeta';
 
 /**
  * Configuration for the automation service
@@ -189,9 +203,11 @@ function extractCoords(question: AskedQuestion): Coord[] {
 
 /**
  * Helper to get a specific coordinate by key from metadata
+ * Works with the new LocationPoint type
  */
 function getCoordFromMeta(question: AskedQuestion, key: string): Coord | null {
-  const value = (question.question_meta as any)?.[key];
+  const meta = question.question_meta as any;
+  const value = meta?.[key];
   if (!value) return null;
   return parseCoord(value);
 }
@@ -203,29 +219,18 @@ function getCoordFromMeta(question: AskedQuestion, key: string): Coord | null {
 function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
+  // Type guard to ensure we have the correct metadata type
+  if (!isCategory(q, 'Measuring')) {
+    debugLog('Measuring: Invalid metadata type for Measuring category');
+    return null;
+  }
+  
+  const meta = q.question_meta as MeasuringQuestionMeta;
+  
   // We need: seeking location, hiding location, target location
-  const seekingLoc = getCoordFromMeta(q, 'myLocation');
-  const hidingLoc = getCoordFromMeta(q, 'hidingLocation');
-  
-  // Target can be in location_points or extracted from template
-  let targetLoc: Coord | null = null;
-  
-  if (q.question_meta?.location_points && q.question_meta.location_points.length > 0) {
-    targetLoc = parseLocationPoint(q.question_meta.location_points[0]);
-  }
-  
-  // If not in location_points, try to extract from rendered question
-  if (!targetLoc) {
-    const allCoords = extractCoords(q);
-    // Filter out seeking and hiding locations if we have them
-    const knownCoords = [seekingLoc, hidingLoc].filter(c => c !== null) as Coord[];
-    const otherCoords = allCoords.filter(c => 
-      !knownCoords.some(kc => kc.lat === c.lat && kc.lon === c.lon)
-    );
-    if (otherCoords.length > 0) {
-      targetLoc = otherCoords[0];
-    }
-  }
+  const seekingLoc = getCoordFromMeta(q, 'seekerLocation');
+  const hidingLoc = getCoordFromMeta(q, 'hiderLocation');
+  const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
   if (!seekingLoc || !hidingLoc || !targetLoc) {
     debugLog('Measuring: Missing required locations', {
@@ -258,13 +263,17 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
 function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // We need: polygon vertices and a target point
-  const polygonVertices = (q.question_meta as any)?.polygon_vertices;
-  let targetLoc: Coord | null = null;
-  
-  if (q.question_meta?.location_points && q.question_meta.location_points.length > 0) {
-    targetLoc = parseLocationPoint(q.question_meta.location_points[0]);
+  // Type guard
+  if (!isCategory(q, 'Polygon Location')) {
+    debugLog('Polygon Location: Invalid metadata type');
+    return null;
   }
+  
+  const meta = q.question_meta as PolygonLocationQuestionMeta;
+  
+  // We need: polygon vertices and a target point
+  const polygonVertices = meta.polygon_vertices;
+  const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
   if (!polygonVertices || !targetLoc) {
     debugLog('Polygon Location: Missing polygon vertices or target', {
@@ -277,7 +286,7 @@ function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
   // Parse polygon vertices
   const polygon: Coord[] = [];
   for (const vertex of polygonVertices) {
-    const coord = parseCoord(vertex);
+    const coord = parseLocationPoint(vertex);
     if (coord) polygon.push(coord);
   }
   
@@ -305,9 +314,17 @@ function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
 function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
+  // Type guard
+  if (!isCategory(q, 'Distance')) {
+    debugLog('Distance: Invalid metadata type');
+    return null;
+  }
+  
+  const meta = q.question_meta as DistanceQuestionMeta;
+  
   // We need: location points and optionally a threshold
-  const locationPoints = q.question_meta?.location_points;
-  const threshold = (q.question_meta as any)?.distance_threshold;
+  const locationPoints = meta.location_points;
+  const threshold = meta.distance_threshold;
   
   if (!locationPoints || locationPoints.length < 2) {
     debugLog('Distance: Need at least 2 location points');
@@ -356,14 +373,18 @@ function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
 function circleHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
+  // Type guard
+  if (!isCategory(q, 'Circle')) {
+    debugLog('Circle: Invalid metadata type');
+    return null;
+  }
+  
+  const meta = q.question_meta as CircleQuestionMeta;
+  
   // We need: center, radius, and target point
   const center = getCoordFromMeta(q, 'center');
-  const radius = (q.question_meta as any)?.radius;
-  let targetLoc: Coord | null = null;
-  
-  if (q.question_meta?.location_points && q.question_meta.location_points.length > 0) {
-    targetLoc = parseLocationPoint(q.question_meta.location_points[0]);
-  }
+  const radius = meta.radius;
+  const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
   if (!center || radius === undefined || !targetLoc) {
     debugLog('Circle: Missing center, radius, or target', {
@@ -394,13 +415,18 @@ function circleHandler(ctx: AutomationContext): AutoAnswer | null {
 function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // We need: reference location and target location
-  const referenceLoc = getCoordFromMeta(q, 'myLocation');
-  let targetLoc: Coord | null = null;
-  
-  if (q.question_meta?.location_points && q.question_meta.location_points.length > 0) {
-    targetLoc = parseLocationPoint(q.question_meta.location_points[0]);
+  // Type guard for either Heading or Relative Heading
+  const categoryName = q.category.category_name;
+  if (categoryName !== 'Heading' && categoryName !== 'Relative Heading') {
+    debugLog('Heading: Invalid category for this handler');
+    return null;
   }
+  
+  const meta = q.question_meta as HeadingQuestionMeta;
+  
+  // We need: reference location (seeker) and target location
+  const referenceLoc = getCoordFromMeta(q, 'seekerLocation');
+  const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
   if (!referenceLoc || !targetLoc) {
     debugLog('Heading: Missing reference or target location');
@@ -408,7 +434,7 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   }
   
   // Check if hiding location is provided
-  const hidingLoc = getCoordFromMeta(q, 'hidingLocation');
+  const hidingLoc = getCoordFromMeta(q, 'hiderLocation');
   
   // If we have hiding location, calculate bearing from reference to target
   // and from reference to hiding, then compare
@@ -448,14 +474,19 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
 function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
+  // Type guard for both variations
+  const categoryName = q.category.category_name;
+  if (categoryName !== 'Hotter/Colder' && categoryName !== 'Hotter / Colder') {
+    debugLog('Hotter/Colder: Invalid category for this handler');
+    return null;
+  }
+  
+  const meta = q.question_meta as HotterColderQuestionMeta;
+  
   // We need: previous location, current location, target location
   const previousLoc = getCoordFromMeta(q, 'previousLocation');
   const currentLoc = getCoordFromMeta(q, 'currentLocation');
-  let targetLoc: Coord | null = null;
-  
-  if (q.question_meta?.location_points && q.question_meta.location_points.length > 0) {
-    targetLoc = parseLocationPoint(q.question_meta.location_points[0]);
-  }
+  const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
   if (!previousLoc || !currentLoc || !targetLoc) {
     debugLog('Hotter/Colder: Missing locations');
@@ -485,13 +516,21 @@ function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
 function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
+  // Type guard
+  if (!isCategory(q, 'Text Fact')) {
+    debugLog('Text Fact: Invalid metadata type');
+    return null;
+  }
+  
+  const meta = q.question_meta as TextFactQuestionMeta;
+  
   // For text facts, we look for known patterns in the template and rendered question
   // This is a simple implementation that checks for explicit yes/no patterns
   const rendered = q.rendered_question.toLowerCase();
   
   // Check for questions like "Is X equal to Y?" or "Is X true?"
   // where the answer might be embedded in the metadata
-  const expectedAnswer = (q.question_meta as any)?.expected_answer;
+  const expectedAnswer = meta.expected_answer;
   
   if (expectedAnswer !== undefined) {
     // Normalize the expected answer
@@ -537,21 +576,122 @@ function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
 function areaOperationsHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
+  // Type guard
+  if (!isCategory(q, 'Area Operations')) {
+    debugLog('Area Operations: Invalid metadata type');
+    return null;
+  }
+  
+  const meta = q.question_meta as AreaOperationsQuestionMeta;
+  
   // This category might involve checking if points are in specific areas
   // For now, delegate to polygon or circle handlers if those metadata fields exist
   
   // Check if we have polygon data
-  if ((q.question_meta as any)?.polygon_vertices) {
-    return polygonLocationHandler(ctx);
+  if (meta.polygon_vertices) {
+    // Create a temporary context with the polygon metadata
+    const tempCtx = {
+      ...ctx,
+      question: {
+        ...ctx.question,
+        question_meta: {
+          ...meta,
+          polygon_vertices: meta.polygon_vertices,
+          targetLocation: meta.targetLocation,
+        },
+        category: { ...ctx.question.category, category_name: 'Polygon Location' },
+      },
+    } as AutomationContext;
+    return polygonLocationHandler(tempCtx);
   }
   
   // Check if we have circle data
-  if (getCoordFromMeta(q, 'center') && (q.question_meta as any)?.radius) {
-    return circleHandler(ctx);
+  if (meta.center && meta.radius !== undefined) {
+    // Create a temporary context with the circle metadata
+    const tempCtx = {
+      ...ctx,
+      question: {
+        ...ctx.question,
+        question_meta: {
+          ...meta,
+          center: meta.center,
+          radius: meta.radius,
+          targetLocation: meta.targetLocation,
+        },
+        category: { ...ctx.question.category, category_name: 'Circle' },
+      },
+    } as AutomationContext;
+    return circleHandler(tempCtx);
   }
   
   debugLog('Area Operations: No recognizable pattern');
   return null;
+}
+
+/**
+ * Handler for "Closer to Line" category
+ * Checks if a point is closer to a line than another point
+ */
+function closerToLineHandler(ctx: AutomationContext): AutoAnswer | null {
+  const q = ctx.question;
+  
+  // Type guard
+  if (!isCategory(q, 'closer-to-line')) {
+    debugLog('Closer to Line: Invalid metadata type');
+    return null;
+  }
+  
+  const meta = q.question_meta as CloserToLineQuestionMeta;
+  
+  // We need: line definition (2 points), target location, and seeker location
+  // line_points is an array of LocationPoint objects, so we need to parse each
+  const linePoints = meta.line_points || [];
+  const linePoint1 = linePoints.length > 0 ? parseLocationPoint(linePoints[0]) : null;
+  const linePoint2 = linePoints.length > 1 ? parseLocationPoint(linePoints[1]) : null;
+  const targetLoc = getCoordFromMeta(q, 'targetLocation');
+  const seekerLoc = getCoordFromMeta(q, 'seekerLocation');
+  
+  if (!linePoint1 || !linePoint2 || !targetLoc || !seekerLoc) {
+    debugLog('Closer to Line: Missing required data', {
+      hasLinePoint1: !!linePoint1,
+      hasLinePoint2: !!linePoint2,
+      hasTarget: !!targetLoc,
+      hasSeeker: !!seekerLoc,
+    });
+    return null;
+  }
+  
+  // Calculate distances from line for both points
+  // Using point-to-line distance calculation
+  const distanceToLine = (point: Coord, lineStart: Coord, lineEnd: Coord): number => {
+    // Simple implementation: minimum distance from point to line segment
+    const l2 = haversine(lineStart, lineEnd);
+    if (l2 === 0) return haversine(point, lineStart);
+    
+    const t = ((point.lat - lineStart.lat) * (lineEnd.lat - lineStart.lat) + 
+              (point.lon - lineStart.lon) * (lineEnd.lon - lineStart.lon)) / l2;
+    
+    const projection = t < 0 ? lineStart : t > 1 ? lineEnd : {
+      lat: lineStart.lat + t * (lineEnd.lat - lineStart.lat),
+      lon: lineStart.lon + t * (lineEnd.lon - lineStart.lon),
+    };
+    
+    return haversine(point, projection);
+  };
+  
+  const targetToLine = distanceToLine(targetLoc, linePoint1, linePoint2);
+  const seekerToLine = distanceToLine(seekerLoc, linePoint1, linePoint2);
+  
+  const isCloser = seekerToLine < targetToLine;
+  
+  return {
+    result: isCloser,
+    metadata: {
+      text: `Seeker to line: ${seekerToLine.toFixed(0)}m, Target to line: ${targetToLine.toFixed(0)}m`,
+      confidence: 100,
+      computationMethod: 'closer_to_line_comparison'
+    }
+  };
 }
 
 // ============================================================================
@@ -569,7 +709,7 @@ registerHandler('Hotter/Colder', hotterColderHandler);
 registerHandler('Hotter / Colder', hotterColderHandler);
 registerHandler('Text Fact', textFactHandler);
 registerHandler('Area Operations', areaOperationsHandler);
-registerHandler('closer-to-line', distanceHandler); // Distance from Metro Line
+registerHandler('closer-to-line', closerToLineHandler);
 
 // ============================================================================
 // EXPORT

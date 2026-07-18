@@ -6,6 +6,7 @@ import {
 } from '../../apis/qnaApi';
 import { useFetchMyTeamQuery } from '../../apis/gameApi';
 import { AskedQuestion } from '../../models/QnA';
+import { LocationPoint } from '../../models/QuestionMeta';
 import {
   Loader,
   CheckCircle,
@@ -270,7 +271,7 @@ export function AnswerQuestionModule() {
                           <a
                             href={`/games/${gameId}/map?locations=${JSON.stringify(
                                 question.question_meta.location_points.map(
-                                  (p) => [parseFloat(p.lon), parseFloat(p.lat)],
+                                  (p: LocationPoint) => [parseFloat(p.lon), parseFloat(p.lat)],
                                 ),
                               )}`}
                             target="_blank"
@@ -289,7 +290,7 @@ export function AnswerQuestionModule() {
                           {question.question_meta!.location_points!.length > 1 ? (
                             <div className="flex flex-auto shrink-0 gap-2">
                               {question.question_meta!.location_points!.map(
-                                (point, index) => (
+                                (point: LocationPoint, index: number) => (
                                   <Button
                                     key={index}
                                     variant="outline"

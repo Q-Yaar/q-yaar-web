@@ -5,9 +5,10 @@ import {
   Category,
   QuestionTemplate,
   AskedQuestion,
-  AskQuestionRequest,
   AnswerQuestionRequest,
+  GenericAskQuestionRequest,
 } from '../models/QnA';
+import { BaseQuestionMeta } from '../models/QuestionMeta';
 import { QNA_MODULE } from '../constants/modules';
 
 export const qnaApi = api.injectEndpoints({
@@ -43,7 +44,7 @@ export const qnaApi = api.injectEndpoints({
     }),
     askQuestion: builder.mutation<
       AskedQuestion,
-      { gameId: string; questionId: string; body: AskQuestionRequest }
+      { gameId: string; questionId: string; body: GenericAskQuestionRequest }
     >({
       query: ({ gameId, questionId, body }) => ({
         url: `${QNA_API}game/${gameId}/questions/${questionId}/ask`,
@@ -79,7 +80,7 @@ export const qnaApi = api.injectEndpoints({
         gameId: string;
         askedQuestionId: string;
         body: {
-          question_meta: { location_points: { lat: string; lon: string }[] };
+          question_meta: BaseQuestionMeta;
         };
       }
     >({

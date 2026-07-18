@@ -34,6 +34,8 @@ export interface QuestionTemplate {
   placeholders?: Record<string, QuestionPlaceholder>; // Optional as it might not be in all responses
 }
 
+import { UnknownQuestionMeta, LocationPoint } from './QuestionMeta';
+
 export interface AskedQuestion {
   question_id: string;
   question_template_id: string;
@@ -43,11 +45,7 @@ export interface AskedQuestion {
   geo?: {
     count: number;
   };
-  question_meta: {
-    myLocation?: string;
-    location_points?: { lat: string; lon: string }[];
-    [key: string]: any;
-  };
+  question_meta: UnknownQuestionMeta;
   answer_meta?: {
     answered?: boolean;
     result?: string;
@@ -62,10 +60,19 @@ export interface AskedQuestion {
   modified: string;
 }
 
-export interface AskQuestionRequest {
+import type { QuestionMetaByCategory, BaseQuestionMeta } from './QuestionMeta';
+
+export interface AskQuestionRequest<C extends keyof QuestionMetaByCategory = never> {
   target_team_id: string;
   chosen_placeholders: Record<string, any>;
-  question_meta: Record<string, any>;
+  question_meta: C extends keyof QuestionMetaByCategory ? QuestionMetaByCategory[C] : BaseQuestionMeta;
+}
+
+// Backward compatible type for when category is unknown
+export interface GenericAskQuestionRequest {
+  target_team_id: string;
+  chosen_placeholders: Record<string, any>;
+  question_meta: BaseQuestionMeta;
 }
 
 export interface AnswerQuestionRequest {

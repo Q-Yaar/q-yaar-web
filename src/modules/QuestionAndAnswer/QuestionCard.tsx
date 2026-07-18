@@ -1,4 +1,5 @@
 import { AskedQuestion } from '../../models/QnA';
+import { LocationPoint } from '../../models/QuestionMeta';
 import { Card, CardContent } from 'components/ui/card';
 import { Button } from 'components/ui/button';
 import { formatDate } from 'utils/dateUtils';
@@ -68,7 +69,7 @@ export function QuestionCard({
                 <>
                   <a
                     href={`/games/${gameId || question.category.reward.created}/map?locations=${JSON.stringify(
-                      question.question_meta.location_points.map((p) => [
+                      question.question_meta.location_points.map((p: LocationPoint) => [
                         parseFloat(p.lon),
                         parseFloat(p.lat),
                       ]),

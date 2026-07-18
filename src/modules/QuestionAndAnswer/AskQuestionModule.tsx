@@ -15,7 +15,10 @@ import {
   useUpdateAskedQuestionMutation,
 } from '../../apis/qnaApi';
 import { useFetchTeamsQuery, useFetchMyTeamQuery } from '../../apis/gameApi';
-import { Category, QuestionTemplate, AskedQuestion } from '../../models/QnA';
+import { Category, QuestionTemplate, AskedQuestion, GenericAskQuestionRequest } from '../../models/QnA';
+import { BaseQuestionMeta, LocationPoint } from '../../models/QuestionMeta';
+import MapComponent from '../../components/Map';
+import { Operation } from '../../utils/geoTypes';
 import {
   Loader,
   Send,
@@ -24,6 +27,7 @@ import {
   HelpCircle,
   Clock,
   LayoutGrid,
+  Check,
 } from 'lucide-react';
 
 import { Header } from '../../components/ui/header';
@@ -57,8 +61,27 @@ export function AskQuestionModule() {
     useState<QuestionTemplate | null>(null);
 
   const [locationErrorOpen, setLocationErrorOpen] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState<any>(null);
+  const [pendingPayload, setPendingPayload] = useState<GenericAskQuestionRequest | null>(null);
   const [isAskingForLocation, setIsAskingForLocation] = useState(false);
+  
+  // Map picker for target location selection (geo questions)
+  const [targetLocation, setTargetLocation] = useState<LocationPoint | null>(null);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [lastSelectedPOIName, setLastSelectedPOIName] = useState<string | null>(null);
+  
+  // List of categories that require a target location picker
+  const geoCategories = useMemo(() => new Set([
+    'Measuring',
+    'Polygon Location', 
+    'Distance',
+    'Circle',
+    'Heading',
+    'Relative Heading',
+    'Hotter/Colder',
+    'Hotter / Colder',
+    'Area Operations',
+    'closer-to-line',
+  ]), []);
 
   // Queries
   const { data: categoriesData, isLoading: isLoadingCategories } =
@@ -132,22 +155,39 @@ export function AskQuestionModule() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-        const newPoint = {
+        const newPoint: LocationPoint = {
           lat: latitude.toString(),
           lon: longitude.toString(),
         };
 
-        const currentPoints = question.question_meta?.location_points || [];
-        const updatedPoints = [...currentPoints, newPoint];
+        // Determine which location field to update based on what's already set
+        // If seekerLocation is not set, set it. Otherwise, add to location_points.
+        const currentMeta = question.question_meta || {};
+        const hasSeekerLocation = currentMeta.seekerLocation !== undefined;
+        
+        let updatedMeta: BaseQuestionMeta;
+        if (!hasSeekerLocation) {
+          // Set as seekerLocation if not already set
+          updatedMeta = {
+            ...currentMeta,
+            seekerLocation: newPoint,
+            location_points: currentMeta.location_points || [],
+          };
+        } else {
+          // Otherwise add to location_points array
+          const currentPoints = currentMeta.location_points || [];
+          updatedMeta = {
+            ...currentMeta,
+            location_points: [...currentPoints, newPoint],
+          };
+        }
 
         try {
           await updateAskedQuestion({
             gameId: gameId || '',
             askedQuestionId: question.question_id,
             body: {
-              question_meta: {
-                location_points: updatedPoints,
-              },
+              question_meta: updatedMeta,
             },
           }).unwrap();
         } catch (err) {
@@ -214,19 +254,24 @@ export function AskQuestionModule() {
         target_team_id: '',
         placeholders: {},
       });
+      setLastSelectedPOIName(null);
     }
   }, [fullTemplate, form]);
 
   const handleCategorySelect = (category: Category) => {
     setSelectedCategory(category);
     setSelectedTemplateBasic(null);
+    setTargetLocation(null);
+    setLastSelectedPOIName(null);
   };
 
   const handleTemplateSelect = (template: QuestionTemplate) => {
     setSelectedTemplateBasic(template);
+    setTargetLocation(null);
+    setLastSelectedPOIName(null);
   };
 
-  const sendQuestion = async (payload: any) => {
+  const sendQuestion = async (payload: GenericAskQuestionRequest) => {
     if (!gameId || !fullTemplate) return;
     try {
       await askQuestion({
@@ -249,12 +294,24 @@ export function AskQuestionModule() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!gameId || !fullTemplate) return;
 
+    // Check if geo category requires target location
+    const isGeoCategory = selectedCategory && 
+      geoCategories.has(selectedCategory.category_name);
+    
+    if (isGeoCategory && !targetLocation) {
+      alert('Please select a target location on the map');
+      return;
+    }
+
     setIsAskingForLocation(true);
 
-    const basePayload = {
+    // Use explicit field names: seekerLocation and targetLocation for geo questions
+    const basePayload: GenericAskQuestionRequest = {
       target_team_id: values.target_team_id,
       chosen_placeholders: values.placeholders,
       question_meta: {
+        seekerLocation: undefined, // Will be set if location is available
+        targetLocation: targetLocation || undefined,
         location_points: [],
       },
     };
@@ -262,16 +319,15 @@ export function AskQuestionModule() {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const payload = {
+          const payload: GenericAskQuestionRequest = {
             ...basePayload,
             question_meta: {
               ...basePayload.question_meta,
-              location_points: [
-                {
-                  lat: position.coords.latitude.toString(),
-                  lon: position.coords.longitude.toString(),
-                },
-              ],
+              seekerLocation: {
+                lat: position.coords.latitude.toString(),
+                lon: position.coords.longitude.toString(),
+              },
+              location_points: [],
             },
           };
           setIsAskingForLocation(false);
@@ -621,6 +677,115 @@ export function AskQuestionModule() {
                             )}
                           </div>
                         )}
+
+                      {/* Map Picker for Geo Questions */}
+                      {selectedCategory && geoCategories.has(selectedCategory.category_name) && (
+                        <div className="pt-4 border-t border-gray-100">
+                          <h3 className="font-medium text-gray-900 mb-2">
+                            Select Target Location
+                          </h3>
+                          <p className="text-sm text-gray-500 mb-3">
+                            Click on a point of interest on the map to set the target location
+                          </p>
+                          <div className="h-64 rounded-lg overflow-hidden border border-gray-200 relative">
+                            <MapComponent
+                              action="select-target"
+                              points={[]}
+                              setPoints={() => {}}
+                              setDistance={() => {}}
+                              setHeading={() => {}}
+                              radius={0}
+                              hiderLocation="inside"
+                              playArea={null}
+                              splitDirection="North"
+                              preferredPoint="p1"
+                              areaOpType="inside"
+                              uploadedAreaForOp={null}
+                              multiLineStringForOp={null}
+                              closerFurther="closer"
+                              selectedLineIndex={0}
+                              polygonGeoJSONForOp={null}
+                              operations={[]}
+                              currentLocation={null}
+                              referencePoints={[]}
+                              playerLocations={[]}
+                              onLocationUpdate={() => {}}
+                              onLocationError={() => {}}
+                              onPointPOIInfoChange={(poiInfo) => {
+                                if (poiInfo && poiInfo[0]) {
+                                  const poi = poiInfo[0];
+                                  // Extract coordinates from POI
+                                  // Coordinates can be in properties.coordinates (added for select-target)
+                                  // or we need to use the click position
+                                  if (poi.properties && poi.properties.coordinates) {
+                                    const [lon, lat] = poi.properties.coordinates;
+                                    setTargetLocation({
+                                      lat: lat.toString(),
+                                      lon: lon.toString(),
+                                    });
+                                    
+                                    // Auto-populate landmark placeholder if available
+                                    const poiName = poi.name || null;
+                                    
+                                    // Clear previous POI name from placeholder if it was set
+                                    // (this happens when clicking a new location, POI or not)
+                                    if (lastSelectedPOIName) {
+                                      const placeholderKeys = Object.keys(fullTemplate?.placeholders || {});
+                                      for (const key of placeholderKeys) {
+                                        if (form.getValues(`placeholders.${key}`) === lastSelectedPOIName) {
+                                          form.setValue(`placeholders.${key}`, '');
+                                          break;
+                                        }
+                                      }
+                                      setLastSelectedPOIName(null);
+                                    }
+                                    
+                                    // Only proceed with auto-population if we have a POI name
+                                    if (poiName) {
+                                      // Try to find a suitable placeholder for the POI name
+                                      // Common names: landmark, location, target, place, destination
+                                      const landmarkPlaceholderNames = ['landmark', 'location', 'target', 'place', 'destination', 'poi'];
+                                      let placeholderToSet: string | null = null;
+                                      
+                                      for (const name of landmarkPlaceholderNames) {
+                                        if (fullTemplate?.placeholders && fullTemplate.placeholders[name]) {
+                                          placeholderToSet = name;
+                                          break;
+                                        }
+                                      }
+                                      
+                                      // If no specific placeholder found, use the first text placeholder
+                                      if (!placeholderToSet && fullTemplate?.placeholders) {
+                                        const placeholderKeys = Object.keys(fullTemplate.placeholders);
+                                        for (const key of placeholderKeys) {
+                                          const config = fullTemplate.placeholders[key];
+                                          // Only auto-populate if it's not a dropdown (has allowed_values)
+                                          if (!config.allowed_values || config.allowed_values.length === 0) {
+                                            placeholderToSet = key;
+                                            break;
+                                          }
+                                        }
+                                      }
+                                      
+                                      // Set the placeholder value if we found one
+                                      if (placeholderToSet && poiName) {
+                                        form.setValue(`placeholders.${placeholderToSet}`, poiName);
+                                        setLastSelectedPOIName(poiName);
+                                      }
+                                    }
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                          {targetLocation && (
+                            <div className="mt-2 text-sm text-green-600 flex items-center">
+                              <Check className="w-4 h-4 mr-1" />
+                              Target selected: {targetLocation.lat}, {targetLocation.lon}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Submit Button */}
                       <div className="pt-4">
