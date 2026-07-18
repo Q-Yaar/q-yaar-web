@@ -70,7 +70,7 @@ export interface AskQuestionRequest {
 
 export interface AnswerQuestionRequest {
   answer_meta: {
-    result: boolean;
+    result: boolean | string;
     metadata?: Record<string, any>;
   };
 }

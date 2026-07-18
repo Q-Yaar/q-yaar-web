@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useFetchAskedQuestionsQuery,
@@ -11,20 +11,26 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  ArrowLeft,
   MessageCircle,
   Map,
   MapPin,
   Gift,
+  Zap,
 } from 'lucide-react';
 
 import { QuestionCard } from './QuestionCard';
+import { Modal } from '../../components/ui/modal';
 
 import { Header } from '../../components/ui/header';
 import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
 import { formatDate } from 'utils/dateUtils';
+import {
+  tryAutoAnswer,
+  AutoAnswer,
+  getAutomationConfig,
+} from '../../services/questionAutomation';
 
 export function AnswerQuestionModule() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -44,6 +50,15 @@ export function AnswerQuestionModule() {
   const [answeringId, setAnsweringId] = useState<string | null>(null);
 
   const [answerTexts, setAnswerTexts] = useState<Record<string, string>>({});
+
+  // Automation state
+  const [autoAnswerModalOpen, setAutoAnswerModalOpen] = useState(false);
+  const [questionForAutoAnswer, setQuestionForAutoAnswer] = useState<AskedQuestion | null>(null);
+  const [computedAutoAnswer, setComputedAutoAnswer] = useState<AutoAnswer | null>(null);
+  const [isConfirmingAutoAnswer, setIsConfirmingAutoAnswer] = useState(false);
+  
+  // Track which questions we've already checked for auto-answer
+  const [checkedQuestions, setCheckedQuestions] = useState<Set<string>>(new Set());
 
   const handleOpenLocation = (lat: string, lon: string) => {
     window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank');
@@ -93,6 +108,80 @@ export function AnswerQuestionModule() {
     navigate(-1);
   };
 
+  // Check if a question can be auto-answered and show confirmation modal
+  const checkAndShowAutoAnswer = useCallback((question: AskedQuestion) => {
+    const config = getAutomationConfig();
+    if (!config.enabled) return;
+
+    // Skip if already checked or answered
+    if (checkedQuestions.has(question.question_id) || question.answered) return;
+
+    const autoAnswer = tryAutoAnswer(question);
+    if (autoAnswer) {
+      // Mark as checked so we don't show modal repeatedly
+      setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+      
+      // Store the question and computed answer for the modal
+      setQuestionForAutoAnswer(question);
+      setComputedAutoAnswer(autoAnswer);
+      setAutoAnswerModalOpen(true);
+    }
+  }, [checkedQuestions]);
+
+  // Handle confirming an auto-answer
+  const handleConfirmAutoAnswer = async () => {
+    if (!gameId || !questionForAutoAnswer || !computedAutoAnswer) return;
+
+    setIsConfirmingAutoAnswer(true);
+    setAutoAnswerModalOpen(false);
+
+    try {
+      await answerQuestion({
+        gameId,
+        askedQuestionId: questionForAutoAnswer.question_id,
+        body: {
+          answer_meta: {
+            result: computedAutoAnswer.result,
+            metadata: {
+              text: computedAutoAnswer.metadata.text || '',
+              auto_answered: true,
+              computation_method: computedAutoAnswer.metadata.computationMethod,
+              confidence: computedAutoAnswer.metadata.confidence,
+            },
+          },
+        },
+      }).unwrap();
+
+      // Clear the auto-answer state
+      setQuestionForAutoAnswer(null);
+      setComputedAutoAnswer(null);
+    } catch (err) {
+      console.error('Failed to submit auto-answer', err);
+      alert('Failed to submit auto-answer. Please try again.');
+      // Re-open modal so user can try again
+      setAutoAnswerModalOpen(true);
+    } finally {
+      setIsConfirmingAutoAnswer(false);
+    }
+  };
+
+  // Handle rejecting an auto-answer (go to manual flow)
+  const handleRejectAutoAnswer = () => {
+    setAutoAnswerModalOpen(false);
+    setQuestionForAutoAnswer(null);
+    setComputedAutoAnswer(null);
+  };
+
+  // Check all pending questions for auto-answers when they load
+  useEffect(() => {
+    if (!askedQuestionsData?.results) return;
+    
+    const pending = askedQuestionsData.results.filter(q => !q.answered);
+    pending.forEach(question => {
+      checkAndShowAutoAnswer(question);
+    });
+  }, [askedQuestionsData, checkAndShowAutoAnswer]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -136,29 +225,43 @@ export function AnswerQuestionModule() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {pendingQuestions.map((question) => (
-                <Card
-                  key={question.question_id}
-                  className="overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  <CardContent className="p-6">
-                    <div className="flex flex-wrap items-start justify-between gap-y-2 mb-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                          {question.category.category_name}
+              {pendingQuestions.map((question) => {
+                const autoAnswer = tryAutoAnswer(question);
+                const isAutoAnswerable = autoAnswer !== null;
+                
+                return (
+                  <Card
+                    key={question.question_id}
+                    className="overflow-hidden hover:shadow-md transition-shadow relative"
+                  >
+                    {/* Auto-answerable indicator */}
+                    {isAutoAnswerable && !question.answered && (
+                      <div className="absolute top-2 right-2 z-10">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                          <Zap className="w-3 h-3 mr-1" />
+                          Auto-answer
                         </span>
-                        {question.reward && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                            <Gift className="w-3 h-3 mr-1" />
-                            {question.reward.reward_name}
-                          </span>
-                        )}
                       </div>
+                    )}
+                    
+                    <CardContent className="p-6">
+                      <div className="flex flex-wrap items-start justify-between gap-y-2 mb-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            {question.category.category_name}
+                          </span>
+                          {question.reward && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                              <Gift className="w-3 h-3 mr-1" />
+                              {question.reward.reward_name}
+                            </span>
+                          )}
+                        </div>
 
-                      <span className="text-xs text-gray-400">
-                        {formatDate(question.created)}
-                      </span>
-                    </div>
+                        <span className="text-xs text-gray-400">
+                          {formatDate(question.created)}
+                        </span>
+                      </div>
 
                     {/* Map Navigation Row */}
                     {question.question_meta?.location_points &&
@@ -283,7 +386,7 @@ export function AnswerQuestionModule() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              );})}
             </div>
           )}
         </div>
@@ -303,6 +406,75 @@ export function AnswerQuestionModule() {
           </div>
         )}
       </div>
+
+      {/* Auto-Answer Confirmation Modal */}
+      <Modal
+        isOpen={autoAnswerModalOpen}
+        onClose={handleRejectAutoAnswer}
+        title="Auto-Answer Available"
+      >
+        <div className="space-y-4">
+          {questionForAutoAnswer && computedAutoAnswer && (
+            <>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-600 mb-1">Question</p>
+                <p className="text-gray-900">{questionForAutoAnswer.rendered_question}</p>
+              </div>
+
+              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center mb-2">
+                  <Zap className="w-5 h-5 text-blue-600 mr-2" />
+                  <p className="text-sm font-medium text-blue-800">Computed Answer</p>
+                </div>
+                <p className="text-blue-900">
+                  <strong>Result:</strong> {typeof computedAutoAnswer.result === 'boolean' 
+                    ? (computedAutoAnswer.result ? 'Yes' : 'No') 
+                    : String(computedAutoAnswer.result)}
+                </p>
+                {computedAutoAnswer.metadata.text && (
+                  <p className="text-blue-900 text-sm mt-1">
+                    <strong>Details:</strong> {computedAutoAnswer.metadata.text}
+                  </p>
+                )}
+                <p className="text-blue-900 text-sm mt-1">
+                  <strong>Confidence:</strong> {computedAutoAnswer.metadata.confidence}%
+                </p>
+                <p className="text-blue-900 text-sm mt-1">
+                  <strong>Method:</strong> {computedAutoAnswer.metadata.computationMethod}
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleRejectAutoAnswer}
+                  disabled={isConfirmingAutoAnswer}
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Answer Manually
+                </Button>
+                <Button
+                  onClick={handleConfirmAutoAnswer}
+                  disabled={isConfirmingAutoAnswer}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  {isConfirmingAutoAnswer ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin mr-2" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Confirm & Send
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
