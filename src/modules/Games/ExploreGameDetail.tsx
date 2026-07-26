@@ -199,14 +199,21 @@ export default function ExploreGameDetail() {
             )}
             <Button
               onClick={() => handleJoin(selectedTeamId || undefined)}
-              disabled={isJoining}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2 rounded-xl shadow-md hover:shadow-indigo-200 transition-all flex items-center gap-2 h-10"
+              disabled={isJoining || !isPendingGame}
+              className={`font-bold px-5 py-2 rounded-xl shadow-md transition-all flex items-center gap-2 h-10 ${
+                !isPendingGame
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-200'
+              }`}
+              title={!isPendingGame ? `Game is ${getLabel(game.game_status)} - Joining disabled` : undefined}
             >
               {isJoining ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Joining...
                 </>
+              ) : !isPendingGame ? (
+                <span>Joining Disabled</span>
               ) : selectedTeamId ? (
                 <>
                   <Sparkles className="w-4 h-4" />
@@ -422,13 +429,16 @@ export default function ExploreGameDetail() {
                         <Button
                           size="sm"
                           variant={isSelected ? 'default' : 'outline'}
+                          disabled={!isPendingGame}
                           onClick={() =>
                             setSelectedTeamId(
                               isSelected ? null : team.team_id
                             )
                           }
                           className={`text-xs font-bold ${
-                            isSelected
+                            !isPendingGame
+                              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : isSelected
                               ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                               : 'text-indigo-600 border-indigo-200 hover:bg-indigo-50'
                           }`}
@@ -504,15 +514,23 @@ export default function ExploreGameDetail() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="space-y-1 text-center sm:text-left">
               <h3 className="font-bold text-gray-900 text-base flex items-center gap-2 justify-center sm:justify-start">
-                {selectedTeamId ? (
+                {!isPendingGame ? (
+                  <Lock className="w-4 h-4 text-amber-600" />
+                ) : selectedTeamId ? (
                   <Sparkles className="w-4 h-4 text-indigo-600" />
                 ) : (
                   <Eye className="w-4 h-4 text-indigo-600" />
                 )}
-                {selectedTeamId ? 'Ready to participate?' : 'Join as Spectator'}
+                {!isPendingGame
+                  ? `Game ${getLabel(game.game_status)}`
+                  : selectedTeamId
+                  ? 'Ready to participate?'
+                  : 'Join as Spectator'}
               </h3>
               <p className="text-xs text-gray-600">
-                {selectedTeamId
+                {!isPendingGame
+                  ? `This game is currently ${getLabel(game.game_status)}. New players cannot join.`
+                  : selectedTeamId
                   ? 'You have selected a team to join as an active player.'
                   : 'No team selected. You will join the game session as a Spectator.'}
               </p>
@@ -520,14 +538,20 @@ export default function ExploreGameDetail() {
 
             <Button
               onClick={() => handleJoin(selectedTeamId || undefined)}
-              disabled={isJoining}
-              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              disabled={isJoining || !isPendingGame}
+              className={`w-full sm:w-auto font-bold px-6 py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
+                !isPendingGame
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
+              }`}
             >
               {isJoining ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Joining...
                 </>
+              ) : !isPendingGame ? (
+                <span>Joining Disabled</span>
               ) : (
                 <>
                   <span>
