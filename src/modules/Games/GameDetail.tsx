@@ -15,7 +15,7 @@ import { LocationCard } from './LocationCard';
 import { TeamModal } from './TeamModal';
 import { useState } from 'react';
 import { TeamAvatar } from 'components/TeamAvatar';
-import { RefreshCw, Share2, Check, Hash, Copy } from 'lucide-react';
+import { RefreshCw, Share2, Check, Hash } from 'lucide-react';
 
 export default function GameDetail() {
   const navigate = useNavigate();
@@ -116,61 +116,36 @@ export default function GameDetail() {
         title={game?.name || 'Game Modules'}
         onBack={onBack}
         action={
-          <div className="flex items-center gap-2">
-            {/* Share Link Header Button */}
-            {isPendingGame && game?.game_code && (
+          <div className="flex items-center gap-2 bg-white border border-gray-200 p-1.5 pl-3 rounded-2xl shadow-xs">
+            <div className="flex items-center gap-2">
+              <TeamAvatar
+                teamName={team?.team_name || 'Spectator'}
+                teamColor={team?.team_colour || 'gray'}
+                className="w-5 h-5 font-bold shadow-xs"
+              />
+              <span className="text-xs font-bold text-gray-800 max-w-[120px] truncate hidden sm:inline">
+                {team?.team_name || 'Spectator'}
+              </span>
+            </div>
+            {isPendingGame ? (
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleShareGame}
-                className="text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 py-1 px-2.5 h-8 rounded-xl flex items-center gap-1.5 transition-all"
-                title="Share Game Join Link"
+                onClick={() => setIsModalOpen(true)}
+                className="text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 py-1 px-2.5 h-7 flex items-center gap-1.5 rounded-xl transition-all"
               >
-                {copiedLink ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="hidden sm:inline">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-3.5 h-3.5 text-indigo-600" />
-                    <span className="hidden sm:inline">Share</span>
-                  </>
-                )}
+                <RefreshCw className="w-3 h-3" />
+                <span>Switch Team</span>
               </Button>
+            ) : (
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="text-xs font-semibold text-gray-500 hover:text-indigo-600 px-2 py-1 transition-colors"
+                title="View Teams & Players"
+              >
+                View Teams
+              </button>
             )}
-
-            <div className="flex items-center gap-2 bg-white border border-gray-200 p-1.5 pl-3 rounded-2xl shadow-xs">
-              <div className="flex items-center gap-2">
-                <TeamAvatar
-                  teamName={team?.team_name || 'Spectator'}
-                  teamColor={team?.team_colour || 'gray'}
-                  className="w-5 h-5 font-bold shadow-xs"
-                />
-                <span className="text-xs font-bold text-gray-800 max-w-[120px] truncate hidden sm:inline">
-                  {team?.team_name || 'Spectator'}
-                </span>
-              </div>
-              {isPendingGame ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsModalOpen(true)}
-                  className="text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 py-1 px-2.5 h-7 flex items-center gap-1.5 rounded-xl transition-all"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Switch Team</span>
-                </Button>
-              ) : (
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="text-xs font-semibold text-gray-500 hover:text-indigo-600 px-2 py-1 transition-colors"
-                  title="View Teams & Players"
-                >
-                  View Teams
-                </button>
-              )}
-            </div>
           </div>
         }
       />
