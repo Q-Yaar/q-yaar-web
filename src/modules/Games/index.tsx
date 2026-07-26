@@ -5,6 +5,7 @@ import { ExploreGameCard } from './ExploreGameCard';
 import { Header } from '../../components/ui/header';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { Modal } from '../../components/ui/modal';
 import { useFetchGamesQuery, useExploreGamesQuery, useLazyFetchGameByCodeQuery } from '../../apis/gameApi';
 import { Game } from '../../models/Game';
 import { useNavigate } from 'react-router-dom';
@@ -46,6 +47,9 @@ export default function GameList() {
 
   // Tab State: ACTIVE vs DISCOVER
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'DISCOVER'>('ACTIVE');
+
+  // Popup Modal State for Join Code
+  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
 
   // Active Games Query
   const { data: activeData, isLoading: isActiveLoading, isError: isActiveError, refetch: refetchActive } = useFetchGamesQuery(null);
@@ -96,6 +100,8 @@ export default function GameList() {
     try {
       const game = await fetchGameByCode(trimmed).unwrap();
       if (game && game.game_id) {
+        setIsCodeModalOpen(false);
+        setInputGameCode('');
         navigate(getRoute(EXPLORE_GAME_DETAIL_ROUTE, { gameId: game.game_id }));
       } else {
         setCodeError(`No game found with code "${trimmed}".`);
@@ -159,9 +165,9 @@ export default function GameList() {
         }
       />
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
         {/* Prominent Two-Tab Selector */}
-        <div className="flex items-center justify-center sm:justify-start">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="bg-gray-200/80 p-1.5 rounded-2xl flex items-center gap-1.5 w-full sm:w-auto shadow-xs">
             <button
               onClick={() => setActiveTab('ACTIVE')}
@@ -211,61 +217,32 @@ export default function GameList() {
           </div>
         </div>
 
-        {/* Direct Game Code Join Banner */}
-        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-indigo-700/50">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="space-y-1.5 max-w-xl text-left">
-              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/10 text-indigo-200 text-xs font-semibold backdrop-blur-md border border-white/15">
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Direct Join</span>
-              </div>
-              <h2 className="text-lg sm:text-xl font-extrabold tracking-tight">
+        {/* Super Compact Direct Game Code Join Banner */}
+        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-2.5 sm:p-3 sm:px-4 shadow-xs flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+              <KeyRound className="w-4 h-4 text-indigo-200" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold text-white leading-tight truncate">
                 Have a Game Code?
-              </h2>
-              <p className="text-xs sm:text-sm text-indigo-100/90 leading-relaxed">
-                Enter a game code to view game overview, inspect teams & players, and join.
+              </h3>
+              <p className="text-[11px] text-indigo-200/80 hidden sm:block truncate">
+                Enter code to view game details and join teams.
               </p>
             </div>
-
-            <form onSubmit={handleJoinByCodeSubmit} className="w-full md:w-auto min-w-[280px] sm:min-w-[320px]">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-2xl border border-white/20 backdrop-blur-md focus-within:border-white/40 transition-colors">
-                  <Hash className="w-4 h-4 text-indigo-300 ml-2.5 flex-shrink-0" />
-                  <Input
-                    type="text"
-                    placeholder="e.g. bdd5de"
-                    value={inputGameCode}
-                    onChange={(e) => {
-                      setInputGameCode(e.target.value);
-                      setCodeError(null);
-                    }}
-                    maxLength={12}
-                    className="bg-transparent border-0 text-white font-mono font-bold text-sm tracking-wider placeholder:text-indigo-200/50 focus-visible:ring-0 focus-visible:ring-offset-0 px-2"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={isFetchingByCode || !inputGameCode.trim()}
-                    className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold px-4 py-2 rounded-xl text-xs flex-shrink-0 shadow-xs transition-all h-9"
-                  >
-                    {isFetchingByCode ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-indigo-900" />
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        Join Game
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </span>
-                    )}
-                  </Button>
-                </div>
-                {codeError && (
-                  <p className="text-xs text-rose-300 font-medium px-3 text-left animate-fade-in flex items-center gap-1.5 bg-rose-950/40 py-1.5 rounded-lg border border-rose-500/30">
-                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                    {codeError}
-                  </p>
-                )}
-              </div>
-            </form>
           </div>
+
+          <Button
+            onClick={() => {
+              setCodeError(null);
+              setIsCodeModalOpen(true);
+            }}
+            className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs px-3.5 py-1.5 h-8 rounded-xl shrink-0 shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Hash className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Enter Code</span>
+          </Button>
         </div>
 
         {/* TAB 1 CONTENT: Active Games */}
@@ -319,7 +296,7 @@ export default function GameList() {
 
         {/* TAB 2 CONTENT: Discover Games */}
         {activeTab === 'DISCOVER' && (
-          <div className="space-y-5 animate-fade-in">
+          <div className="space-y-4 animate-fade-in">
             <div className="space-y-1 text-left">
               <h3 className="text-lg font-bold text-gray-900 tracking-tight">
                 Discover Games
@@ -417,6 +394,76 @@ export default function GameList() {
             </div>
           </div>
         )}
+
+        {/* Join with Game Code Popup Modal */}
+        <Modal
+          isOpen={isCodeModalOpen}
+          onClose={() => setIsCodeModalOpen(false)}
+          title="Join Game by Code"
+          className="max-w-md w-full rounded-t-3xl sm:rounded-2xl p-4 sm:p-6 text-left"
+        >
+          {/* Mobile Drag Handle Indicator */}
+          <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden" />
+
+          <form onSubmit={handleJoinByCodeSubmit} className="space-y-4">
+            <p className="text-xs text-gray-500 text-left leading-relaxed">
+              Enter the 6-character game code provided by your game host to look up details and join a team.
+            </p>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-2xl border border-gray-200 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                <Hash className="w-4 h-4 text-indigo-600 ml-2 shrink-0" />
+                <Input
+                  type="text"
+                  placeholder="e.g. bdd5de"
+                  value={inputGameCode}
+                  onChange={(e) => {
+                    setInputGameCode(e.target.value);
+                    setCodeError(null);
+                  }}
+                  maxLength={12}
+                  autoFocus
+                  className="bg-transparent border-0 text-gray-900 font-mono font-bold text-sm tracking-wider placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 uppercase"
+                />
+              </div>
+
+              {codeError && (
+                <p className="text-xs text-rose-600 font-medium px-3 py-2 text-left flex items-center gap-1.5 bg-rose-50 rounded-xl border border-rose-200 animate-fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{codeError}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCodeModalOpen(false)}
+                className="text-xs font-semibold text-gray-600 border-gray-200 h-10 px-4 rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isFetchingByCode || !inputGameCode.trim()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {isFetchingByCode ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Looking up...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Join Game</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );
