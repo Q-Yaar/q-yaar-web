@@ -5,6 +5,7 @@ import { ExploreGameCard } from './ExploreGameCard';
 import { Header } from '../../components/ui/header';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { Modal } from '../../components/ui/modal';
 import { useFetchGamesQuery, useExploreGamesQuery, useLazyFetchGameByCodeQuery } from '../../apis/gameApi';
 import { Game } from '../../models/Game';
 import { useNavigate } from 'react-router-dom';
@@ -13,13 +14,12 @@ import { GAME_DETAIL_ROUTE, EXPLORE_GAME_DETAIL_ROUTE, LOGIN_ROUTE } from '../..
 import { useDispatch } from 'react-redux';
 import { clearToken } from '../../redux/auth-reducer';
 import LoadingScreen from 'components/LoadingScreen';
-import ErrorScreen from 'components/ErrorScreen';
 
 function ExploreSkeleton() {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm animate-pulse space-y-4">
+        <div key={i} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs animate-pulse space-y-4">
           <div className="flex justify-between items-start">
             <div className="space-y-2 flex-1 pr-4">
               <div className="h-5 bg-gray-200 rounded w-3/4"></div>
@@ -45,6 +45,12 @@ export default function GameList() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
+  // Tab State: ACTIVE vs DISCOVER
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'DISCOVER'>('ACTIVE');
+
+  // Popup Modal State for Join Code
+  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
+
   // Active Games Query
   const { data: activeData, isLoading: isActiveLoading, isError: isActiveError, refetch: refetchActive } = useFetchGamesQuery(null);
   const activeGames = activeData?.results || [];
@@ -54,13 +60,10 @@ export default function GameList() {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [fetchGameByCode, { isLoading: isFetchingByCode }] = useLazyFetchGameByCodeQuery();
 
-  // Search & Filter state
+  // Search & Type Filter state for Discover Tab
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [gameTypeFilter, setGameTypeFilter] = useState('ALL');
-  const [gameStatusFilter, setGameStatusFilter] = useState('ALL');
-  const [gameVisibilityFilter, setGameVisibilityFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState('NEWEST');
 
   // Debounce search input
   useEffect(() => {
@@ -97,6 +100,8 @@ export default function GameList() {
     try {
       const game = await fetchGameByCode(trimmed).unwrap();
       if (game && game.game_id) {
+        setIsCodeModalOpen(false);
+        setInputGameCode('');
         navigate(getRoute(EXPLORE_GAME_DETAIL_ROUTE, { gameId: game.game_id }));
       } else {
         setCodeError(`No game found with code "${trimmed}".`);
@@ -112,54 +117,25 @@ export default function GameList() {
     refetchExplore();
   };
 
-  // Client-side filtering & sorting on the explore games list
+  // Filter explore games only by game type
   const filteredExploreGames = useMemo(() => {
     let list: Game[] = Array.isArray(exploreData)
       ? exploreData
       : exploreData?.results || [];
 
-    // Filter by type
     if (gameTypeFilter !== 'ALL') {
       list = list.filter((game: Game) => game.game_type === gameTypeFilter);
     }
 
-    // Filter by status
-    if (gameStatusFilter !== 'ALL') {
-      list = list.filter((game: Game) => game.game_status === gameStatusFilter);
-    }
-
-    // Filter by visibility mode
-    if (gameVisibilityFilter !== 'ALL') {
-      list = list.filter(
-        (game: Game) =>
-          (game.game_visibility_mode || 'PUBLIC').toUpperCase() ===
-          gameVisibilityFilter
-      );
-    }
-
-    // Sort
-    list = [...list].sort((a: Game, b: Game) => {
-      if (sortBy === 'NEWEST') {
-        return new Date(b.created).getTime() - new Date(a.created).getTime();
-      }
-      if (sortBy === 'OLDEST') {
-        return new Date(a.created).getTime() - new Date(b.created).getTime();
-      }
-      if (sortBy === 'ALPHABETICAL') {
-        return a.name.localeCompare(b.name);
-      }
-      return 0;
-    });
-
     return list;
-  }, [exploreData, gameTypeFilter, gameStatusFilter, gameVisibilityFilter, sortBy]);
+  }, [exploreData, gameTypeFilter]);
 
-  if (isActiveLoading) {
+  if (isActiveLoading && !activeData) {
     return <LoadingScreen />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
+    <div className="min-h-screen bg-gray-50 pb-16 text-left">
       {/* Header */}
       <Header
         title="Games Lobby"
@@ -189,263 +165,326 @@ export default function GameList() {
         }
       />
 
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-12">
-        {/* Section 1: Active Games (Top of Lobby) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
+        {/* Prominent Two-Tab Selector */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="bg-gray-200/80 p-1.5 rounded-2xl flex items-center gap-1.5 w-full sm:w-auto shadow-xs">
+            <button
+              onClick={() => setActiveTab('ACTIVE')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'ACTIVE'
+                  ? 'bg-white text-indigo-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+              }`}
+            >
+              <Gamepad2 className="w-4 h-4 text-indigo-600" />
+              <span>Active Games</span>
+              {activeGames.length > 0 && (
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    activeTab === 'ACTIVE'
+                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                      : 'bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {activeGames.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('DISCOVER')}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'DISCOVER'
+                  ? 'bg-white text-indigo-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+              }`}
+            >
+              <Compass className="w-4 h-4 text-indigo-600" />
+              <span>Discover Games</span>
+              {filteredExploreGames.length > 0 && (
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    activeTab === 'DISCOVER'
+                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                      : 'bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {filteredExploreGames.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* TAB 1 CONTENT: Active Games */}
+        {activeTab === 'ACTIVE' && (
+          <div className="space-y-4 animate-fade-in">
             <div className="space-y-1 text-left">
-              <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center">
+              <h3 className="text-lg font-bold text-gray-900 tracking-tight flex items-center gap-2">
                 Active Games
                 {activeGames.length > 0 && (
-                  <span className="ml-2 bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-bold border border-indigo-200">
+                  <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-bold border border-indigo-200">
                     {activeGames.length}
                   </span>
                 )}
-              </h2>
-              <p className="text-sm text-gray-500">Games you are currently participating in.</p>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {isActiveError ? (
-              <div className="col-span-full text-center py-8 bg-white rounded-2xl shadow-sm border border-red-100 p-6">
-                <p className="text-red-500 font-semibold text-sm">Failed to load active games.</p>
-                <p className="text-xs text-gray-400 mt-1 mb-3">The server encountered an error while fetching your active sessions.</p>
-                <Button onClick={() => refetchActive()} variant="outline" size="sm">
-                  Retry Active Games
-                </Button>
-              </div>
-            ) : activeGames.length === 0 ? (
-              <div className="col-span-full text-center py-12 bg-white rounded-2xl shadow-sm border border-dashed border-gray-300">
-                <Gamepad2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium">No active games found.</p>
-                <p className="text-xs text-gray-400 mt-1">Explore and join public sessions below.</p>
-              </div>
-            ) : (
-              activeGames.map((game: Game) => (
-                <GameCard
-                  key={game.game_id}
-                  game={game}
-                  onClick={handleSelectActiveGame}
-                />
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Join Game with Game Code Banner */}
-        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-3xl p-6 sm:p-8 shadow-md border border-indigo-700/50">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2 max-w-xl text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-indigo-200 text-xs font-semibold backdrop-blur-md border border-white/15">
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Direct Join</span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-                Have a Game Code?
-              </h2>
-              <p className="text-xs sm:text-sm text-indigo-100/90 leading-relaxed">
-                Enter a 6-character game code to look up public or private sessions and view teams, players, and join details.
-              </p>
+              </h3>
+              <p className="text-xs text-gray-500">Games you are currently participating in.</p>
             </div>
 
-            <form onSubmit={handleJoinByCodeSubmit} className="w-full md:w-auto min-w-[280px] sm:min-w-[340px]">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 bg-white/10 p-1.5 rounded-2xl border border-white/20 backdrop-blur-md focus-within:border-white/40 transition-colors">
-                  <Hash className="w-4 h-4 text-indigo-300 ml-3 flex-shrink-0" />
-                  <Input
-                    type="text"
-                    placeholder="e.g. bdd5de"
-                    value={inputGameCode}
-                    onChange={(e) => {
-                      setInputGameCode(e.target.value);
-                      setCodeError(null);
-                    }}
-                    maxLength={12}
-                    className="bg-transparent border-0 text-white font-mono font-bold text-sm tracking-wider placeholder:text-indigo-200/50 focus-visible:ring-0 focus-visible:ring-offset-0 px-2"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={isFetchingByCode || !inputGameCode.trim()}
-                    className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold px-5 py-2.5 rounded-xl text-xs flex-shrink-0 shadow-sm transition-all"
-                  >
-                    {isFetchingByCode ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-indigo-900" />
-                    ) : (
-                      <span className="flex items-center gap-1.5">
-                        Join Game
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </span>
-                    )}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {isActiveError ? (
+                <div className="col-span-full text-center py-8 bg-white rounded-2xl shadow-xs border border-red-100 p-6">
+                  <p className="text-red-500 font-semibold text-sm">Failed to load active games.</p>
+                  <p className="text-xs text-gray-400 mt-1 mb-3">The server encountered an error while fetching your active sessions.</p>
+                  <Button onClick={() => refetchActive()} variant="outline" size="sm">
+                    Retry Active Games
                   </Button>
                 </div>
-                {codeError && (
-                  <p className="text-xs text-rose-300 font-medium px-3 text-left animate-fade-in flex items-center gap-1.5 bg-rose-950/40 py-1.5 rounded-lg border border-rose-500/30">
-                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                    {codeError}
+              ) : activeGames.length === 0 ? (
+                <div className="col-span-full text-center py-12 px-6 bg-white rounded-3xl shadow-xs border border-dashed border-indigo-200/80 my-2">
+                  <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl p-3 mx-auto mb-3 flex items-center justify-center border border-indigo-100 shadow-2xs">
+                    <Gamepad2 className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-gray-900 font-extrabold text-base sm:text-lg tracking-tight">
+                    You're not in any active games yet
+                  </h4>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                    Explore open public sessions to join a game, or enter a 6-character game code shared by your host.
                   </p>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
 
-        {/* Section Divider */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center" aria-hidden="true">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-gray-50 px-4 text-xs font-semibold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Compass className="w-3.5 h-3.5" />
-              Discover Mode
-            </span>
-          </div>
-        </div>
-
-        {/* Section 2: Explore Games / Discovery Section */}
-        <div className="space-y-6">
-          <div className="space-y-1 text-left">
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-              Game Discovery
-            </h2>
-            <p className="text-sm text-gray-500">Search and filter for public game sessions in your region.</p>
-          </div>
-
-          {/* Search and Filters Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-4 md:space-y-0 md:flex md:items-center md:gap-4">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search by game name, code, or description..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-8 py-2 bg-gray-50/50 border-gray-200 focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 mt-5">
+                    <Button
+                      onClick={() => setActiveTab('DISCOVER')}
+                      className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 h-10 rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Compass className="w-4 h-4" />
+                      <span>Discover Public Games</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCodeError(null);
+                        setIsCodeModalOpen(true);
+                      }}
+                      className="w-full sm:w-auto text-indigo-600 border-indigo-200 hover:bg-indigo-50 font-bold text-xs px-4 py-2.5 h-10 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Hash className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Enter Game Code</span>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                activeGames.map((game: Game) => (
+                  <GameCard
+                    key={game.game_id}
+                    game={game}
+                    onClick={handleSelectActiveGame}
+                  />
+                ))
               )}
             </div>
+          </div>
+        )}
 
-            {/* Filters Row */}
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+        {/* TAB 2 CONTENT: Discover Games */}
+        {activeTab === 'DISCOVER' && (
+          <div className="space-y-4 animate-fade-in">
+            {/* Super Compact Direct Game Code Join Banner */}
+            <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-2.5 sm:p-3 sm:px-4 shadow-xs flex items-center justify-between gap-3 text-left">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+                  <KeyRound className="w-4 h-4 text-indigo-200" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-bold text-white leading-tight truncate">
+                    Have a Game Code?
+                  </h3>
+                  <p className="text-[11px] text-indigo-200/80 hidden sm:block truncate">
+                    Enter code to view game details and join teams.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => {
+                  setCodeError(null);
+                  setIsCodeModalOpen(true);
+                }}
+                className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs px-3.5 py-1.5 h-8 rounded-xl shrink-0 shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Hash className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Enter Code</span>
+              </Button>
+            </div>
+
+            <div className="space-y-1 text-left">
+              <h3 className="text-lg font-bold text-gray-900 tracking-tight">
+                Discover Games
+              </h3>
+              <p className="text-xs text-gray-500">Search and filter for public game sessions in your region.</p>
+            </div>
+
+            {/* Simplified Search & Type Filter Bar */}
+            <div className="bg-white p-3 sm:p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-3">
+              {/* Search Input */}
+              <div className="relative w-full sm:flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search games by name or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-8 py-2 text-xs sm:text-sm bg-gray-50/60 border-gray-200 focus-visible:ring-indigo-500 rounded-xl"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
               {/* Type Filter */}
-              <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
-                <SlidersHorizontal className="w-3 h-3 text-gray-400 hidden sm:inline" />
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 w-full sm:w-auto shrink-0">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs font-semibold text-gray-500 hidden sm:inline">Type:</span>
                 <select
                   value={gameTypeFilter}
                   onChange={(e) => setGameTypeFilter(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer pr-1 py-1"
+                  className="bg-transparent text-xs font-bold text-gray-800 focus:outline-none cursor-pointer w-full sm:w-auto pr-1"
                 >
-                  <option value="ALL">All Types</option>
+                  <option value="ALL">All Game Types</option>
                   <option value="HIDE_N_SEEK">Hide & Seek</option>
                 </select>
               </div>
+            </div>
 
-              {/* Status Filter */}
-              <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
-                <select
-                  value={gameStatusFilter}
-                  onChange={(e) => setGameStatusFilter(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer pr-1 py-1"
-                >
-                  <option value="ALL">All Statuses</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="IN_PROGRESS">In Progress</option>
-                  <option value="COMPLETED">Completed</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
-              </div>
-
-              {/* Visibility Filter */}
-              <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
-                <select
-                  value={gameVisibilityFilter}
-                  onChange={(e) => setGameVisibilityFilter(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer pr-1 py-1"
-                >
-                  <option value="ALL">All Visibility</option>
-                  <option value="PUBLIC">Public</option>
-                  <option value="PRIVATE">Private</option>
-                </select>
-              </div>
-
-              {/* Sort Order */}
-              <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 col-span-2 sm:col-span-1">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer pr-1 py-1 w-full"
-                >
-                  <option value="NEWEST">Newest First</option>
-                  <option value="OLDEST">Oldest First</option>
-                  <option value="ALPHABETICAL">Name (A-Z)</option>
-                </select>
-              </div>
+            {/* Explore Grid / Results */}
+            <div className="w-full">
+              {isExploreLoading ? (
+                <ExploreSkeleton />
+              ) : isExploreError ? (
+                <div className="text-center py-10 bg-white rounded-2xl border border-gray-200 shadow-xs p-6">
+                  <p className="text-red-500 font-semibold text-sm">Failed to fetch discoverable games.</p>
+                  <p className="text-xs text-gray-400 mt-1 mb-4">There was a network or server issue.</p>
+                  <Button onClick={() => refetchExplore()} variant="outline" size="sm">
+                    Retry Fetch
+                  </Button>
+                </div>
+              ) : filteredExploreGames.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 p-6">
+                  <Compass className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  {searchQuery || gameTypeFilter !== 'ALL' ? (
+                    <>
+                      <p className="text-gray-700 font-semibold text-sm">No games match your search or filter criteria.</p>
+                      <p className="text-xs text-gray-400 mt-1">Try broadening your search term or selecting "All Game Types".</p>
+                      <Button
+                        onClick={() => {
+                          setSearchQuery('');
+                          setGameTypeFilter('ALL');
+                        }}
+                        variant="link"
+                        className="mt-2 text-indigo-600 font-bold text-xs"
+                      >
+                        Clear Filters
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-700 font-semibold text-sm">No discoverable games available right now.</p>
+                      <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+                        You are either currently participating in all available sessions, or no new public games are open to join.
+                      </p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredExploreGames.map((game: Game) => (
+                    <ExploreGameCard
+                      key={game.game_id}
+                      game={game}
+                      onClick={handleSelectExploreGame}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-          {/* Explore Grid / Results */}
-          <div className="w-full">
-            {isExploreLoading ? (
-              <ExploreSkeleton />
-            ) : isExploreError ? (
-              <div className="text-center py-10 bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                <p className="text-red-500 font-semibold">Failed to fetch discoverable games.</p>
-                <p className="text-sm text-gray-400 mt-1 mb-4">There was a network or server issue.</p>
-                <Button onClick={() => refetchExplore()} variant="outline" size="sm">
-                  Retry Fetch
-                </Button>
+        {/* Join with Game Code Popup Modal */}
+        <Modal
+          isOpen={isCodeModalOpen}
+          onClose={() => setIsCodeModalOpen(false)}
+          title="Join Game by Code"
+          className="max-w-md w-full rounded-t-3xl sm:rounded-2xl p-4 sm:p-6 text-left"
+        >
+          {/* Mobile Drag Handle Indicator */}
+          <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden" />
+
+          <form onSubmit={handleJoinByCodeSubmit} className="space-y-4">
+            <p className="text-xs text-gray-500 text-left leading-relaxed">
+              Enter the 6-character game code provided by your game host to look up details and join a team.
+            </p>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 bg-gray-50 p-2.5 rounded-2xl border border-gray-200 focus-within:border-indigo-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                <Hash className="w-4 h-4 text-indigo-600 ml-2 shrink-0" />
+                <Input
+                  type="text"
+                  placeholder="e.g. bdd5de"
+                  value={inputGameCode}
+                  onChange={(e) => {
+                    setInputGameCode(e.target.value);
+                    setCodeError(null);
+                  }}
+                  maxLength={12}
+                  autoFocus
+                  className="bg-transparent border-0 text-gray-900 font-mono font-bold text-sm tracking-wider placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0 px-2 uppercase"
+                />
               </div>
-            ) : filteredExploreGames.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300 px-4">
-                <Compass className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                {searchQuery || gameTypeFilter !== 'ALL' || gameStatusFilter !== 'ALL' || gameVisibilityFilter !== 'ALL' ? (
+
+              {codeError && (
+                <p className="text-xs text-rose-600 font-medium px-3 py-2 text-left flex items-center gap-1.5 bg-rose-50 rounded-xl border border-rose-200 animate-fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{codeError}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCodeModalOpen(false)}
+                className="text-xs font-semibold text-gray-600 border-gray-200 h-10 px-4 rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isFetchingByCode || !inputGameCode.trim()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {isFetchingByCode ? (
                   <>
-                    <p className="text-gray-600 font-semibold">No discoverable games match your search or filter criteria.</p>
-                    <p className="text-xs text-gray-400 mt-1">Try broadening your search term or adjusting filter dropdowns.</p>
-                    <Button
-                      onClick={() => {
-                        setSearchQuery('');
-                        setGameTypeFilter('ALL');
-                        setGameStatusFilter('ALL');
-                        setGameVisibilityFilter('ALL');
-                      }}
-                      variant="link"
-                      className="mt-2 text-indigo-600 font-semibold"
-                    >
-                      Clear All Filters
-                    </Button>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Looking up...</span>
                   </>
                 ) : (
                   <>
-                    <p className="text-gray-600 font-semibold">No new discoverable games available right now.</p>
-                    <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
-                      You are either currently participating in all available game sessions, or no new public games are open to join.
-                    </p>
+                    <span>Join Game</span>
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 )}
-              </div>
-            ) : (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredExploreGames.map((game: Game) => (
-                  <ExploreGameCard
-                    key={game.game_id}
-                    game={game}
-                    onClick={handleSelectExploreGame}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+              </Button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   );

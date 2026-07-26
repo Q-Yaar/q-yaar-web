@@ -5,17 +5,18 @@ import { LoginResponse } from '../models/Login';
 
 import { storage, STORAGE_KEYS } from '../utils/storage';
 
-const savedAuth = storage.get<LoginResponse>(STORAGE_KEYS.AUTH);
-
 export interface AuthState {
   authData?: LoginResponse;
 }
 
-const initialState: AuthState = savedAuth ? { authData: savedAuth } : {};
+const getInitialState = (): AuthState => {
+  const savedAuth = storage.get<LoginResponse>(STORAGE_KEYS.AUTH);
+  return savedAuth ? { authData: savedAuth } : {};
+};
 
 export const authSlice = createSlice({
   name: AUTH_MODULE,
-  initialState,
+  initialState: getInitialState,
   reducers: {
     setToken: (state: AuthState, { payload: { authData } }) => {
       state.authData = authData;
