@@ -12,6 +12,7 @@ import {
   useUpdateFactMutation,
 } from '../../apis/api';
 import { useFetchMyTeamQuery, useFetchTeamsQuery } from '../../apis/gameApi';
+import { isPlayerTeam } from '../../models/Team';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
 import LoadingScreen from 'components/LoadingScreen';
@@ -134,9 +135,11 @@ export function FactsModule() {
 
   const filteredFacts = facts;
 
+  const playerTeams = (teamsData || []).filter(isPlayerTeam);
+
   const TEAMS = [
     { id: 'all', name: 'All Teams' },
-    ...(teamsData || []).map((t) => ({ id: t.team_id, name: t.team_name })),
+    ...playerTeams.map((t) => ({ id: t.team_id, name: t.team_name })),
   ];
 
   // We extract unique players from loaded facts for the filter dropdown
