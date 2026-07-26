@@ -7,41 +7,54 @@ import {
   ANSWER_QUESTION_ROUTE,
   FACTS_ROUTE,
 } from '../../constants/routes';
-import { useFetchMyTeamQuery } from '../../apis/gameApi';
+import { useFetchMyTeamQuery, useFetchGameDetailsQuery } from '../../apis/gameApi';
 import { Header } from '../../components/ui/header';
+import { Button } from '../../components/ui/button';
 import { ModulesSection, GameModule } from './ModulesSection';
 import { LocationCard } from './LocationCard';
 import { TeamModal } from './TeamModal';
 import { useState } from 'react';
-import { useFetchTeamsQuery, useFetchGameDetailsQuery } from '../../apis/gameApi';
 import { TeamAvatar } from 'components/TeamAvatar';
+import { RefreshCw, Share2, Check, Hash, Copy } from 'lucide-react';
 
 export default function GameDetail() {
   const navigate = useNavigate();
   const { gameId } = useParams();
 
-  // Fetch Team Data
+  // Fetch Team & Game Details (game details includes teams array, avoiding extra API call)
   const {
     data: team,
     isLoading: isTeamLoading,
     error: teamError,
   } = useFetchMyTeamQuery(gameId!);
 
-  const { data: teams } = useFetchTeamsQuery(gameId!);
   const { data: game, isLoading: isGameLoading } = useFetchGameDetailsQuery(gameId!);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const teams = game?.teams || [];
 
   const onBack = () => navigate(-1);
 
-  // Configuration Data
-  const gameInfo = {
-    title: 'Dungeons & Dragons',
-    description: 'Classic fantasy tabletop RPG adventure',
-    image:
-      'https://images.unsplash.com/photo-1556103255-4443dbae8e5a?w=400&h=300&fit=crop',
-    players: '3-6',
-    duration: '3-4 hours',
-    category: 'RPG',
+  const handleShareGame = async () => {
+    if (!game?.game_code) return;
+    const shareableUrl = `${window.location.origin}/join/${game.game_code}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${game.name}`,
+          text: `Join my Q-Yaar game "${game.name}" with code ${game.game_code}!`,
+          url: shareableUrl,
+        });
+        return;
+      } catch (e) {
+        // Fallback to copy
+      }
+    }
+    navigator.clipboard.writeText(shareableUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const modules: GameModule[] = [
@@ -95,44 +108,125 @@ export default function GameDetail() {
     },
   ];
 
+  const isPendingGame = game?.game_status?.toUpperCase() === 'PENDING';
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-16">
       <Header
         title={game?.name || 'Game Modules'}
         onBack={onBack}
         action={
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="text-indigo-600 font-semibold hover:text-indigo-800 transition-colors flex items-center gap-2"
-          >
-            <TeamAvatar
-              teamName={team?.team_name || 'Select Team'}
-              teamColor={team?.team_colour || 'gray'}
-              className="w-4 h-4"
-            />
-            {team?.team_name || 'Select Team'}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Share Link Header Button */}
+            {isPendingGame && game?.game_code && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleShareGame}
+                className="text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 py-1 px-2.5 h-8 rounded-xl flex items-center gap-1.5 transition-all"
+                title="Share Game Join Link"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="hidden sm:inline">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="hidden sm:inline">Share</span>
+                  </>
+                )}
+              </Button>
+            )}
+
+            <div className="flex items-center gap-2 bg-white border border-gray-200 p-1.5 pl-3 rounded-2xl shadow-xs">
+              <div className="flex items-center gap-2">
+                <TeamAvatar
+                  teamName={team?.team_name || 'Spectator'}
+                  teamColor={team?.team_colour || 'gray'}
+                  className="w-5 h-5 font-bold shadow-xs"
+                />
+                <span className="text-xs font-bold text-gray-800 max-w-[120px] truncate hidden sm:inline">
+                  {team?.team_name || 'Spectator'}
+                </span>
+              </div>
+              {isPendingGame ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsModalOpen(true)}
+                  className="text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 py-1 px-2.5 h-7 flex items-center gap-1.5 rounded-xl transition-all"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Switch Team</span>
+                </Button>
+              ) : (
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="text-xs font-semibold text-gray-500 hover:text-indigo-600 px-2 py-1 transition-colors"
+                  title="View Teams & Players"
+                >
+                  View Teams
+                </button>
+              )}
+            </div>
+          </div>
         }
       />
 
       <TeamModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        teams={teams || []}
+        teams={teams}
         currentTeam={team || null}
+        gameId={gameId}
+        gameStatus={game?.game_status}
       />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <LocationCard gameId={gameId || '123'} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <ModulesSection
-            modules={modules}
-            gameId={gameId || '123'}
-            teamId={team?.team_id || '123'}
-          />
-          
-        </div>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Share Game Banner */}
+        {isPendingGame && game?.game_code && (
+          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-indigo-200 border border-white/10 uppercase tracking-wider">
+                  Invite Players
+                </span>
+                <span className="text-xs text-indigo-200/80 font-mono flex items-center gap-1">
+                  <Hash className="w-3 h-3 text-indigo-300" />
+                  {game.game_code}
+                </span>
+              </div>
+              <p className="text-sm font-semibold text-white">
+                Share this game link to let players join your game instantly!
+              </p>
+            </div>
+
+            <Button
+              onClick={handleShareGame}
+              className="w-full sm:w-auto bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-xs px-4 py-2.5 h-10 rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all shrink-0"
+            >
+              {copiedLink ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span>Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4 text-indigo-700" />
+                  <span>Share Game Link</span>
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Location card component */}
+        <LocationCard gameId={gameId!} />
+
+        {/* Game Modules Section */}
+        <ModulesSection modules={modules} gameId={gameId!} teamId={team?.team_id || ''} />
       </div>
     </div>
   );
 }
-

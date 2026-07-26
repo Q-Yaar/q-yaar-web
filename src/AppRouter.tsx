@@ -6,8 +6,11 @@ import {
   DECK_ROUTE,
   DICE_ROLLER_ROUTE,
   FACTS_ROUTE,
+  EXPLORE_GAME_DETAIL_ROUTE,
   GAME_DETAIL_ROUTE,
   HOME_ROUTE,
+  JOIN_GAME_CODE_ROUTE,
+  GAME_JOIN_ROUTE,
   LOCATION_SETTINGS_ROUTE,
   LOGIN_ROUTE,
   MAP_ROUTE,
@@ -21,6 +24,8 @@ import NotFound from './components/NotFound';
 import Login from './modules/Auth/Login';
 import MapPage from './modules/Map';
 import GameDetail from './modules/Games/GameDetail';
+import ExploreGameDetail from './modules/Games/ExploreGameDetail';
+import JoinGameByCode from './modules/Games/JoinGameByCode';
 import DiceRoller from './modules/DiceRoller';
 import SignUp from './modules/Auth/SignUp';
 import DeckPage from './modules/DeckPage';
@@ -36,6 +41,9 @@ function ProtectedRoutes(): JSX.Element {
         <Routes>
           <Route path={HOME_ROUTE} element={<Home />} />
           <Route path={GAME_DETAIL_ROUTE} element={<GameDetail />} />
+          <Route path={EXPLORE_GAME_DETAIL_ROUTE} element={<ExploreGameDetail />} />
+          <Route path={JOIN_GAME_CODE_ROUTE} element={<JoinGameByCode />} />
+          <Route path={GAME_JOIN_ROUTE} element={<JoinGameByCode />} />
           <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
           <Route path={DECK_ROUTE} element={<DeckPage />} />
           <Route path={MAP_ROUTE} element={<MapPage />} />

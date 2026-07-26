@@ -15,6 +15,7 @@ import {
   useUpdateAskedQuestionMutation,
 } from '../../apis/qnaApi';
 import { useFetchTeamsQuery, useFetchMyTeamQuery } from '../../apis/gameApi';
+import { isPlayerTeam } from '../../models/Team';
 import { Category, QuestionTemplate, AskedQuestion, GenericAskQuestionRequest } from '../../models/QnA';
 import { BaseQuestionMeta, LocationPoint } from '../../models/QuestionMeta';
 import MapComponent from '../../components/Map';
@@ -111,10 +112,14 @@ export function AskQuestionModule() {
     skip: !gameId,
   });
 
+  const playerTeams = useMemo(() => {
+    return teams?.filter(isPlayerTeam) || [];
+  }, [teams]);
+
   const availableTeams = useMemo(() => {
-    if (!teams || !myTeam) return [];
-    return teams.filter((t) => t.team_id !== myTeam.team_id);
-  }, [teams, myTeam]);
+    if (!playerTeams || !myTeam) return playerTeams;
+    return playerTeams.filter((t) => t.team_id !== myTeam.team_id);
+  }, [playerTeams, myTeam]);
 
   const [selectedHistoryTeamId, setSelectedHistoryTeamId] =
     useState<string>('');
@@ -591,7 +596,7 @@ export function AskQuestionModule() {
                                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
                                   >
                                     <option value="">Select a team...</option>
-                                    {teams?.map((team) => (
+                                    {availableTeams.map((team) => (
                                       <option
                                         key={team.team_id}
                                         value={team.team_id}

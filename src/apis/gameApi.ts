@@ -35,6 +35,35 @@ export const gamesApi = api.injectEndpoints({
       }),
       providesTags: (result, error, id) => [GAME_MODULE],
     }),
+    exploreGames: builder.query<ListResponse<Game> | Game[], { search?: string } | void>({
+      query: (params) => ({
+        url: `${GAMES_API}explore`,
+        method: 'GET',
+        params: params || {},
+      }),
+      providesTags: () => [GAME_MODULE],
+    }),
+    joinGame: builder.mutation<Game, string>({
+      query: (gameId) => ({
+        url: `${GAMES_API}${gameId}/join`,
+        method: 'POST',
+      }),
+      invalidatesTags: [GAME_MODULE],
+    }),
+    joinTeam: builder.mutation<Game, { gameId: string; teamId: string }>({
+      query: ({ gameId, teamId }) => ({
+        url: `${GAMES_API}${gameId}/team/${teamId}/join`,
+        method: 'POST',
+      }),
+      invalidatesTags: [GAME_MODULE],
+    }),
+    fetchGameByCode: builder.query<Game, string>({
+      query: (gameCode) => ({
+        url: `${GAMES_API}code/${gameCode}`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, code) => [GAME_MODULE],
+    }),
   }),
 });
 
@@ -43,4 +72,10 @@ export const {
   useFetchGameDetailsQuery,
   useFetchMyTeamQuery,
   useFetchTeamsQuery,
+  useExploreGamesQuery,
+  useJoinGameMutation,
+  useJoinTeamMutation,
+  useFetchGameByCodeQuery,
+  useLazyFetchGameByCodeQuery,
 } = gamesApi;
+
