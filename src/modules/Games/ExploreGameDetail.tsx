@@ -168,7 +168,7 @@ export default function ExploreGameDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-24">
+    <div className="min-h-screen bg-gray-50/50 pb-24 text-left">
       <Header
         title={game.name}
         onBack={() => navigate(-1)}
@@ -271,16 +271,16 @@ export default function ExploreGameDetail() {
               </div>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-3 text-left">
               {game.name}
             </h1>
 
-            <p className="text-indigo-100 text-sm sm:text-base leading-relaxed max-w-3xl">
+            <p className="text-indigo-100 text-sm sm:text-base leading-relaxed max-w-3xl text-left">
               {game.description || 'No description provided for this game.'}
             </p>
 
             {/* Quick Stats Footer */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-white/10">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-white/10 text-left">
               <div>
                 <span className="text-xs text-indigo-200 font-medium block">
                   Game Type
@@ -318,25 +318,25 @@ export default function ExploreGameDetail() {
 
           <CardContent className="p-6 bg-white space-y-6">
             {/* Host Details Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100 text-left">
+              <div className="flex items-center gap-3 text-left">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white text-lg font-bold shadow-sm shrink-0">
                   {game.game_master.profile_name
                     ? game.game_master.profile_name.charAt(0).toUpperCase()
                     : '?'}
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <Shield className="w-4 h-4 text-indigo-600" />
-                    <span className="text-xs font-bold uppercase text-indigo-600 tracking-wider">
+                <div className="text-left min-w-0">
+                  <div className="flex items-center gap-1.5 text-left">
+                    <Shield className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span className="text-xs font-bold uppercase text-indigo-600 tracking-wider text-left">
                       Game Master / Host
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-gray-900">
+                  <h3 className="text-base font-bold text-gray-900 text-left truncate">
                     {game.game_master.profile_name}
                   </h3>
                   {game.game_master.email_id && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 text-left truncate">
                       {game.game_master.email_id}
                     </p>
                   )}
@@ -454,18 +454,18 @@ export default function ExploreGameDetail() {
                             return (
                               <div
                                 key={idx}
-                                className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/50 hover:bg-gray-100/80 border border-gray-100 transition-colors"
+                                className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50/50 hover:bg-gray-100/80 border border-gray-100 transition-colors text-left"
                               >
-                                <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex items-center gap-3 min-w-0 flex-1 text-left">
                                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm">
                                     {initial}
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-bold text-gray-800 truncate">
+                                  <div className="min-w-0 flex-1 text-left">
+                                    <p className="text-xs font-bold text-gray-800 truncate text-left">
                                       {player.profile_name || 'Anonymous Player'}
                                     </p>
                                     {email && (
-                                      <p className="text-[11px] text-gray-400 truncate">
+                                      <p className="text-[11px] text-gray-400 truncate text-left">
                                         {email}
                                       </p>
                                     )}
