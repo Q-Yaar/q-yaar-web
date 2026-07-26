@@ -196,18 +196,6 @@ export default function GameList() {
         {/* TAB 1 CONTENT: Active Games */}
         {activeTab === 'ACTIVE' && (
           <div className="space-y-4 animate-fade-in">
-            <div className="space-y-1 text-left">
-              <h3 className="text-lg font-bold text-gray-900 tracking-tight flex items-center gap-2">
-                Active Games
-                {activeGames.length > 0 && (
-                  <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-bold border border-indigo-200">
-                    {activeGames.length}
-                  </span>
-                )}
-              </h3>
-              <p className="text-xs text-gray-500">Games you are currently participating in.</p>
-            </div>
-
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {isActiveError ? (
                 <div className="col-span-full text-center py-8 bg-white rounded-2xl shadow-xs border border-red-100 p-6">
@@ -292,13 +280,6 @@ export default function GameList() {
                 <Hash className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Enter Code</span>
               </Button>
-            </div>
-
-            <div className="space-y-1 text-left">
-              <h3 className="text-lg font-bold text-gray-900 tracking-tight">
-                Discover Games
-              </h3>
-              <p className="text-xs text-gray-500">Search and filter for public game sessions in your region.</p>
             </div>
 
             {/* Simplified Search & Type Filter Bar */}
