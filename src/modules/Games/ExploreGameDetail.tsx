@@ -34,6 +34,7 @@ import {
   Loader2,
   Sparkles,
   Eye,
+  Share2,
 } from 'lucide-react';
 
 export default function ExploreGameDetail() {
@@ -53,6 +54,7 @@ export default function ExploreGameDetail() {
   const [joinTeam, { isLoading: isJoiningTeam }] = useJoinTeamMutation();
 
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -73,6 +75,27 @@ export default function ExploreGameDetail() {
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2000);
     }
+  };
+
+  const handleShareLink = async () => {
+    if (!game?.game_code) return;
+    const shareableUrl = `${window.location.origin}/join/${game.game_code}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Join ${game.name}`,
+          text: `Join my Q-Yaar game "${game.name}" with code ${game.game_code}!`,
+          url: shareableUrl,
+        });
+        return;
+      } catch (e) {
+        // Fallback to clipboard
+      }
+    }
+    navigator.clipboard.writeText(shareableUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleJoin = async (targetTeamId?: string) => {
@@ -150,28 +173,51 @@ export default function ExploreGameDetail() {
         title={game.name}
         onBack={() => navigate(-1)}
         action={
-          <Button
-            onClick={() => handleJoin(selectedTeamId || undefined)}
-            disabled={isJoining}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2 rounded-xl shadow-md hover:shadow-indigo-200 transition-all flex items-center gap-2"
-          >
-            {isJoining ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Joining...
-              </>
-            ) : selectedTeamId ? (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Join Team
-              </>
-            ) : (
-              <>
-                <Eye className="w-4 h-4" />
-                Join as Spectator
-              </>
+          <div className="flex items-center gap-2">
+            {game.game_code && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShareLink}
+                className="text-xs font-bold text-indigo-600 border-indigo-200 hover:bg-indigo-50 py-1 px-3 h-10 rounded-xl flex items-center gap-1.5"
+                title="Share Game Join Link"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="hidden sm:inline">Share Link</span>
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={() => handleJoin(selectedTeamId || undefined)}
+              disabled={isJoining}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2 rounded-xl shadow-md hover:shadow-indigo-200 transition-all flex items-center gap-2 h-10"
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Joining...
+                </>
+              ) : selectedTeamId ? (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Join Team
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Join as Spectator
+                </>
+              )}
+            </Button>
+          </div>
         }
       />
 
