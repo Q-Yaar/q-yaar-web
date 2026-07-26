@@ -31,44 +31,44 @@ export function GameCard({ game, onClick, className }: GameCardProps) {
       className={`cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all active:scale-[0.98] group ${className || ''}`}
       onClick={() => onClick(game)}
     >
-      <CardContent className="p-5 flex flex-col h-full">
+      <CardContent className="p-5 pt-5 flex flex-col h-full text-left">
         {/* Header: Name and Arrow */}
         <div className="flex justify-between items-start w-full mb-3">
-          <div className="flex flex-col gap-1 pr-4">
-            <span
-              className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1"
+          <div className="flex flex-col gap-1 pr-3 text-left min-w-0 flex-1">
+            <h3
+              className="font-bold text-base sm:text-lg text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1 text-left m-0 p-0 leading-snug"
               title={game.name}
             >
               {game.name}
-            </span>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            </h3>
+            <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
               <span className="font-semibold uppercase tracking-wider text-gray-400">
                 {getLabel(game.game_type)}
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
+                <Calendar className="w-3 h-3 text-gray-400" />
                 {new Date(game.created).toLocaleDateString()}
               </span>
             </div>
           </div>
-          <div className="bg-indigo-50 text-indigo-600 p-1.5 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors flex-shrink-0">
+          <div className="bg-indigo-50 text-indigo-600 p-1.5 rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors flex-shrink-0 ml-2">
             <ChevronRight className="w-5 h-5" />
           </div>
         </div>
 
         {/* Description */}
-        <p className="text-gray-500 text-sm line-clamp-2 mb-4 flex-grow text-left">
+        <p className="text-gray-500 text-sm line-clamp-2 mb-4 flex-grow text-left leading-relaxed">
           {game.description}
         </p>
 
         {/* Footer Info */}
         <div className="space-y-3 mt-auto">
           {/* Game Code & Status */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded border border-gray-100 group-hover:border-indigo-100 transition-colors">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded border border-gray-100 group-hover:border-indigo-100 transition-colors">
               <Hash className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-sm font-mono font-bold text-gray-700">
+              <span className="text-xs font-mono font-bold text-gray-700">
                 {game.game_code}
               </span>
             </div>
@@ -81,8 +81,8 @@ export function GameCard({ game, onClick, className }: GameCardProps) {
 
           {/* Game Master */}
           <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center text-white text-[10px] font-bold">
-              {game.game_master.profile_name.charAt(0)}
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+              {game.game_master.profile_name ? game.game_master.profile_name.charAt(0).toUpperCase() : '?'}
             </div>
             <span className="text-xs font-medium text-gray-600 truncate">
               By {game.game_master.profile_name}

@@ -42,16 +42,16 @@ export function ExploreGameCard({ game, onClick, className }: ExploreGameCardPro
       className={`cursor-pointer border-gray-200 bg-white hover:border-indigo-500 hover:shadow-lg transition-all duration-300 active:scale-[0.98] group flex flex-col justify-between ${className || ''}`}
       onClick={() => onClick(game)}
     >
-      <CardContent className="p-6 flex flex-col h-full">
+      <CardContent className="p-5 pt-5 sm:p-6 sm:pt-6 flex flex-col h-full text-left">
         {/* Header Section */}
         <div className="flex justify-between items-start w-full mb-3">
-          <div className="flex flex-col gap-1 pr-4">
-            <span
-              className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1"
+          <div className="flex flex-col gap-1 pr-3 text-left min-w-0 flex-1">
+            <h3
+              className="font-bold text-base sm:text-lg text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-1 text-left m-0 p-0 leading-snug"
               title={game.name}
             >
               {game.name}
-            </span>
+            </h3>
             <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getGameTypeColor(game.game_type)}`}>
                 {getLabel(game.game_type)}
@@ -71,7 +71,7 @@ export function ExploreGameCard({ game, onClick, className }: ExploreGameCardPro
             </div>
           </div>
           
-          <div className="bg-indigo-50 text-indigo-600 p-2 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 flex-shrink-0 shadow-sm">
+          <div className="bg-indigo-50 text-indigo-600 p-2 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 flex-shrink-0 shadow-sm ml-2">
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
