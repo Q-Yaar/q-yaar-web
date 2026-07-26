@@ -64,6 +64,7 @@ export default function GameList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [gameTypeFilter, setGameTypeFilter] = useState('ALL');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Debounce search input
   useEffect(() => {
@@ -166,53 +167,29 @@ export default function GameList() {
       />
 
       <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
-        {/* Prominent Two-Tab Selector */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="bg-gray-200/80 p-1.5 rounded-2xl flex items-center gap-1.5 w-full sm:w-auto shadow-xs">
+        {/* Mobile-Friendly Two-Tab Selector */}
+        <div className="flex justify-center sm:justify-start">
+          <div className="bg-gray-200/80 p-1 rounded-xl grid grid-cols-2 w-full sm:w-auto sm:min-w-[280px] shadow-2xs">
             <button
               onClick={() => setActiveTab('ACTIVE')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-2 px-4 rounded-lg font-bold text-xs sm:text-sm text-center transition-all cursor-pointer ${
                 activeTab === 'ACTIVE'
-                  ? 'bg-white text-indigo-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                  ? 'bg-white text-indigo-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Gamepad2 className="w-4 h-4 text-indigo-600" />
-              <span>Active Games</span>
-              {activeGames.length > 0 && (
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    activeTab === 'ACTIVE'
-                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                      : 'bg-gray-300 text-gray-700'
-                  }`}
-                >
-                  {activeGames.length}
-                </span>
-              )}
+              Active Games
             </button>
 
             <button
               onClick={() => setActiveTab('DISCOVER')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-2 px-4 rounded-lg font-bold text-xs sm:text-sm text-center transition-all cursor-pointer ${
                 activeTab === 'DISCOVER'
-                  ? 'bg-white text-indigo-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                  ? 'bg-white text-indigo-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Compass className="w-4 h-4 text-indigo-600" />
-              <span>Discover Games</span>
-              {filteredExploreGames.length > 0 && (
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    activeTab === 'DISCOVER'
-                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                      : 'bg-gray-300 text-gray-700'
-                  }`}
-                >
-                  {filteredExploreGames.length}
-                </span>
-              )}
+              Discover Games
             </button>
           </div>
         </div>
@@ -220,18 +197,6 @@ export default function GameList() {
         {/* TAB 1 CONTENT: Active Games */}
         {activeTab === 'ACTIVE' && (
           <div className="space-y-4 animate-fade-in">
-            <div className="space-y-1 text-left">
-              <h3 className="text-lg font-bold text-gray-900 tracking-tight flex items-center gap-2">
-                Active Games
-                {activeGames.length > 0 && (
-                  <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-bold border border-indigo-200">
-                    {activeGames.length}
-                  </span>
-                )}
-              </h3>
-              <p className="text-xs text-gray-500">Games you are currently participating in.</p>
-            </div>
-
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {isActiveError ? (
                 <div className="col-span-full text-center py-8 bg-white rounded-2xl shadow-xs border border-red-100 p-6">
@@ -318,48 +283,92 @@ export default function GameList() {
               </Button>
             </div>
 
-            <div className="space-y-1 text-left">
-              <h3 className="text-lg font-bold text-gray-900 tracking-tight">
-                Discover Games
-              </h3>
-              <p className="text-xs text-gray-500">Search and filter for public game sessions in your region.</p>
-            </div>
-
-            {/* Simplified Search & Type Filter Bar */}
-            <div className="bg-white p-3 sm:p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col sm:flex-row items-center gap-3">
-              {/* Search Input */}
-              <div className="relative w-full sm:flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            {/* Unified Scalable Search & Filter Bar */}
+            <div className="space-y-3">
+              <div className="relative flex items-center w-full bg-white rounded-2xl border border-gray-200 shadow-xs focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all p-1.5 px-3">
+                <Search className="w-4 h-4 text-gray-400 shrink-0 ml-1" />
                 <Input
                   type="text"
                   placeholder="Search games by name or description..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-8 py-2 text-xs sm:text-sm bg-gray-50/60 border-gray-200 focus-visible:ring-indigo-500 rounded-xl"
+                  className="border-0 bg-transparent text-xs sm:text-sm focus-visible:ring-0 focus-visible:ring-offset-0 px-3 py-2 text-gray-900 placeholder:text-gray-400"
                 />
-                {searchQuery && (
+
+                <div className="flex items-center gap-1.5 shrink-0 pl-1">
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                      title="Clear search"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    onClick={() => setIsFilterOpen(!isFilterOpen)}
+                    className={`relative p-2 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                      isFilterOpen || gameTypeFilter !== 'ALL'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title="Filter Options"
                   >
-                    <X className="w-4 h-4" />
+                    <SlidersHorizontal className="w-4 h-4" />
+                    {gameTypeFilter !== 'ALL' && !isFilterOpen && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white" />
+                    )}
                   </button>
-                )}
+                </div>
               </div>
 
-              {/* Type Filter */}
-              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 w-full sm:w-auto shrink-0">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-xs font-semibold text-gray-500 hidden sm:inline">Type:</span>
-                <select
-                  value={gameTypeFilter}
-                  onChange={(e) => setGameTypeFilter(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-gray-800 focus:outline-none cursor-pointer w-full sm:w-auto pr-1"
-                >
-                  <option value="ALL">All Game Types</option>
-                  <option value="HIDE_N_SEEK">Hide & Seek</option>
-                </select>
-              </div>
+              {/* Scalable Expandable Filter Panel */}
+              {isFilterOpen && (
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs space-y-3 animate-fade-in text-left">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Filter Games</span>
+                    </h4>
+                    {gameTypeFilter !== 'ALL' && (
+                      <button
+                        onClick={() => setGameTypeFilter('ALL')}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                      >
+                        Reset Filters
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Category: Game Type */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-gray-500 block">Game Type</label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => setGameTypeFilter('ALL')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          gameTypeFilter === 'ALL'
+                            ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        All Types
+                      </button>
+                      <button
+                        onClick={() => setGameTypeFilter('HIDE_N_SEEK')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          gameTypeFilter === 'HIDE_N_SEEK'
+                            ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        Hide & Seek
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Explore Grid / Results */}
