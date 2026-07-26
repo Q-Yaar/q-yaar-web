@@ -118,7 +118,7 @@ export default function GameDetail() {
         action={
           <div className="flex items-center gap-2">
             {/* Share Link Header Button */}
-            {game?.game_code && (
+            {isPendingGame && game?.game_code && (
               <Button
                 size="sm"
                 variant="outline"
@@ -185,7 +185,7 @@ export default function GameDetail() {
       />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Share Game Banner */}
-        {game?.game_code && (
+        {isPendingGame && game?.game_code && (
           <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
             <div className="space-y-1">
               <div className="flex items-center gap-2">

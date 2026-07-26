@@ -167,6 +167,8 @@ export default function ExploreGameDetail() {
     }
   };
 
+  const isPendingGame = game?.game_status?.toUpperCase() === 'PENDING';
+
   return (
     <div className="min-h-screen bg-gray-50/50 pb-24 text-left">
       <Header
@@ -174,7 +176,7 @@ export default function ExploreGameDetail() {
         onBack={() => navigate(-1)}
         action={
           <div className="flex items-center gap-2">
-            {game.game_code && (
+            {isPendingGame && game.game_code && (
               <Button
                 variant="outline"
                 size="sm"
