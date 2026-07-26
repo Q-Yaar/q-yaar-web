@@ -166,53 +166,29 @@ export default function GameList() {
       />
 
       <div className="max-w-5xl mx-auto px-4 py-5 space-y-5">
-        {/* Prominent Two-Tab Selector */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="bg-gray-200/80 p-1.5 rounded-2xl flex items-center gap-1.5 w-full sm:w-auto shadow-xs">
+        {/* Mobile-Friendly Two-Tab Selector */}
+        <div className="flex justify-center sm:justify-start">
+          <div className="bg-gray-200/80 p-1 rounded-xl grid grid-cols-2 w-full sm:w-auto sm:min-w-[280px] shadow-2xs">
             <button
               onClick={() => setActiveTab('ACTIVE')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-2 px-4 rounded-lg font-bold text-xs sm:text-sm text-center transition-all cursor-pointer ${
                 activeTab === 'ACTIVE'
-                  ? 'bg-white text-indigo-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                  ? 'bg-white text-indigo-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Gamepad2 className="w-4 h-4 text-indigo-600" />
-              <span>Active Games</span>
-              {activeGames.length > 0 && (
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    activeTab === 'ACTIVE'
-                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                      : 'bg-gray-300 text-gray-700'
-                  }`}
-                >
-                  {activeGames.length}
-                </span>
-              )}
+              Active Games
             </button>
 
             <button
               onClick={() => setActiveTab('DISCOVER')}
-              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              className={`py-2 px-4 rounded-lg font-bold text-xs sm:text-sm text-center transition-all cursor-pointer ${
                 activeTab === 'DISCOVER'
-                  ? 'bg-white text-indigo-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                  ? 'bg-white text-indigo-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Compass className="w-4 h-4 text-indigo-600" />
-              <span>Discover Games</span>
-              {filteredExploreGames.length > 0 && (
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    activeTab === 'DISCOVER'
-                      ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                      : 'bg-gray-300 text-gray-700'
-                  }`}
-                >
-                  {filteredExploreGames.length}
-                </span>
-              )}
+              Discover Games
             </button>
           </div>
         </div>
