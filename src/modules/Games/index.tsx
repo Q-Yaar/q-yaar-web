@@ -217,34 +217,6 @@ export default function GameList() {
           </div>
         </div>
 
-        {/* Super Compact Direct Game Code Join Banner */}
-        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-2.5 sm:p-3 sm:px-4 shadow-xs flex items-center justify-between gap-3 text-left">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-              <KeyRound className="w-4 h-4 text-indigo-200" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xs sm:text-sm font-bold text-white leading-tight truncate">
-                Have a Game Code?
-              </h3>
-              <p className="text-[11px] text-indigo-200/80 hidden sm:block truncate">
-                Enter code to view game details and join teams.
-              </p>
-            </div>
-          </div>
-
-          <Button
-            onClick={() => {
-              setCodeError(null);
-              setIsCodeModalOpen(true);
-            }}
-            className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs px-3.5 py-1.5 h-8 rounded-xl shrink-0 shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Hash className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Enter Code</span>
-          </Button>
-        </div>
-
         {/* TAB 1 CONTENT: Active Games */}
         {activeTab === 'ACTIVE' && (
           <div className="space-y-4 animate-fade-in">
@@ -318,6 +290,34 @@ export default function GameList() {
         {/* TAB 2 CONTENT: Discover Games */}
         {activeTab === 'DISCOVER' && (
           <div className="space-y-4 animate-fade-in">
+            {/* Super Compact Direct Game Code Join Banner */}
+            <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white rounded-2xl p-2.5 sm:p-3 sm:px-4 shadow-xs flex items-center justify-between gap-3 text-left">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+                  <KeyRound className="w-4 h-4 text-indigo-200" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-bold text-white leading-tight truncate">
+                    Have a Game Code?
+                  </h3>
+                  <p className="text-[11px] text-indigo-200/80 hidden sm:block truncate">
+                    Enter code to view game details and join teams.
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => {
+                  setCodeError(null);
+                  setIsCodeModalOpen(true);
+                }}
+                className="bg-white text-indigo-950 hover:bg-indigo-50 font-bold text-xs px-3.5 py-1.5 h-8 rounded-xl shrink-0 shadow-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Hash className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Enter Code</span>
+              </Button>
+            </div>
+
             <div className="space-y-1 text-left">
               <h3 className="text-lg font-bold text-gray-900 tracking-tight">
                 Discover Games
