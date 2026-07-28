@@ -94,7 +94,7 @@ export default function GameList() {
 
   const handleJoinByCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = inputGameCode.trim();
+    const trimmed = inputGameCode.trim().toLowerCase();
     if (!trimmed) return;
     setCodeError(null);
 
@@ -430,7 +430,7 @@ export default function GameList() {
           isOpen={isCodeModalOpen}
           onClose={() => setIsCodeModalOpen(false)}
           title="Join Game by Code"
-          className="max-w-md w-full rounded-t-3xl sm:rounded-2xl p-4 sm:p-6 text-left"
+          className="max-w-md w-full rounded-2xl p-4 sm:p-6 text-left"
         >
           {/* Mobile Drag Handle Indicator */}
           <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden" />
@@ -458,7 +458,7 @@ export default function GameList() {
               </div>
 
               {codeError && (
-                <p className="text-xs text-rose-600 font-medium px-3 py-2 text-left flex items-center gap-1.5 bg-rose-50 rounded-xl border border-rose-200 animate-fade-in">
+                <p className="text-xs text-rose-600 font-medium px-3 py-2 text-left flex items-center gap-1.5 bg-rose-50 rounded-2xl border border-rose-200 animate-fade-in">
                   <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                   <span>{codeError}</span>
                 </p>
@@ -470,14 +470,14 @@ export default function GameList() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsCodeModalOpen(false)}
-                className="text-xs font-semibold text-gray-600 border-gray-200 h-10 px-4 rounded-xl"
+                className="text-xs font-semibold text-gray-600 border-gray-200 h-10 px-4 rounded-2xl"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={isFetchingByCode || !inputGameCode.trim()}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-10 px-5 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-10 px-5 rounded-2xl shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 {isFetchingByCode ? (
                   <>

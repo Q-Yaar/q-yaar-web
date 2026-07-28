@@ -9,9 +9,10 @@ import ErrorScreen from '../../components/ErrorScreen';
 export default function JoinGameByCode() {
   const navigate = useNavigate();
   const { gameCode } = useParams<{ gameCode: string }>();
+  const normalizedCode = (gameCode || '').trim().toLowerCase();
 
-  const { data: game, isLoading, isError } = useFetchGameByCodeQuery(gameCode || '', {
-    skip: !gameCode,
+  const { data: game, isLoading, isError } = useFetchGameByCodeQuery(normalizedCode, {
+    skip: !normalizedCode,
   });
 
   useEffect(() => {
