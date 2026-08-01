@@ -15,6 +15,7 @@ import {
   useUpdateAskedQuestionMutation,
 } from '../../apis/qnaApi';
 import { useFetchTeamsQuery, useFetchMyTeamQuery } from '../../apis/gameApi';
+import { useCreateFactMutation } from '../../apis/api';
 import { isPlayerTeam } from '../../models/Team';
 import { Category, QuestionTemplate, AskedQuestion, GenericAskQuestionRequest } from '../../models/QnA';
 import { BaseQuestionMeta, LocationPoint } from '../../models/QuestionMeta';
@@ -34,6 +35,7 @@ import {
 import { Header } from '../../components/ui/header';
 import { Button } from 'components/ui/button';
 import { Input } from 'components/ui/input';
+import { Modal } from '../../components/ui/modal';
 import {
   Card,
   CardContent,
@@ -142,6 +144,27 @@ export function AskQuestionModule() {
 
   const [acceptAnswer, { isLoading: isAccepting }] = useAcceptAnswerMutation();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+
+  const [createFact] = useCreateFactMutation();
+
+  // Geographic question categories that can auto-create facts
+  const geoCategories = useMemo(() => new Set([
+    'Measuring',
+    'Polygon Location',
+    'Distance',
+    'Circle',
+    'Heading',
+    'Relative Heading',
+    'Hotter/Colder',
+    'Hotter / Colder',
+    'Area Operations',
+    'closer-to-line',
+  ]), []);
+
+  // Confirmation modal state for auto-creating facts from geo questions
+  const [showFactCreationModal, setShowFactCreationModal] = useState(false);
+  const [questionForFactCreation, setQuestionForFactCreation] = useState<AskedQuestion | null>(null);
+  const [isCreatingFact, setIsCreatingFact] = useState(false);
 
   const [updateAskedQuestion, { isLoading: isUpdatingLocation }] =
     useUpdateAskedQuestionMutation();
@@ -366,17 +389,71 @@ export function AskQuestionModule() {
 
   const handleAccept = async (question: AskedQuestion) => {
     if (!gameId) return;
+    
+    const categoryName = question.category.category_name;
+    const isGeoQuestion = geoCategories.has(categoryName);
+    
+    if (isGeoQuestion) {
+      // For geo questions, show confirmation modal first
+      setQuestionForFactCreation(question);
+      setShowFactCreationModal(true);
+    } else {
+      // For non-geo questions, accept directly
+      await handleAcceptConfirmed(question);
+    }
+  };
+
+  const handleAcceptConfirmed = async (question: AskedQuestion, shouldCreateFact: boolean = false) => {
+    if (!gameId) return;
     setAcceptingId(question.question_id);
+    
     try {
+      // Accept the answer
       await acceptAnswer({
         gameId,
         askedQuestionId: question.question_id,
       }).unwrap();
+      
+      // If this is a geo question and user wants to create a fact
+      if (shouldCreateFact && questionForFactCreation) {
+        await createFactFromQuestion(questionForFactCreation);
+      }
     } catch (err) {
       console.error('Failed to accept answer', err);
       alert('Failed to accept answer.');
     } finally {
       setAcceptingId(null);
+      setShowFactCreationModal(false);
+      setQuestionForFactCreation(null);
+    }
+  };
+
+  const createFactFromQuestion = async (question: AskedQuestion) => {
+    if (!gameId || !myTeam) return;
+    
+    setIsCreatingFact(true);
+    try {
+      await createFact({
+        game_id: gameId,
+        team_id: myTeam.team_id,
+        fact_type: 'GEO',
+        fact_info: {
+          op_type: question.category.category_name,
+          op_meta: {
+            ...question.question_meta,
+            source_question_id: question.question_id,
+            source_question: question.rendered_question,
+            accepted_answer: question.answer_meta?.result,
+            answer_text: question.answer_meta?.metadata?.text,
+            created_from: 'accepted_question',
+          },
+        },
+      }).unwrap();
+    } catch (err) {
+      console.error('Failed to create fact from question', err);
+      // Don't show error - fact creation is optional, answer was still accepted
+    } finally {
+      setIsCreatingFact(false);
     }
   };
 
@@ -864,6 +941,71 @@ export function AskQuestionModule() {
           </Card>
         </div>
       )}
+
+      {/* Fact Creation Confirmation Modal */}
+      <Modal
+        isOpen={showFactCreationModal}
+        onClose={() => {
+          setShowFactCreationModal(false);
+          setQuestionForFactCreation(null);
+        }}
+        title="Create Fact from Question"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600 text-left">
+            This geographic question contains location data. Would you like to save it as a fact for your team?
+          </p>
+          
+          {questionForFactCreation && (
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-left">
+              <p className="text-sm font-medium text-gray-700 mb-1">
+                Question
+              </p>
+              <p className="text-gray-900 text-sm">
+                {questionForFactCreation.rendered_question}
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Category: {questionForFactCreation.category.category_name}
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFactCreationModal(false);
+                setQuestionForFactCreation(null);
+                // Accept without creating fact
+                if (questionForFactCreation) {
+                  handleAcceptConfirmed(questionForFactCreation, false);
+                }
+              }}
+              disabled={isAccepting || isCreatingFact}
+            >
+              Accept Only
+            </Button>
+            <Button
+              onClick={() => {
+                if (questionForFactCreation) {
+                  handleAcceptConfirmed(questionForFactCreation, true);
+                }
+              }}
+              disabled={isAccepting || isCreatingFact}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {isAccepting || isCreatingFact ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                'Accept & Create Fact'
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
