@@ -215,6 +215,10 @@ function getCoordFromMeta(question: AskedQuestion, key: string): Coord | null {
 /**
  * Handler for "Measuring" category
  * Handles questions like "Compared to me, are you closer to or further from [target]?"
+ * Uses location_points array with convention:
+ * - location_points[0] = seekerLocation
+ * - location_points[1] = targetLocation
+ * - location_points[2] = hiderLocation (added when answering)
  */
 function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
@@ -226,18 +230,23 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   }
   
   const meta = q.question_meta as MeasuringQuestionMeta;
+  const locations = meta.location_points || [];
   
-  // We need: seeking location, hiding location, target location
-  const seekingLoc = getCoordFromMeta(q, 'seekerLocation');
-  const hidingLoc = getCoordFromMeta(q, 'hiderLocation');
-  const targetLoc = getCoordFromMeta(q, 'targetLocation');
+  // We need at least 3 locations: seeker, target, hider
+  if (locations.length < 3) {
+    debugLog('Measuring: Not enough locations. Need seeker, target, and hider.', {
+      locationCount: locations.length
+    });
+    return null;
+  }
+  
+  // Convention: location_points[0] = seeker, [1] = target, [2] = hider
+  const seekingLoc = parseLocationPoint(locations[0]);
+  const targetLoc = parseLocationPoint(locations[1]);
+  const hidingLoc = parseLocationPoint(locations[2]);
   
   if (!seekingLoc || !hidingLoc || !targetLoc) {
-    debugLog('Measuring: Missing required locations', {
-      hasSeeking: !!seekingLoc,
-      hasHiding: !!hidingLoc,
-      hasTarget: !!targetLoc
-    });
+    debugLog('Measuring: Could not parse required locations');
     return null;
   }
   
