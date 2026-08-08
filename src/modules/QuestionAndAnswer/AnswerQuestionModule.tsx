@@ -41,7 +41,7 @@ export function AnswerQuestionModule() {
     skip: !gameId,
   });
 
-  const { data: askedQuestionsData, isLoading } = useFetchAskedQuestionsQuery(
+  const { data: askedQuestionsData, isLoading, refetch: refetchAskedQuestions } = useFetchAskedQuestionsQuery(
     { gameId: gameId || '', targetTeamId: myTeam?.team_id || '' },
     { skip: !gameId || !myTeam, pollingInterval: 30000 },
   );
@@ -49,7 +49,7 @@ export function AnswerQuestionModule() {
   const [answerQuestion, { isLoading: isAnswering }] =
     useAnswerQuestionMutation();
   const [answeringId, setAnsweringId] = useState<string | null>(null);
-
+  
   const [answerTexts, setAnswerTexts] = useState<Record<string, string>>({});
 
   // Automation state
@@ -116,6 +116,63 @@ export function AnswerQuestionModule() {
 
     // Skip if already checked or answered
     if (checkedQuestions.has(question.question_id) || question.answered) return;
+
+    // For Measuring questions with 2 locations, we need to get the user's location
+    // Convention: location_points[0] = seekerLocation, [1] = targetLocation, [2] = hiderLocation
+    const isMeasuring = question.category.category_name === 'Measuring';
+    const hasTwoLocations = (question.question_meta?.location_points?.length || 0) === 2;
+    
+    if (isMeasuring && hasTwoLocations && navigator.geolocation) {
+      // Get current location and check auto-answer with it
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const hiderLocation: LocationPoint = {
+            lat: position.coords.latitude.toString(),
+            lon: position.coords.longitude.toString(),
+          };
+          
+          // Create a temporary question with hider location added
+          const augmentedQuestion: AskedQuestion = {
+            ...question,
+            question_meta: {
+              ...question.question_meta,
+              location_points: [
+                ...(question.question_meta?.location_points || []),
+                hiderLocation,
+              ],
+            },
+          };
+          
+          const autoAnswer = tryAutoAnswer(augmentedQuestion);
+          if (autoAnswer) {
+            // Mark as checked so we don't show modal repeatedly
+            setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+            
+            // Store the original question and computed answer for the modal
+            setQuestionForAutoAnswer(question);
+            setComputedAutoAnswer(autoAnswer);
+            setAutoAnswerModalOpen(true);
+          }
+        },
+        (err) => {
+          console.error('Failed to get location for auto-answer:', err);
+          // If we can't get location, try without it (might work if locations already present)
+          const autoAnswer = tryAutoAnswer(question);
+          if (autoAnswer) {
+            setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+            setQuestionForAutoAnswer(question);
+            setComputedAutoAnswer(autoAnswer);
+            setAutoAnswerModalOpen(true);
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        },
+      );
+      return;
+    }
 
     const autoAnswer = tryAutoAnswer(question);
     if (autoAnswer) {
@@ -437,12 +494,6 @@ export function AnswerQuestionModule() {
                     <strong>Details:</strong> {computedAutoAnswer.metadata.text}
                   </p>
                 )}
-                <p className="text-blue-900 text-sm mt-1">
-                  <strong>Confidence:</strong> {computedAutoAnswer.metadata.confidence}%
-                </p>
-                <p className="text-blue-900 text-sm mt-1">
-                  <strong>Method:</strong> {computedAutoAnswer.metadata.computationMethod}
-                </p>
               </div>
 
               <div className="flex justify-end gap-3">
