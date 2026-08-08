@@ -133,7 +133,7 @@ export function AskQuestionModule() {
   }, [availableTeams, selectedHistoryTeamId]);
 
   // Fetch asked questions for history
-  const { data: askedQuestionsData, isLoading: isLoadingHistory } =
+  const { data: askedQuestionsData, isLoading: isLoadingHistory, refetch: refetchAskedQuestions } =
     useFetchAskedQuestionsQuery(
       { gameId: gameId || '', targetTeamId: selectedHistoryTeamId },
       { skip: !gameId || !selectedHistoryTeamId, pollingInterval: 15000 },
@@ -179,13 +179,18 @@ export function AskQuestionModule() {
         const currentMeta = question.question_meta || {};
         const hasSeekerLocation = currentMeta.seekerLocation !== undefined;
         
+        console.log('Adding location, current meta:', currentMeta);
+        console.log('hasSeekerLocation:', hasSeekerLocation);
+        
         let updatedMeta: BaseQuestionMeta;
         if (!hasSeekerLocation) {
           // Set as seekerLocation if not already set
+          // Also add to location_points so the UI can track the count
+          const currentPoints = currentMeta.location_points || [];
           updatedMeta = {
             ...currentMeta,
             seekerLocation: newPoint,
-            location_points: currentMeta.location_points || [],
+            location_points: [...currentPoints, newPoint],
           };
         } else {
           // Otherwise add to location_points array
@@ -196,14 +201,71 @@ export function AskQuestionModule() {
           };
         }
 
+        // Collect all location points for the fact_meta
+        // The backend expects points as LocationPoint[] (same format as location_points)
+        const allPoints: LocationPoint[] = [];
+        
+        // Add location_points
+        if (updatedMeta.location_points) {
+          allPoints.push(...updatedMeta.location_points);
+        }
+        
+        // Add seekerLocation if present
+        if (updatedMeta.seekerLocation) {
+          allPoints.push(updatedMeta.seekerLocation);
+        }
+        
+        // Add targetLocation if present
+        if (updatedMeta.targetLocation) {
+          allPoints.push(updatedMeta.targetLocation);
+        }
+        
+        // Add hiderLocation if present
+        if (updatedMeta.hiderLocation) {
+          allPoints.push(updatedMeta.hiderLocation);
+        }
+
+        // Build fact_meta with all required fields for AnswerInstructionMeta
+        // All fields must be present (backend doesn't handle missing keys gracefully)
+        const fact_meta = {
+          points: allPoints,
+          radius: '',
+          hider_location: '',
+          split_direction: '',
+          preferred_point: '',
+          area_op_type: '',
+          uploaded_area: '',
+          text: '',
+          closer_further: '',
+          selected_line_index: 0,
+          polygon_geo_json: {},
+          feature_name: '',
+        };
+
+        console.log('Sending update with:', {
+          question_meta: updatedMeta,
+          fact_meta: fact_meta,
+        });
+
         try {
-          await updateAskedQuestion({
+          const result = await updateAskedQuestion({
             gameId: gameId || '',
             askedQuestionId: question.question_id,
             body: {
               question_meta: updatedMeta,
+              fact_meta: fact_meta,
             },
           }).unwrap();
+          
+          console.log('Location updated, result:', result);
+          console.log('Result question_meta:', result.question_meta);
+          console.log('Result geo:', result.geo);
+          
+          // Refetch to update the UI with the new location count
+          if (refetchAskedQuestions) {
+            console.log('Refetching asked questions...');
+            refetchAskedQuestions();
+          }
         } catch (err) {
           console.error('Failed to update location', err);
           alert('Failed to update location.');
@@ -319,33 +381,64 @@ export function AskQuestionModule() {
 
     setIsAskingForLocation(true);
 
-    // Use explicit field names: seekerLocation and targetLocation for geo questions
+    // For Measuring questions, use location_points with convention:
+    // location_points[0] = seekerLocation, location_points[1] = targetLocation
+    const isMeasuring = selectedCategory?.category_name === 'Measuring';
+    
+    // Build location_points array for Measuring questions
+    // Start with empty array - locations will be added in correct order
+    const initialLocationPoints: LocationPoint[] = [];
+
     const basePayload: GenericAskQuestionRequest = {
       target_team_id: values.target_team_id,
       chosen_placeholders: values.placeholders,
       question_meta: {
         seekerLocation: undefined, // Will be set if location is available
         targetLocation: targetLocation || undefined,
-        location_points: [],
+        location_points: initialLocationPoints,
       },
     };
 
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const payload: GenericAskQuestionRequest = {
-            ...basePayload,
-            question_meta: {
-              ...basePayload.question_meta,
-              seekerLocation: {
-                lat: position.coords.latitude.toString(),
-                lon: position.coords.longitude.toString(),
-              },
-              location_points: [],
-            },
+          const newSeekerLocation: LocationPoint = {
+            lat: position.coords.latitude.toString(),
+            lon: position.coords.longitude.toString(),
           };
-          setIsAskingForLocation(false);
-          sendQuestion(payload);
+          
+          // For Measuring questions, build location_points in specific order
+          if (isMeasuring) {
+            const locationPointsWithSeeker: LocationPoint[] = [newSeekerLocation];
+            if (targetLocation) {
+              locationPointsWithSeeker.push(targetLocation);
+            }
+            
+            const payload: GenericAskQuestionRequest = {
+              ...basePayload,
+              question_meta: {
+                ...basePayload.question_meta,
+                seekerLocation: newSeekerLocation,
+                targetLocation: targetLocation || undefined,
+                location_points: locationPointsWithSeeker,
+              },
+            };
+            setIsAskingForLocation(false);
+            sendQuestion(payload);
+          } else {
+            // For non-Measuring geo questions, use the original approach
+            const payload: GenericAskQuestionRequest = {
+              ...basePayload,
+              question_meta: {
+                ...basePayload.question_meta,
+                seekerLocation: newSeekerLocation,
+                targetLocation: targetLocation || undefined,
+                location_points: [],
+              },
+            };
+            setIsAskingForLocation(false);
+            sendQuestion(payload);
+          }
         },
         (error) => {
           console.error('Error getting location', error);
