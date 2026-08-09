@@ -6,6 +6,7 @@ import {
   GAME_MODULE,
   LOCATION_MODULE,
   SERVER_MODULE,
+  NOTIFICATIONS_MODULE,
 } from '../constants/modules';
 import {
   AUTH_LOGIN_API,
@@ -143,7 +144,7 @@ const baseQueryWithReauth: BaseQueryFn<
 
 export const api = createApi({
   baseQuery: baseQueryWithReauth,
-  tagTypes: [AUTH_MODULE, GAME_MODULE, DECK_MODULE, 'QnA', FACTS_MODULE, LOCATION_MODULE],
+  tagTypes: [AUTH_MODULE, GAME_MODULE, DECK_MODULE, 'QnA', FACTS_MODULE, LOCATION_MODULE, NOTIFICATIONS_MODULE],
   reducerPath: SERVER_MODULE,
   keepUnusedDataFor: 30,
   endpoints: (builder) => ({

@@ -4,6 +4,8 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '../../utils/utils';
 
+import { NotificationBell } from './NotificationBell';
+
 interface HeaderProps {
   title: React.ReactNode;
   icon?: React.ReactNode;
@@ -59,7 +61,10 @@ export function Header({
             <span className="truncate">{title}</span>
           </h1>
         </div>
-        {action && <div className="flex-shrink-0">{action}</div>}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {action}
+          <NotificationBell />
+        </div>
       </div>
     </div>
   );
