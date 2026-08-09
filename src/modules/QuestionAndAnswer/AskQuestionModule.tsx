@@ -147,20 +147,6 @@ export function AskQuestionModule() {
 
   const [createFact] = useCreateFactMutation();
 
-  // Geographic question categories that can auto-create facts
-  const geoCategories = useMemo(() => new Set([
-    'Measuring',
-    'Polygon Location',
-    'Distance',
-    'Circle',
-    'Heading',
-    'Relative Heading',
-    'Hotter/Colder',
-    'Hotter / Colder',
-    'Area Operations',
-    'closer-to-line',
-  ]), []);
-
   // Confirmation modal state for auto-creating facts from geo questions
   const [showFactCreationModal, setShowFactCreationModal] = useState(false);
   const [questionForFactCreation, setQuestionForFactCreation] = useState<AskedQuestion | null>(null);
