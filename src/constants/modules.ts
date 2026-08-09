@@ -5,3 +5,4 @@ export const DECK_MODULE = 'Deck';
 export const QNA_MODULE = 'QnA';
 export const FACTS_MODULE = 'Facts';
 export const LOCATION_MODULE = 'location';
+export const NOTIFICATIONS_MODULE = 'notifications';

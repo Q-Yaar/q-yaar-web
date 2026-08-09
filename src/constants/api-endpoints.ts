@@ -13,3 +13,5 @@ export const FACTS_API = '/api/v1/facts/';
 export const LIVE_LOCATION_SETTINGS_API = '/api/v1/live-location/settings';
 export const LIVE_LOCATION_ENABLE_API = '/api/v1/live-location/enable';
 export const LIVE_LOCATION_GAMES_API = '/api/v1/live-location/games';
+
+export const NOTIFICATIONS_API = '/api/v1/notifications/';
