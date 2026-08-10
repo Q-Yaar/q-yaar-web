@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Check, Clock } from 'lucide-react';
-import { useGetNotificationsQuery, useReadNotificationMutation } from '../../apis/notificationApi';
+import { Bell, Check, Clock, CheckCheck } from 'lucide-react';
+import { useGetNotificationsQuery, useReadNotificationMutation, useReadAllNotificationsMutation } from '../../apis/notificationApi';
 import { Button } from './button';
 import { cn } from '../../utils/utils';
 function timeAgo(date: Date) {
@@ -20,17 +20,22 @@ function timeAgo(date: Date) {
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Poll for notifications every 30 seconds
-  const { data, isLoading } = useGetNotificationsQuery(undefined, {
-    pollingInterval: 30000,
-  });
+  const { data, isLoading } = useGetNotificationsQuery(
+    filter === 'unread' ? { is_read: false } : undefined, 
+    { pollingInterval: 30000 }
+  );
 
   const [readNotification] = useReadNotificationMutation();
+  const [readAllNotifications] = useReadAllNotificationsMutation();
 
   const notifications = data?.results || [];
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = filter === 'unread' 
+    ? (data?.count || 0) 
+    : notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -52,6 +57,14 @@ export function NotificationBell() {
     }
   };
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      await readAllNotifications().unwrap();
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <Button
@@ -70,8 +83,34 @@ export function NotificationBell() {
 
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 max-h-[80vh] overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-          <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center sticky top-0 z-10">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
+          <div className="p-3 border-b border-gray-100 bg-gray-50 flex flex-col gap-2 sticky top-0 z-10">
+            <div className="flex justify-between items-center">
+              <h3 className="font-semibold text-gray-900">Notifications</h3>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllAsRead}
+                  className="text-xs flex items-center text-indigo-600 hover:text-indigo-800 transition-colors"
+                  title="Mark all as read"
+                >
+                  <CheckCheck className="w-4 h-4 mr-1" />
+                  Mark all read
+                </button>
+              )}
+            </div>
+            <div className="flex bg-gray-200 rounded-md p-0.5 self-start">
+              <button 
+                onClick={() => setFilter('all')}
+                className={cn("text-xs px-2 py-1 rounded-md transition-colors", filter === 'all' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+              >
+                All
+              </button>
+              <button 
+                onClick={() => setFilter('unread')}
+                className={cn("text-xs px-2 py-1 rounded-md transition-colors", filter === 'unread' ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500 hover:text-gray-700')}
+              >
+                Unread
+              </button>
+            </div>
           </div>
           <div className="p-2 space-y-1">
             {isLoading ? (
