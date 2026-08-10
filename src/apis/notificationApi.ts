@@ -12,10 +12,11 @@ export interface ListResponse<T> {
 
 export const notificationApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    getNotifications: builder.query<ListResponse<Notification>, void>({
-      query: () => ({
+    getNotifications: builder.query<ListResponse<Notification>, { is_read?: boolean } | void>({
+      query: (params) => ({
         url: NOTIFICATIONS_API,
         method: 'GET',
+        params: params ? params : undefined,
       }),
       providesTags: [NOTIFICATIONS_MODULE],
     }),
@@ -39,6 +40,13 @@ export const notificationApi = api.injectEndpoints({
       }),
       invalidatesTags: [NOTIFICATIONS_MODULE],
     }),
+    readAllNotifications: builder.mutation<void, void>({
+      query: () => ({
+        url: `${NOTIFICATIONS_API}read-all`,
+        method: 'POST',
+      }),
+      invalidatesTags: [NOTIFICATIONS_MODULE],
+    }),
   }),
 });
 
@@ -47,4 +55,5 @@ export const {
   useSubscribeWebPushMutation,
   useGetWebPushKeysQuery,
   useReadNotificationMutation,
+  useReadAllNotificationsMutation,
 } = notificationApi;
