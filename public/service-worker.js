@@ -1,14 +1,22 @@
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
 self.addEventListener('push', function (event) {
   if (event.data) {
     try {
       const data = event.data.json();
       console.log('Push event received:', data);
       
-      const title = data.title || 'New Notification';
+      const title = data.head || data.title || 'New Notification';
       const options = {
         body: data.message || data.body || '',
-        icon: '/logo192.png', // Assuming CRA default logo exists
-        badge: '/logo192.png',
+        icon: '/android-chrome-192x192.png',
+        badge: '/logo192.png',  // for some reason this doesn't work with badge-icon.png
         data: {
           url: data.url || '/',
         }
@@ -21,7 +29,7 @@ self.addEventListener('push', function (event) {
       event.waitUntil(
         self.registration.showNotification('New Notification', {
           body: event.data.text(),
-          icon: '/logo192.png',
+          icon: '/android-chrome-192x192.png',
         })
       );
     }
