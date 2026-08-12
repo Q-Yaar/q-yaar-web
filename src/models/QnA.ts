@@ -53,6 +53,7 @@ export interface AskedQuestion {
       text: string;
     };
   };
+  fact_meta?: FactMeta;
   answered?: boolean;
   accepted?: boolean;
   reward?: Reward;
@@ -60,12 +61,13 @@ export interface AskedQuestion {
   modified: string;
 }
 
-import type { QuestionMetaByCategory, BaseQuestionMeta } from './QuestionMeta';
+import type { QuestionMetaByCategory, BaseQuestionMeta, FactMeta } from './QuestionMeta';
 
 export interface AskQuestionRequest<C extends keyof QuestionMetaByCategory = never> {
   target_team_id: string;
   chosen_placeholders: Record<string, any>;
   question_meta: C extends keyof QuestionMetaByCategory ? QuestionMetaByCategory[C] : BaseQuestionMeta;
+  fact_meta?: FactMeta;
 }
 
 // Backward compatible type for when category is unknown
@@ -73,6 +75,7 @@ export interface GenericAskQuestionRequest {
   target_team_id: string;
   chosen_placeholders: Record<string, any>;
   question_meta: BaseQuestionMeta;
+  fact_meta?: FactMeta;
 }
 
 export interface AnswerQuestionRequest {
