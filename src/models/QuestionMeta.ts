@@ -257,3 +257,29 @@ export function getAllCoordsFromMeta(
     lon: parseFloat(p.lon),
   }));
 }
+
+// ============================================================================
+// FACT METADATA (for automation)
+// ============================================================================
+
+/**
+ * Metadata for fact-based automation
+ * This contains category-specific fields that are used by the automation system
+ * to compute answers automatically.
+ * 
+ * Matches the backend's AnswerInstructionMeta structure.
+ */
+export interface FactMeta {
+  points?: LocationPoint[];           // Array of points for various purposes
+  radius?: string;                   // Radius for circle-based questions
+  hider_location?: string;           // inside/outside for polygon location
+  split_direction?: string;          // north/south/east/west for area operations
+  preferred_point?: string;          // p1/p2 for polygon location
+  area_op_type?: string;             // inside/outside for area operations
+  uploaded_area?: string;            // Uploaded area identifier
+  text?: string;                     // Text for text-based facts
+  closer_further?: string;           // closer/further for hotter/colder
+  selected_line_index?: number;      // Selected line index for closer-to-line
+  polygon_geo_json?: any;            // GeoJSON for polygon
+  feature_name?: string;             // Feature name for fact identification
+}

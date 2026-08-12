@@ -8,7 +8,7 @@ import {
   AnswerQuestionRequest,
   GenericAskQuestionRequest,
 } from '../models/QnA';
-import { BaseQuestionMeta, LocationPoint } from '../models/QuestionMeta';
+import { BaseQuestionMeta, LocationPoint, FactMeta } from '../models/QuestionMeta';
 import { QNA_MODULE } from '../constants/modules';
 
 export const qnaApi = api.injectEndpoints({
@@ -81,20 +81,7 @@ export const qnaApi = api.injectEndpoints({
         askedQuestionId: string;
         body: {
           question_meta: BaseQuestionMeta;
-          fact_meta?: {
-            points: LocationPoint[];
-            radius?: string;
-            hider_location?: string;
-            split_direction?: string;
-            preferred_point?: string;
-            area_op_type?: string;
-            uploaded_area?: string;
-            text?: string;
-            closer_further?: string;
-            selected_line_index?: number;
-            polygon_geo_json?: any;
-            feature_name?: string;
-          };
+          fact_meta?: FactMeta;
         };
       }
     >({
