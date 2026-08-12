@@ -18,9 +18,9 @@ import { useFetchTeamsQuery, useFetchMyTeamQuery } from '../../apis/gameApi';
 import { useCreateFactMutation } from '../../apis/api';
 import { isPlayerTeam } from '../../models/Team';
 import { Category, QuestionTemplate, AskedQuestion, GenericAskQuestionRequest } from '../../models/QnA';
-import { BaseQuestionMeta, LocationPoint } from '../../models/QuestionMeta';
+import { BaseQuestionMeta, LocationPoint, FactMeta } from '../../models/QuestionMeta';
+import { resolveCategory, isGeoCategory as checkIsGeoCategory, GEO_CATEGORIES } from '../../config/questionCategories';
 import MapComponent from '../../components/Map';
-import { Operation } from '../../utils/geoTypes';
 import {
   Loader,
   Send,
@@ -39,10 +39,6 @@ import { Modal } from '../../components/ui/modal';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
 } from 'components/ui/card';
 import {
   Form,
@@ -69,22 +65,9 @@ export function AskQuestionModule() {
   
   // Map picker for target location selection (geo questions)
   const [targetLocation, setTargetLocation] = useState<LocationPoint | null>(null);
-  const [showMapPicker, setShowMapPicker] = useState(false);
   const [lastSelectedPOIName, setLastSelectedPOIName] = useState<string | null>(null);
   
-  // List of categories that require a target location picker
-  const geoCategories = useMemo(() => new Set([
-    'Measuring',
-    'Polygon Location', 
-    'Distance',
-    'Circle',
-    'Heading',
-    'Relative Heading',
-    'Hotter/Colder',
-    'Hotter / Colder',
-    'Area Operations',
-    'closer-to-line',
-  ]), []);
+  // Using centralized GEO_CATEGORIES from constants/questionCategories
 
   // Queries
   const { data: categoriesData, isLoading: isLoadingCategories } =
@@ -174,77 +157,64 @@ export function AskQuestionModule() {
           lon: longitude.toString(),
         };
 
-        // Determine which location field to update based on what's already set
-        // If seekerLocation is not set, set it. Otherwise, add to location_points.
+        // Collect all existing location points from question_meta
         const currentMeta = question.question_meta || {};
-        const hasSeekerLocation = currentMeta.seekerLocation !== undefined;
+        const existingLocationPoints = currentMeta.location_points || [];
         
-        console.log('Adding location, current meta:', currentMeta);
-        console.log('hasSeekerLocation:', hasSeekerLocation);
-        
-        let updatedMeta: BaseQuestionMeta;
-        if (!hasSeekerLocation) {
-          // Set as seekerLocation if not already set
-          // Also add to location_points so the UI can track the count
-          const currentPoints = currentMeta.location_points || [];
-          updatedMeta = {
-            ...currentMeta,
-            seekerLocation: newPoint,
-            location_points: [...currentPoints, newPoint],
-          };
-        } else {
-          // Otherwise add to location_points array
-          const currentPoints = currentMeta.location_points || [];
-          updatedMeta = {
-            ...currentMeta,
-            location_points: [...currentPoints, newPoint],
-          };
+        // Also check for legacy fields in question_meta (from before the refactor)
+        const legacyPoints: LocationPoint[] = [];
+        const asAny = currentMeta as any;
+        if (asAny.seekerLocation && asAny.seekerLocation.lat && asAny.seekerLocation.lon) {
+          legacyPoints.push(asAny.seekerLocation);
         }
+        if (asAny.targetLocation && asAny.targetLocation.lat && asAny.targetLocation.lon) {
+          legacyPoints.push(asAny.targetLocation);
+        }
+        if (asAny.hiderLocation && asAny.hiderLocation.lat && asAny.hiderLocation.lon) {
+          legacyPoints.push(asAny.hiderLocation);
+        }
+        if (asAny.previousLocation && asAny.previousLocation.lat && asAny.previousLocation.lon) {
+          legacyPoints.push(asAny.previousLocation);
+        }
+        if (asAny.currentLocation && asAny.currentLocation.lat && asAny.currentLocation.lon) {
+          legacyPoints.push(asAny.currentLocation);
+        }
+        if (asAny.center && asAny.center.lat && asAny.center.lon) {
+          legacyPoints.push(asAny.center);
+        }
+        
+        // Collect points from fact_meta if available
+        const factMeta = question.fact_meta || {};
+        const factMetaPoints = factMeta.points || [];
+        
+        // Combine all existing points and add the new point
+        const allPoints = [...existingLocationPoints, ...legacyPoints, ...factMetaPoints, newPoint];
+        
+        // Build updated question_meta with only location_points
+        const updatedMeta: BaseQuestionMeta = {
+          location_points: allPoints,
+        };
 
-        // Collect all location points for the fact_meta
-        // The backend expects points as LocationPoint[] (same format as location_points)
-        const allPoints: LocationPoint[] = [];
-        
-        // Add location_points
-        if (updatedMeta.location_points) {
-          allPoints.push(...updatedMeta.location_points);
-        }
-        
-        // Add seekerLocation if present
-        if (updatedMeta.seekerLocation) {
-          allPoints.push(updatedMeta.seekerLocation);
-        }
-        
-        // Add targetLocation if present
-        if (updatedMeta.targetLocation) {
-          allPoints.push(updatedMeta.targetLocation);
-        }
-        
-        // Add hiderLocation if present
-        if (updatedMeta.hiderLocation) {
-          allPoints.push(updatedMeta.hiderLocation);
-        }
-
-        // Build fact_meta with all required fields for AnswerInstructionMeta
-        // All fields must be present (backend doesn't handle missing keys gracefully)
-        const fact_meta = {
+        // Build updated fact_meta with all required fields
+        // Preserve any existing fact_meta values and add the new point
+        const updatedFactMeta: FactMeta = {
           points: allPoints,
-          radius: '',
-          hider_location: '',
-          split_direction: '',
-          preferred_point: '',
-          area_op_type: '',
-          uploaded_area: '',
-          text: '',
-          closer_further: '',
-          selected_line_index: 0,
-          polygon_geo_json: {},
-          feature_name: '',
+          radius: factMeta.radius || '',
+          hider_location: factMeta.hider_location || '',
+          split_direction: factMeta.split_direction || '',
+          preferred_point: factMeta.preferred_point || '',
+          area_op_type: factMeta.area_op_type || '',
+          uploaded_area: factMeta.uploaded_area || '',
+          text: factMeta.text || '',
+          closer_further: factMeta.closer_further || '',
+          selected_line_index: factMeta.selected_line_index || 0,
+          polygon_geo_json: factMeta.polygon_geo_json || {},
+          feature_name: factMeta.feature_name || '',
         };
 
         console.log('Sending update with:', {
           question_meta: updatedMeta,
-          fact_meta: fact_meta,
+          fact_meta: updatedFactMeta,
         });
 
         try {
@@ -253,7 +223,7 @@ export function AskQuestionModule() {
             askedQuestionId: question.question_id,
             body: {
               question_meta: updatedMeta,
-              fact_meta: fact_meta,
+              fact_meta: updatedFactMeta,
             },
           }).unwrap();
           
@@ -368,36 +338,24 @@ export function AskQuestionModule() {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    console.log('[AskQuestion] DEBUG: onSubmit called with values =', values);
     if (!gameId || !fullTemplate) return;
 
-    // Check if geo category requires target location
-    const isGeoCategory = selectedCategory && 
-      geoCategories.has(selectedCategory.category_name);
+    // Get the category name and resolve to effective operation type
+    const categoryName = selectedCategory?.category_name;
+    const effectiveOperation = resolveCategory(categoryName);
     
-    if (isGeoCategory && !targetLocation) {
+    // Check if geo category requires target location
+    // Radar questions use seeker's location as center, so don't require target location
+    const requiresTargetLocation = categoryName && checkIsGeoCategory(categoryName) && categoryName !== 'Radar';
+    
+    console.log('[AskQuestion] DEBUG: categoryName =', categoryName, 'effectiveOperation =', effectiveOperation, 'requiresTargetLocation =', requiresTargetLocation, 'targetLocation =', targetLocation);
+    if (requiresTargetLocation && !targetLocation) {
       alert('Please select a target location on the map');
       return;
     }
 
     setIsAskingForLocation(true);
-
-    // For Measuring questions, use location_points with convention:
-    // location_points[0] = seekerLocation, location_points[1] = targetLocation
-    const isMeasuring = selectedCategory?.category_name === 'Measuring';
-    
-    // Build location_points array for Measuring questions
-    // Start with empty array - locations will be added in correct order
-    const initialLocationPoints: LocationPoint[] = [];
-
-    const basePayload: GenericAskQuestionRequest = {
-      target_team_id: values.target_team_id,
-      chosen_placeholders: values.placeholders,
-      question_meta: {
-        seekerLocation: undefined, // Will be set if location is available
-        targetLocation: targetLocation || undefined,
-        location_points: initialLocationPoints,
-      },
-    };
 
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -407,49 +365,306 @@ export function AskQuestionModule() {
             lon: position.coords.longitude.toString(),
           };
           
-          // For Measuring questions, build location_points in specific order
-          if (isMeasuring) {
-            const locationPointsWithSeeker: LocationPoint[] = [newSeekerLocation];
-            if (targetLocation) {
-              locationPointsWithSeeker.push(targetLocation);
-            }
-            
-            const payload: GenericAskQuestionRequest = {
-              ...basePayload,
-              question_meta: {
-                ...basePayload.question_meta,
-                seekerLocation: newSeekerLocation,
-                targetLocation: targetLocation || undefined,
-                location_points: locationPointsWithSeeker,
-              },
-            };
-            setIsAskingForLocation(false);
-            sendQuestion(payload);
-          } else {
-            // For non-Measuring geo questions, use the original approach
-            const payload: GenericAskQuestionRequest = {
-              ...basePayload,
-              question_meta: {
-                ...basePayload.question_meta,
-                seekerLocation: newSeekerLocation,
-                targetLocation: targetLocation || undefined,
-                location_points: [],
-              },
-            };
-            setIsAskingForLocation(false);
-            sendQuestion(payload);
+          const categoryName = selectedCategory?.category_name;
+          const placeholders = values.placeholders || {};
+
+          console.log('[AskQuestion] DEBUG: categoryName =', categoryName, 'effectiveOperation =', effectiveOperation, 'placeholders =', placeholders);
+          
+          // Collect all location points for question_meta
+          const locationPoints: LocationPoint[] = [];
+          
+          // Build fact_meta for automation - all fields must be present (backend requirement)
+          const factMeta: FactMeta = {
+            points: [],
+            radius: '',
+            hider_location: '',
+            split_direction: '',
+            preferred_point: '',
+            area_op_type: '',
+            uploaded_area: '',
+            text: '',
+            closer_further: '',
+            selected_line_index: 0,
+            polygon_geo_json: {},
+            feature_name: '',
+          };
+          
+          // Category-specific field extraction - use resolved operation type
+          switch (effectiveOperation) {
+            case 'Measuring':
+              // Measuring: location_points[0] = seeker, [1] = target
+              locationPoints.push(newSeekerLocation);
+              if (targetLocation) {
+                locationPoints.push(targetLocation);
+              }
+              // Add locations to fact_meta.points as well
+              factMeta.points = [...locationPoints];
+              break;
+              
+            case 'Circle':
+              // Circle/Radar: need center and radius
+              // Convention for circleHandler:
+              // - points[0] = center (asker's location for Radar, or defined center for Circle)
+              // - points[1] = answerer's location (added during answer)
+              // - radius = from placeholders
+              if (categoryName === 'Radar') {
+                // For Radar: seeker IS the center
+                factMeta.points = [newSeekerLocation];
+              } else if (placeholders.center_lat && placeholders.center_lon) {
+                // For Circle: use defined center
+                const center: LocationPoint = {
+                  lat: placeholders.center_lat,
+                  lon: placeholders.center_lon
+                };
+                factMeta.points = [center];
+              } else {
+                // Fallback: use seeker as center
+                factMeta.points = [newSeekerLocation];
+              }
+              // Set radius from placeholders
+              if (placeholders.radius !== undefined) {
+                factMeta.radius = placeholders.radius.toString();
+              } else if (placeholders.distance !== undefined) {
+                // Handle distance placeholder for Radar questions
+                factMeta.radius = placeholders.distance.toString();
+              }
+              break;
+              
+            case 'Polygon Location':
+              // Polygon: need polygon_vertices
+              if (placeholders.polygon_vertices) {
+                factMeta.polygon_geo_json = placeholders.polygon_vertices;
+              }
+              // Add seeker and target to points
+              factMeta.points = [newSeekerLocation];
+              if (targetLocation) {
+                factMeta.points.push(targetLocation);
+              }
+              break;
+              
+            case 'Distance':
+              // Distance: need location_points (at least 2) and optional threshold
+              locationPoints.push(newSeekerLocation);
+              if (targetLocation) {
+                locationPoints.push(targetLocation);
+              }
+              factMeta.points = [...locationPoints];
+              if (placeholders.distance_threshold !== undefined) {
+                factMeta.radius = placeholders.distance_threshold.toString();
+              }
+              break;
+              
+            case 'Heading':
+              // Heading: need seekerLocation, targetLocation, optional hiderLocation
+              factMeta.points = [newSeekerLocation];
+              if (targetLocation) {
+                factMeta.points.push(targetLocation);
+              }
+              if (placeholders.hider_lat && placeholders.hider_lon) {
+                const hiderLocation: LocationPoint = {
+                  lat: placeholders.hider_lat,
+                  lon: placeholders.hider_lon
+                };
+                factMeta.points.push(hiderLocation);
+              }
+              break;
+              
+            case 'Hotter/Colder':
+              // Hotter/Colder: need previousLocation, currentLocation, targetLocation
+              factMeta.points = [];
+              if (placeholders.previous_lat && placeholders.previous_lon) {
+                factMeta.points.push({
+                  lat: placeholders.previous_lat,
+                  lon: placeholders.previous_lon
+                });
+              }
+              if (placeholders.current_lat && placeholders.current_lon) {
+                factMeta.points.push({
+                  lat: placeholders.current_lat,
+                  lon: placeholders.current_lon
+                });
+              }
+              factMeta.points.push(newSeekerLocation);
+              if (targetLocation) {
+                factMeta.points.push(targetLocation);
+              }
+              if (placeholders.closerFurther) {
+                factMeta.closer_further = placeholders.closerFurther;
+              }
+              break;
+              
+            case 'Area Operations':
+              // Area Operations: can be polygon or circle based
+              factMeta.points = [newSeekerLocation];
+              if (targetLocation) {
+                factMeta.points.push(targetLocation);
+              }
+              if (placeholders.polygon_vertices) {
+                factMeta.polygon_geo_json = placeholders.polygon_vertices;
+              }
+              if (placeholders.center_lat && placeholders.center_lon) {
+                const center: LocationPoint = {
+                  lat: placeholders.center_lat,
+                  lon: placeholders.center_lon
+                };
+                factMeta.points.push(center);
+              }
+              if (placeholders.radius !== undefined) {
+                factMeta.radius = placeholders.radius.toString();
+              }
+              if (placeholders.areaOpType) {
+                factMeta.area_op_type = placeholders.areaOpType;
+              }
+              break;
+              
+            case 'Closer to Line':
+              // Closer to Line: need line_points, targetLocation, seekerLocation
+              factMeta.points = [newSeekerLocation];
+              if (targetLocation) {
+                factMeta.points.push(targetLocation);
+              }
+              if (placeholders.line_points && Array.isArray(placeholders.line_points)) {
+                // line_points should be added to fact_meta.points
+                factMeta.points.push(...placeholders.line_points);
+              }
+              if (placeholders.closerFurther) {
+                factMeta.closer_further = placeholders.closerFurther;
+              }
+              if (placeholders.selectedLineIndex !== undefined) {
+                factMeta.selected_line_index = parseInt(placeholders.selectedLineIndex);
+              }
+              break;
+              
+            default:
+              // For other geo categories, just set basic location data
+              locationPoints.push(newSeekerLocation);
+              if (targetLocation) {
+                locationPoints.push(targetLocation);
+              }
+              factMeta.points = [...locationPoints];
+              break;
           }
+          
+          // Also check for common fields from placeholders
+          if (placeholders.radius !== undefined && !factMeta.radius) {
+            console.log('[AskQuestion] DEBUG: Setting radius from common fields placeholders.radius =', placeholders.radius);
+            factMeta.radius = placeholders.radius.toString();
+          } else if (placeholders.distance !== undefined && !factMeta.radius) {
+            console.log('[AskQuestion] DEBUG: Setting radius from common fields placeholders.distance =', placeholders.distance);
+            factMeta.radius = placeholders.distance.toString();
+          }
+          if (placeholders.hiderLocation !== undefined) {
+            factMeta.hider_location = placeholders.hiderLocation;
+          }
+
+          console.log('[AskQuestion] DEBUG: Final factMeta =', factMeta);
+          console.log('[AskQuestion] DEBUG: Final locationPoints =', locationPoints);
+          
+          // Build final payload with proper separation:
+          // - question_meta only contains location_points
+          // - fact_meta contains all category-specific fields
+          const finalPayload: GenericAskQuestionRequest = {
+            target_team_id: values.target_team_id,
+            chosen_placeholders: values.placeholders,
+            question_meta: {
+              location_points: locationPoints,
+            },
+            fact_meta: factMeta,
+          };
+
+          console.log('[AskQuestion] DEBUG: SENDING payload =', finalPayload);
+          
+          setIsAskingForLocation(false);
+          sendQuestion(finalPayload);
         },
         (error) => {
-          console.error('Error getting location', error);
-          setPendingPayload(basePayload);
+          console.error('[AskQuestion] DEBUG: Geolocation error:', error);
+          console.log('[AskQuestion] DEBUG: values =', values);
+          // Build a minimal payload without geolocation data
+          // All fact_meta fields must be present (backend requirement)
+          const minimalFactMeta: FactMeta = {
+            points: [],
+            radius: '',
+            hider_location: '',
+            split_direction: '',
+            preferred_point: '',
+            area_op_type: '',
+            uploaded_area: '',
+            text: '',
+            closer_further: '',
+            selected_line_index: 0,
+            polygon_geo_json: {},
+            feature_name: '',
+          };
+          // Handle distance placeholder for Radar questions
+          const placeholders = values.placeholders || {};
+          console.log('[AskQuestion] DEBUG: In error path, placeholders =', placeholders);
+          if (placeholders.radius !== undefined) {
+            console.log('[AskQuestion] DEBUG: Setting radius from placeholders.radius =', placeholders.radius);
+            minimalFactMeta.radius = placeholders.radius.toString();
+          } else if (placeholders.distance !== undefined) {
+            console.log('[AskQuestion] DEBUG: Setting radius from placeholders.distance =', placeholders.distance);
+            minimalFactMeta.radius = placeholders.distance.toString();
+          } else {
+            console.log('[AskQuestion] DEBUG: WARNING - No radius or distance in error path!');
+          }
+          console.log('[AskQuestion] DEBUG: Error path minimalFactMeta =', minimalFactMeta);
+          const minimalPayload: GenericAskQuestionRequest = {
+            target_team_id: values.target_team_id,
+            chosen_placeholders: values.placeholders,
+            question_meta: {
+              location_points: [],
+            },
+            fact_meta: minimalFactMeta,
+          };
+          console.log('[AskQuestion] DEBUG: Error path SENDING payload =', minimalPayload);
+          setPendingPayload(minimalPayload);
           setIsAskingForLocation(false);
           setLocationErrorOpen(true);
         },
       );
     } else {
-      console.warn('Geolocation not available');
-      setPendingPayload(basePayload);
+      console.warn('[AskQuestion] DEBUG: Geolocation not available');
+      console.log('[AskQuestion] DEBUG: values =', values);
+      // Build a minimal payload without geolocation data
+      // All fact_meta fields must be present (backend requirement)
+      const minimalFactMeta: FactMeta = {
+        points: [],
+        radius: '',
+        hider_location: '',
+        split_direction: '',
+        preferred_point: '',
+        area_op_type: '',
+        uploaded_area: '',
+        text: '',
+        closer_further: '',
+        selected_line_index: 0,
+        polygon_geo_json: {},
+        feature_name: '',
+      };
+      // Handle distance placeholder for Radar questions
+      const placeholders = values.placeholders || {};
+      console.log('[AskQuestion] DEBUG: In no-geolocation path, placeholders =', placeholders);
+      if (placeholders.radius !== undefined) {
+        console.log('[AskQuestion] DEBUG: Setting radius from placeholders.radius =', placeholders.radius);
+        minimalFactMeta.radius = placeholders.radius.toString();
+      } else if (placeholders.distance !== undefined) {
+        console.log('[AskQuestion] DEBUG: Setting radius from placeholders.distance =', placeholders.distance);
+        minimalFactMeta.radius = placeholders.distance.toString();
+      } else {
+        console.log('[AskQuestion] DEBUG: WARNING - No radius or distance in no-geolocation path!');
+      }
+      console.log('[AskQuestion] DEBUG: No-geolocation path minimalFactMeta =', minimalFactMeta);
+      const minimalPayload: GenericAskQuestionRequest = {
+        target_team_id: values.target_team_id,
+        chosen_placeholders: values.placeholders,
+        question_meta: {
+          location_points: [],
+        },
+        fact_meta: minimalFactMeta,
+      };
+      console.log('[AskQuestion] DEBUG: No-geolocation path SENDING payload =', minimalPayload);
+      setPendingPayload(minimalPayload);
       setIsAskingForLocation(false);
       setLocationErrorOpen(true);
     }
@@ -470,7 +685,7 @@ export function AskQuestionModule() {
     if (!gameId) return;
     
     const categoryName = question.category.category_name;
-    const isGeoQuestion = geoCategories.has(categoryName);
+    const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
     
     if (isGeoQuestion) {
       // For geo questions, show confirmation modal first
@@ -492,19 +707,28 @@ export function AskQuestionModule() {
         gameId,
         askedQuestionId: question.question_id,
       }).unwrap();
-      
-      // If this is a geo question and user wants to create a fact
-      if (shouldCreateFact && questionForFactCreation) {
-        await createFactFromQuestion(questionForFactCreation);
-      }
     } catch (err) {
       console.error('Failed to accept answer', err);
       alert('Failed to accept answer.');
-    } finally {
       setAcceptingId(null);
       setShowFactCreationModal(false);
       setQuestionForFactCreation(null);
+      return;
     }
+    
+    // If this is a geo question and user wants to create a fact
+    if (shouldCreateFact && questionForFactCreation) {
+      try {
+        await createFactFromQuestion(questionForFactCreation);
+      } catch (err) {
+        console.error('Failed to create fact from question', err);
+        alert('Answer accepted, but failed to create fact. The answer was still accepted.');
+      }
+    }
+    
+    setAcceptingId(null);
+    setShowFactCreationModal(false);
+    setQuestionForFactCreation(null);
   };
 
   const createFactFromQuestion = async (question: AskedQuestion) => {
@@ -512,25 +736,104 @@ export function AskQuestionModule() {
     
     setIsCreatingFact(true);
     try {
+      // Map question category names to operation types
+      const categoryToOpType: Record<string, string> = {
+        'Measuring': 'draw-circle',
+        'Polygon Location': 'polygon-location',
+        'Distance': 'draw-circle',
+        'Circle': 'draw-circle',
+        'Heading': 'split-by-direction',
+        'Relative Heading': 'split-by-direction',
+        'Hotter/Colder': 'hotter-colder',
+        'Hotter / Colder': 'hotter-colder',
+        'Area Operations': 'areas',
+        'closer-to-line': 'closer-to-line',
+      };
+      
+      const opType = categoryToOpType[question.category.category_name] || question.category.category_name;
+      
+      // Collect all location points from various meta fields
+      const allPoints: LocationPoint[] = [];
+      const qMeta = question.question_meta || {};
+      
+      // Add location_points
+      if (qMeta.location_points) {
+        allPoints.push(...qMeta.location_points);
+      }
+      
+      // Add seekerLocation if present
+      if (qMeta.seekerLocation) {
+        allPoints.push(qMeta.seekerLocation);
+      }
+      
+      // Add targetLocation if present
+      if (qMeta.targetLocation) {
+        allPoints.push(qMeta.targetLocation);
+      }
+      
+      // Add hiderLocation if present
+      if (qMeta.hiderLocation) {
+        allPoints.push(qMeta.hiderLocation);
+      }
+      
+      // Map category-specific metadata to operation fields
+      // For draw-circle: needs radius and hiderLocation
+      // For split-by-direction: needs splitDirection
+      // For hotter-colder: needs preferredPoint
+      // For areas: needs areaOpType, selectedLineIndex, uploadedArea
+      // For closer-to-line: needs closerFurther, selectedLineIndex, multiLineString
+      // For polygon-location: needs polygonGeoJSON
+      
+      // Extract values from question_meta, preserving the backend's expected structure
+      // The question_meta uses camelCase field names (seekerLocation, targetLocation, etc.)
+      // which match what the fact backend expects
       await createFact({
         game_id: gameId,
         team_id: myTeam.team_id,
         fact_type: 'GEO',
         fact_info: {
-          op_type: question.category.category_name,
+          op_type: opType,
           op_meta: {
-            ...question.question_meta,
-            source_question_id: question.question_id,
-            source_question: question.rendered_question,
-            accepted_answer: question.answer_meta?.result,
-            answer_text: question.answer_meta?.metadata?.text,
-            created_from: 'accepted_question',
+            // Core location data - all points collected
+            points: allPoints,
+            
+            // Circle/Draw operations
+            radius: qMeta.radius || '',
+            
+            // Direction operations
+            splitDirection: qMeta.split_direction || qMeta.splitDirection || '',
+            
+            // Hotter/Colder operations
+            preferredPoint: qMeta.preferred_point || qMeta.preferredPoint || '',
+            
+            // Area operations
+            areaOpType: qMeta.area_op_type || qMeta.areaOpType || '',
+            uploadedArea: qMeta.uploaded_area || qMeta.uploadedArea || '',
+            
+            // Line operations
+            closerFurther: qMeta.closer_further || qMeta.closerFurther || '',
+            multiLineString: qMeta.multi_line_string || qMeta.multiLineString || null,
+            selectedLineIndex: qMeta.selected_line_index !== undefined ? qMeta.selected_line_index : 
+                               (qMeta.selectedLineIndex !== undefined ? qMeta.selectedLineIndex : 0),
+            
+            // Polygon operations
+            polygonGeoJSON: qMeta.polygon_geo_json || qMeta.polygonGeoJSON || {},
+            
+            // Feature naming
+            featureName: qMeta.feature_name || qMeta.featureName || '',
+            
+            // Additional metadata for tracking
+            sourceQuestionId: question.question_id,
+            sourceQuestion: question.rendered_question,
+            acceptedAnswer: question.answer_meta?.result,
+            answerText: question.answer_meta?.metadata?.text,
+            createdFrom: 'accepted_question',
           },
         },
       }).unwrap();
     } catch (err) {
       console.error('Failed to create fact from question', err);
-      // Don't show error - fact creation is optional, answer was still accepted
+      throw err; // Re-throw so caller can handle it
     } finally {
       setIsCreatingFact(false);
     }
@@ -840,7 +1143,7 @@ export function AskQuestionModule() {
                         )}
 
                       {/* Map Picker for Geo Questions */}
-                      {selectedCategory && geoCategories.has(selectedCategory.category_name) && (
+                      {selectedCategory && GEO_CATEGORIES.has(selectedCategory.category_name) && selectedCategory.category_name !== 'Radar' && (
                         <div className="pt-4 border-t border-gray-100">
                           <h3 className="font-medium text-gray-900 mb-2">
                             Select Target Location
