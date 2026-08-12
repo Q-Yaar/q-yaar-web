@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useFetchAskedQuestionsQuery,
@@ -6,7 +6,15 @@ import {
 } from '../../apis/qnaApi';
 import { useFetchMyTeamQuery } from '../../apis/gameApi';
 import { AskedQuestion } from '../../models/QnA';
-import { LocationPoint } from '../../models/QuestionMeta';
+import { LocationPoint, FactMeta } from '../../models/QuestionMeta';
+import {
+  GEO_CATEGORIES,
+  resolveCategory,
+  getOperationType,
+  tryAutoAnswer,
+  AutoAnswer,
+  getAutomationConfig,
+} from '../../config/questionCategories';
 import {
   Loader,
   CheckCircle,
@@ -27,15 +35,12 @@ import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
 import { formatDate } from 'utils/dateUtils';
-import {
-  tryAutoAnswer,
-  AutoAnswer,
-  getAutomationConfig,
-} from '../../services/questionAutomation';
 
 export function AnswerQuestionModule() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+
+  // Using centralized GEO_CATEGORIES from constants/questionCategories
 
   const { data: myTeam } = useFetchMyTeamQuery(gameId || '', {
     skip: !gameId,
@@ -117,30 +122,64 @@ export function AnswerQuestionModule() {
     // Skip if already checked or answered
     if (checkedQuestions.has(question.question_id) || question.answered) return;
 
-    // For Measuring questions with 2 locations, we need to get the user's location
-    // Convention: location_points[0] = seekerLocation, [1] = targetLocation, [2] = hiderLocation
-    const isMeasuring = question.category.category_name === 'Measuring';
-    const hasTwoLocations = (question.question_meta?.location_points?.length || 0) === 2;
+    // For geo questions, we may need to get the user's current location
+    // Convention: location_points[0] = seekerLocation, [1] = targetLocation, [2] = hiderLocation (answerer)
+    const categoryName = question.category.category_name;
+    const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
     
-    if (isMeasuring && hasTwoLocations && navigator.geolocation) {
+    // Check if we need more location data for automation
+    // Different categories need different numbers of points:
+    // - Measuring: needs 3 points (seeker, target, hider)
+    // - Circle/Radar: needs 2 points (center, target) + user location
+    // - Other geo: needs at least 2 points
+    const locationCount = question.question_meta?.location_points?.length || 0;
+    
+    // Measuring needs 3 points total, others need at least 2
+    const requiresUserLocation = categoryName === 'Measuring' 
+      ? locationCount < 3 
+      : locationCount < 2;
+    
+    const needsUserLocation = isGeoQuestion && requiresUserLocation && navigator.geolocation;
+    
+    if (needsUserLocation) {
       // Get current location and check auto-answer with it
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const hiderLocation: LocationPoint = {
+          const userLocation: LocationPoint = {
             lat: position.coords.latitude.toString(),
             lon: position.coords.longitude.toString(),
           };
           
-          // Create a temporary question with hider location added
+          // Create a temporary question with user location added to both question_meta and fact_meta
+          const existingFactMeta = question.fact_meta || {};
+          const augmentedFactMeta: FactMeta = {
+            points: [
+              ...(existingFactMeta.points || []),
+              userLocation,
+            ],
+            radius: existingFactMeta.radius || '',
+            hider_location: existingFactMeta.hider_location || '',
+            split_direction: existingFactMeta.split_direction || '',
+            preferred_point: existingFactMeta.preferred_point || '',
+            area_op_type: existingFactMeta.area_op_type || '',
+            uploaded_area: existingFactMeta.uploaded_area || '',
+            text: existingFactMeta.text || '',
+            closer_further: existingFactMeta.closer_further || '',
+            selected_line_index: existingFactMeta.selected_line_index || 0,
+            polygon_geo_json: existingFactMeta.polygon_geo_json || {},
+            feature_name: existingFactMeta.feature_name || '',
+          };
+          
           const augmentedQuestion: AskedQuestion = {
             ...question,
             question_meta: {
               ...question.question_meta,
               location_points: [
                 ...(question.question_meta?.location_points || []),
-                hiderLocation,
+                userLocation,
               ],
             },
+            fact_meta: augmentedFactMeta,
           };
           
           const autoAnswer = tryAutoAnswer(augmentedQuestion);
@@ -305,8 +344,11 @@ export function AnswerQuestionModule() {
                     <CardContent className="p-6">
                       <div className="flex flex-wrap items-start justify-between gap-y-2 mb-4">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                             {question.category.category_name}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                            Auto: {isAutoAnswerable ? 'Yes' : 'No'}
                           </span>
                           {question.reward && (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
@@ -320,6 +362,23 @@ export function AnswerQuestionModule() {
                           {formatDate(question.created)}
                         </span>
                       </div>
+
+                      {/* Debug: Question metadata details */}
+                      <details className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs">
+                        <summary className="cursor-pointer font-medium text-gray-700 hover:text-gray-900">
+                          📋 Question Data
+                        </summary>
+                        <pre className="mt-2 text-gray-700 whitespace-pre-wrap text-left">
+{JSON.stringify({
+  category: question.category.category_name,
+  question_meta: question.question_meta,
+  fact_meta: question.fact_meta,
+  answer_meta: question.answer_meta,
+  answered: question.answered,
+  accepted: question.accepted,
+}, null, 2)}
+                        </pre>
+                      </details>
 
                     {/* Map Navigation Row */}
                     {question.question_meta?.location_points &&

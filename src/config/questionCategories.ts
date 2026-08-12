@@ -1,9 +1,14 @@
 /**
- * Question Automation Service
- * Computes answers for questions that can be determined from attached metadata
+ * Question Categories Configuration
+ * 
+ * SINGLE SOURCE OF TRUTH for all category-related configuration:
+ * - Category to operation type mappings
+ * - Category aliases
+ * - Handler registrations
+ * - Geo category detection
+ * - Automation settings
  */
 
-import { AskedQuestion } from '../models/QnA';
 import {
   parseCoord,
   parseLocationPoint,
@@ -13,7 +18,8 @@ import {
   pointInCircle,
   extractAllCoordsFromQuestion
 } from '../utils/geo';
-import type { Coord } from '../utils/geo';
+import type { Coord, LocationPoint } from '../utils/geo';
+import { AskedQuestion } from '../models/QnA';
 import {
   MeasuringQuestionMeta,
   PolygonLocationQuestionMeta,
@@ -24,68 +30,56 @@ import {
   AreaOperationsQuestionMeta,
   CloserToLineQuestionMeta,
   TextFactQuestionMeta,
-  LocationPoint,
+  FactMeta,
   getLocationFromMeta,
   isCategory,
 } from '../models/QuestionMeta';
 
-/**
- * Configuration for the automation service
- */
-export interface AutomationConfig {
-  enabled: boolean;
-  manualCategories: Set<string>;
-  autoSubmitThreshold: number;
-  debug: boolean;
-}
+// ============================================================================
+// OPERATION TYPES
+// ============================================================================
 
 /**
- * Default automation configuration
+ * Internal geo operation types that the system supports.
+ * These are the canonical types used in automation handlers.
  */
-const DEFAULT_CONFIG: AutomationConfig = {
-  enabled: true,
-  manualCategories: new Set([
-    'Photo',
-    'Video', 
-    'Image',
-    'Picture',
-    'Capture',
-    'Subjective',
-    'Opinion'
-  ]),
-  autoSubmitThreshold: 100,
-  debug: false
-};
+export type GeoOperationType = 
+  | 'Measuring'
+  | 'Polygon Location'
+  | 'Distance'
+  | 'Circle'
+  | 'Heading'
+  | 'Hotter/Colder'
+  | 'Area Operations'
+  | 'Closer to Line'
+  | 'Text Fact';
 
-let config: AutomationConfig = { ...DEFAULT_CONFIG };
+// ============================================================================
+// CATEGORY DEFINITIONS
+// ============================================================================
 
 /**
- * Initialize automation configuration
+ * Configuration for a single category.
+ * Each category is defined here exactly once.
  */
-export function initAutomationConfig(customConfig?: Partial<AutomationConfig>): void {
-  // Extract manual categories from custom config (could be Set or array)
-  const customManualCats = customConfig?.manualCategories;
-  const manualCats: string[] = customManualCats 
-    ? (customManualCats instanceof Set 
-        ? Array.from(customManualCats) 
-        : Array.isArray(customManualCats) 
-          ? customManualCats 
-          : [])
-    : [];
+export interface CategoryConfig {
+  /** The display name of the category */
+  name: string;
   
-  const defaultCats = Array.from(DEFAULT_CONFIG.manualCategories);
-  config = {
-    ...DEFAULT_CONFIG,
-    ...customConfig,
-    manualCategories: new Set([...defaultCats, ...manualCats])
-  };
-}
-
-/**
- * Get current automation configuration
- */
-export function getAutomationConfig(): AutomationConfig {
-  return { ...config };
+  /** The operation type this category uses */
+  operation: GeoOperationType;
+  
+  /** The handler function for this category */
+  handler: AutomationHandler;
+  
+  /** Whether this is a geo category (requires location data) */
+  isGeo: boolean;
+  
+  /** 
+   * Aliases for this category.
+   * Questions with these category names will be treated as this category.
+   */
+  aliases?: string[];
 }
 
 /**
@@ -103,95 +97,169 @@ export interface AutoAnswer {
 /**
  * Context passed to automation handlers
  */
-interface AutomationContext {
+export interface AutomationContext {
   question: AskedQuestion;
 }
 
 /**
  * Automation handler function type
  */
-type AutomationHandler = (ctx: AutomationContext) => AutoAnswer | null;
-
-/**
- * Registry of category handlers
- * Maps category names to their automation handler
- */
-const handlers: Record<string, AutomationHandler> = {};
-
-/**
- * Register an automation handler for a category
- */
-export function registerHandler(categoryName: string, handler: AutomationHandler): void {
-  handlers[categoryName] = handler;
-}
-
-/**
- * Check if a category should be handled manually
- */
-function isManualCategory(categoryName: string): boolean {
-  return config.manualCategories.has(categoryName);
-}
-
-/**
- * Log a debug message if debug mode is enabled
- */
-function debugLog(message: string, data?: any): void {
-  if (config.debug) {
-    console.log(`[QuestionAutomation] ${message}`, data || '');
-  }
-}
-
-/**
- * Try to automatically compute an answer for a question
- * Returns the computed answer or null if automation is not possible
- */
-export function tryAutoAnswer(question: AskedQuestion): AutoAnswer | null {
-  if (!config.enabled) {
-    debugLog('Automation is disabled');
-    return null;
-  }
-
-  const categoryName = question.category.category_name;
-  debugLog(`Processing question: ${question.question_id}`, { category: categoryName });
-
-  // Check if category is manual-only
-  if (isManualCategory(categoryName)) {
-    debugLog(`Category "${categoryName}" is manual-only`);
-    return null;
-  }
-
-  // Get handler for this category
-  const handler = handlers[categoryName];
-  if (!handler) {
-    debugLog(`No handler registered for category: ${categoryName}`);
-    return null;
-  }
-
-  // Try to compute answer
-  try {
-    const answer = handler({ question });
-    if (answer) {
-      debugLog(`Auto-answer computed for ${categoryName}`, answer);
-      return answer;
-    } else {
-      debugLog(`Handler for ${categoryName} returned null (missing data or not applicable)`);
-      return null;
-    }
-  } catch (error) {
-    debugLog(`Error in handler for ${categoryName}: ${error}`);
-    return null;
-  }
-}
-
-/**
- * Check if a question can be auto-answered
- */
-export function canAutoAnswer(question: AskedQuestion): boolean {
-  return tryAutoAnswer(question) !== null;
-}
+export type AutomationHandler = (ctx: AutomationContext) => AutoAnswer | null;
 
 // ============================================================================
-// CATEGORY HANDLERS
+// CATEGORY REGISTRY (Single Source of Truth)
+// ============================================================================
+
+/**
+ * All categories with their complete configuration.
+ * Add new categories here and ONLY here.
+ */
+const CATEGORY_REGISTRY: CategoryConfig[] = [
+  // ========== Geo Categories ==========
+  
+  {
+    name: 'Measuring',
+    operation: 'Measuring',
+    handler: measuringHandler,
+    isGeo: true,
+  },
+  {
+    name: 'Polygon Location',
+    operation: 'Polygon Location',
+    handler: polygonLocationHandler,
+    isGeo: true,
+  },
+  {
+    name: 'Distance',
+    operation: 'Distance',
+    handler: distanceHandler,
+    isGeo: true,
+  },
+  {
+    name: 'Circle',
+    operation: 'Circle',
+    handler: circleHandler,
+    isGeo: true,
+    aliases: ['Radar'],
+  },
+  {
+    name: 'Heading',
+    operation: 'Heading',
+    handler: headingHandler,
+    isGeo: true,
+    aliases: ['Relative Heading'],
+  },
+  {
+    name: 'Hotter/Colder',
+    operation: 'Hotter/Colder',
+    handler: hotterColderHandler,
+    isGeo: true,
+    aliases: ['Hotter / Colder'],
+  },
+  {
+    name: 'Area Operations',
+    operation: 'Area Operations',
+    handler: areaOperationsHandler,
+    isGeo: true,
+  },
+  {
+    name: 'closer-to-line',
+    operation: 'Closer to Line',
+    handler: closerToLineHandler,
+    isGeo: true,
+  },
+  
+  // ========== Non-Geo Categories ==========
+  
+  {
+    name: 'Text Fact',
+    operation: 'Text Fact',
+    handler: textFactHandler,
+    isGeo: false,
+  },
+];
+
+// ============================================================================
+// DERIVED CONFIGURATION (Computed from registry - don't edit directly)
+// ============================================================================
+
+/**
+ * Maps category names to their operation type.
+ * Built from CATEGORY_REGISTRY.
+ */
+export const CATEGORY_TO_OPERATION: Record<string, GeoOperationType> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    acc[category.name] = category.operation;
+    // Also add aliases
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = category.operation;
+      }
+    }
+    return acc;
+  }, {} as Record<string, GeoOperationType>);
+
+/**
+ * Reverse mapping: operation type to category names that use it.
+ * Built from CATEGORY_REGISTRY.
+ */
+export const OPERATION_TO_CATEGORIES: Record<GeoOperationType, string[]> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    if (!acc[category.operation]) {
+      acc[category.operation] = [];
+    }
+    acc[category.operation].push(category.name);
+    // Also add aliases
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[category.operation].push(alias);
+      }
+    }
+    return acc;
+  }, {} as Record<GeoOperationType, string[]>);
+
+/**
+ * Set of all categories that require geographic location data.
+ * Built from CATEGORY_REGISTRY.
+ */
+export const GEO_CATEGORIES = new Set<string>(
+  CATEGORY_REGISTRY
+    .filter(c => c.isGeo)
+    .flatMap(c => [c.name, ...(c.aliases || [])])
+);
+
+/**
+ * Maps category names (including aliases) to their handler.
+ * Built from CATEGORY_REGISTRY.
+ */
+const CATEGORY_TO_HANDLER: Record<string, AutomationHandler> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    acc[category.name] = category.handler;
+    // Also map aliases to the same handler
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = category.handler;
+      }
+    }
+    return acc;
+  }, {} as Record<string, AutomationHandler>);
+
+/**
+ * Maps category names to their canonical name (resolves aliases).
+ * Built from CATEGORY_REGISTRY.
+ */
+export const CATEGORY_ALIASES: Record<string, string> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = category.name;
+      }
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
+// ============================================================================
+// HANDLER FUNCTIONS
 // ============================================================================
 
 /**
@@ -203,7 +271,6 @@ function extractCoords(question: AskedQuestion): Coord[] {
 
 /**
  * Helper to get a specific coordinate by key from metadata
- * Works with the new LocationPoint type
  */
 function getCoordFromMeta(question: AskedQuestion, key: string): Coord | null {
   const meta = question.question_meta as any;
@@ -213,26 +280,36 @@ function getCoordFromMeta(question: AskedQuestion, key: string): Coord | null {
 }
 
 /**
+ * Debug logging function (can be enabled via automation config)
+ */
+let automationDebugEnabled = false;
+export function setAutomationDebug(enabled: boolean): void {
+  automationDebugEnabled = enabled;
+}
+
+function debugLog(message: string, data?: any): void {
+  if (automationDebugEnabled) {
+    console.log(`[QuestionAutomation] ${message}`, data || '');
+  }
+}
+
+// --- Handler Implementations ---
+
+/**
  * Handler for "Measuring" category
  * Handles questions like "Compared to me, are you closer to or further from [target]?"
- * Uses location_points array with convention:
- * - location_points[0] = seekerLocation
- * - location_points[1] = targetLocation
- * - location_points[2] = hiderLocation (added when answering)
  */
 function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // Type guard to ensure we have the correct metadata type
   if (!isCategory(q, 'Measuring')) {
-    debugLog('Measuring: Invalid metadata type for Measuring category');
+    debugLog('Measuring: Invalid metadata type');
     return null;
   }
   
   const meta = q.question_meta as MeasuringQuestionMeta;
   const locations = meta.location_points || [];
   
-  // We need at least 3 locations: seeker, target, hider
   if (locations.length < 3) {
     debugLog('Measuring: Not enough locations. Need seeker, target, and hider.', {
       locationCount: locations.length
@@ -240,7 +317,6 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
     return null;
   }
   
-  // Convention: location_points[0] = seeker, [1] = target, [2] = hider
   const seekingLoc = parseLocationPoint(locations[0]);
   const targetLoc = parseLocationPoint(locations[1]);
   const hidingLoc = parseLocationPoint(locations[2]);
@@ -272,15 +348,12 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
 function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // Type guard
   if (!isCategory(q, 'Polygon Location')) {
     debugLog('Polygon Location: Invalid metadata type');
     return null;
   }
   
   const meta = q.question_meta as PolygonLocationQuestionMeta;
-  
-  // We need: polygon vertices and a target point
   const polygonVertices = meta.polygon_vertices;
   const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
@@ -292,7 +365,6 @@ function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
     return null;
   }
   
-  // Parse polygon vertices
   const polygon: Coord[] = [];
   for (const vertex of polygonVertices) {
     const coord = parseLocationPoint(vertex);
@@ -323,15 +395,12 @@ function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
 function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // Type guard
   if (!isCategory(q, 'Distance')) {
     debugLog('Distance: Invalid metadata type');
     return null;
   }
   
   const meta = q.question_meta as DistanceQuestionMeta;
-  
-  // We need: location points and optionally a threshold
   const locationPoints = meta.location_points;
   const threshold = meta.distance_threshold;
   
@@ -350,7 +419,6 @@ function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
   
   const distance = haversine(point1, point2);
   
-  // If there's a threshold, check against it
   if (threshold !== undefined) {
     const isWithin = distance <= threshold;
     return {
@@ -363,10 +431,8 @@ function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
     };
   }
   
-  // Without a threshold, we can still provide the distance
-  // This might be used for questions that just want the distance value
   return {
-    result: true,  // Default to true, the actual distance is in metadata
+    result: true,
     metadata: {
       text: `Distance: ${distance.toFixed(0)}m`,
       confidence: 100,
@@ -376,30 +442,40 @@ function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
 }
 
 /**
- * Handler for "Circle" category
+ * Handler for "Circle" category (also handles Radar via alias)
  * Checks if a point is inside a circle
  */
 function circleHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
   
-  // Type guard
-  if (!isCategory(q, 'Circle')) {
-    debugLog('Circle: Invalid metadata type');
+  const factMeta = q.fact_meta;
+  if (!factMeta) {
+    debugLog('Circle: Missing fact_meta');
     return null;
   }
   
-  const meta = q.question_meta as CircleQuestionMeta;
+  const points = factMeta.points || [];
+  const radius = factMeta.radius ? parseFloat(factMeta.radius) : undefined;
   
-  // We need: center, radius, and target point
-  const center = getCoordFromMeta(q, 'center');
-  const radius = meta.radius;
-  const targetLoc = getCoordFromMeta(q, 'targetLocation');
+  debugLog(`Circle handler: category=${categoryName}, points=${points.length}, radius=${radius}`);
   
-  if (!center || radius === undefined || !targetLoc) {
-    debugLog('Circle: Missing center, radius, or target', {
-      hasCenter: !!center,
+  if (points.length < 2 || radius === undefined) {
+    debugLog('Circle: Missing points or radius', {
+      pointCount: points.length,
       hasRadius: radius !== undefined,
-      hasTarget: !!targetLoc
+      radiusValue: factMeta.radius,
+    });
+    return null;
+  }
+  
+  const center = parseLocationPoint(points[0]);
+  const targetLoc = parseLocationPoint(points[1]);
+  
+  if (!center || !targetLoc) {
+    debugLog('Circle: Invalid center or target location', {
+      center: points[0],
+      target: points[1],
     });
     return null;
   }
@@ -423,17 +499,14 @@ function circleHandler(ctx: AutomationContext): AutoAnswer | null {
  */
 function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
-  
-  // Type guard for either Heading or Relative Heading
   const categoryName = q.category.category_name;
+  
   if (categoryName !== 'Heading' && categoryName !== 'Relative Heading') {
     debugLog('Heading: Invalid category for this handler');
     return null;
   }
   
   const meta = q.question_meta as HeadingQuestionMeta;
-  
-  // We need: reference location (seeker) and target location
   const referenceLoc = getCoordFromMeta(q, 'seekerLocation');
   const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
@@ -442,17 +515,13 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
     return null;
   }
   
-  // Check if hiding location is provided
   const hidingLoc = getCoordFromMeta(q, 'hiderLocation');
   
-  // If we have hiding location, calculate bearing from reference to target
-  // and from reference to hiding, then compare
   if (hidingLoc) {
     const bearingToTarget = bearing(referenceLoc, targetLoc);
     const bearingToHiding = bearing(referenceLoc, hidingLoc);
     const angleDiff = Math.abs(bearingToTarget - bearingToHiding);
-    // For now, just return true if we can compute - more complex logic needed
-    // for actual direction comparisons
+    
     return {
       result: true,
       metadata: {
@@ -463,7 +532,6 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
     };
   }
   
-  // Without hiding location, we can still compute the bearing from reference to target
   const targetBearing = bearing(referenceLoc, targetLoc);
   
   return {
@@ -482,17 +550,14 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
  */
 function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
-  
-  // Type guard for both variations
   const categoryName = q.category.category_name;
+  
   if (categoryName !== 'Hotter/Colder' && categoryName !== 'Hotter / Colder') {
     debugLog('Hotter/Colder: Invalid category for this handler');
     return null;
   }
   
   const meta = q.question_meta as HotterColderQuestionMeta;
-  
-  // We need: previous location, current location, target location
   const previousLoc = getCoordFromMeta(q, 'previousLocation');
   const currentLoc = getCoordFromMeta(q, 'currentLocation');
   const targetLoc = getCoordFromMeta(q, 'targetLocation');
@@ -525,24 +590,16 @@ function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
 function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // Type guard
   if (!isCategory(q, 'Text Fact')) {
     debugLog('Text Fact: Invalid metadata type');
     return null;
   }
   
   const meta = q.question_meta as TextFactQuestionMeta;
-  
-  // For text facts, we look for known patterns in the template and rendered question
-  // This is a simple implementation that checks for explicit yes/no patterns
   const rendered = q.rendered_question.toLowerCase();
-  
-  // Check for questions like "Is X equal to Y?" or "Is X true?"
-  // where the answer might be embedded in the metadata
   const expectedAnswer = meta.expected_answer;
   
   if (expectedAnswer !== undefined) {
-    // Normalize the expected answer
     const normalizedAnswer = String(expectedAnswer).toLowerCase().trim();
     const isYes = normalizedAnswer === 'yes' || normalizedAnswer === 'true' || normalizedAnswer === '1';
     const isNo = normalizedAnswer === 'no' || normalizedAnswer === 'false' || normalizedAnswer === '0';
@@ -559,9 +616,6 @@ function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
     }
   }
   
-  // Check for simple true/false patterns in the rendered question
-  // This is a fallback for questions where the answer is determinable from the text
-  // For example: "Is 2 + 2 equal to 4?"
   if (rendered.includes('2 + 2') && rendered.includes('equal to 4')) {
     return {
       result: true,
@@ -573,7 +627,6 @@ function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
     };
   }
   
-  // Could not determine answer automatically
   debugLog('Text Fact: Could not determine answer from available data');
   return null;
 }
@@ -585,7 +638,6 @@ function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
 function areaOperationsHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // Type guard
   if (!isCategory(q, 'Area Operations')) {
     debugLog('Area Operations: Invalid metadata type');
     return null;
@@ -593,12 +645,8 @@ function areaOperationsHandler(ctx: AutomationContext): AutoAnswer | null {
   
   const meta = q.question_meta as AreaOperationsQuestionMeta;
   
-  // This category might involve checking if points are in specific areas
-  // For now, delegate to polygon or circle handlers if those metadata fields exist
-  
   // Check if we have polygon data
   if (meta.polygon_vertices) {
-    // Create a temporary context with the polygon metadata
     const tempCtx = {
       ...ctx,
       question: {
@@ -616,7 +664,6 @@ function areaOperationsHandler(ctx: AutomationContext): AutoAnswer | null {
   
   // Check if we have circle data
   if (meta.center && meta.radius !== undefined) {
-    // Create a temporary context with the circle metadata
     const tempCtx = {
       ...ctx,
       question: {
@@ -644,7 +691,6 @@ function areaOperationsHandler(ctx: AutomationContext): AutoAnswer | null {
 function closerToLineHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   
-  // Type guard
   if (!isCategory(q, 'closer-to-line')) {
     debugLog('Closer to Line: Invalid metadata type');
     return null;
@@ -652,8 +698,6 @@ function closerToLineHandler(ctx: AutomationContext): AutoAnswer | null {
   
   const meta = q.question_meta as CloserToLineQuestionMeta;
   
-  // We need: line definition (2 points), target location, and seeker location
-  // line_points is an array of LocationPoint objects, so we need to parse each
   const linePoints = meta.line_points || [];
   const linePoint1 = linePoints.length > 0 ? parseLocationPoint(linePoints[0]) : null;
   const linePoint2 = linePoints.length > 1 ? parseLocationPoint(linePoints[1]) : null;
@@ -671,9 +715,7 @@ function closerToLineHandler(ctx: AutomationContext): AutoAnswer | null {
   }
   
   // Calculate distances from line for both points
-  // Using point-to-line distance calculation
   const distanceToLine = (point: Coord, lineStart: Coord, lineEnd: Coord): number => {
-    // Simple implementation: minimum distance from point to line segment
     const l2 = haversine(lineStart, lineEnd);
     if (l2 === 0) return haversine(point, lineStart);
     
@@ -704,25 +746,228 @@ function closerToLineHandler(ctx: AutomationContext): AutoAnswer | null {
 }
 
 // ============================================================================
-// REGISTER HANDLERS
+// CATEGORY LOOKUP FUNCTIONS
 // ============================================================================
 
-// Register all handlers
-registerHandler('Measuring', measuringHandler);
-registerHandler('Polygon Location', polygonLocationHandler);
-registerHandler('Distance', distanceHandler);
-registerHandler('Circle', circleHandler);
-registerHandler('Heading', headingHandler);
-registerHandler('Relative Heading', headingHandler);
-registerHandler('Hotter/Colder', hotterColderHandler);
-registerHandler('Hotter / Colder', hotterColderHandler);
-registerHandler('Text Fact', textFactHandler);
-registerHandler('Area Operations', areaOperationsHandler);
-registerHandler('closer-to-line', closerToLineHandler);
+/**
+ * Get all registered category names (including aliases)
+ */
+export function getAllCategoryNames(): string[] {
+  return [
+    ...CATEGORY_REGISTRY.map(c => c.name),
+    ...CATEGORY_REGISTRY.flatMap(c => c.aliases || [])
+  ];
+}
+
+/**
+ * Get the canonical category name for a given category (resolves aliases)
+ */
+export function getCanonicalCategory(categoryName: string): string | undefined {
+  // Check if it's a direct category name
+  const directMatch = CATEGORY_REGISTRY.find(c => c.name === categoryName);
+  if (directMatch) return directMatch.name;
+  
+  // Check if it's an alias
+  for (const category of CATEGORY_REGISTRY) {
+    if (category.aliases?.includes(categoryName)) {
+      return category.name;
+    }
+  }
+  
+  return undefined;
+}
+
+/**
+ * Get the operation type for a category.
+ * Returns the operation type or undefined if the category is not mapped.
+ */
+export function getOperationType(categoryName: string | undefined): GeoOperationType | undefined {
+  if (!categoryName) return undefined;
+  return CATEGORY_TO_OPERATION[categoryName];
+}
+
+/**
+ * Check if a category requires geographic location data.
+ */
+export function isGeoCategory(categoryName: string | undefined): boolean {
+  if (!categoryName) return false;
+  return GEO_CATEGORIES.has(categoryName);
+}
+
+/**
+ * Get all category names that map to a specific operation type.
+ */
+export function getCategoriesForOperation(operation: GeoOperationType): string[] {
+  return OPERATION_TO_CATEGORIES[operation] || [];
+}
+
+/**
+ * Resolve a category name to its effective operation type.
+ * This handles aliases by returning the canonical operation type.
+ */
+export function resolveCategory(categoryName: string | undefined): GeoOperationType | undefined {
+  if (!categoryName) return undefined;
+  return CATEGORY_TO_OPERATION[categoryName];
+}
+
+/**
+ * Get the handler for a category (resolves aliases automatically)
+ */
+export function getHandlerForCategory(categoryName: string): AutomationHandler | undefined {
+  return CATEGORY_TO_HANDLER[categoryName];
+}
+
+/**
+ * Check if a category exists in the registry
+ */
+export function isKnownCategory(categoryName: string): boolean {
+  return categoryName in CATEGORY_TO_OPERATION;
+}
+
+/**
+ * Get the category config for a given category name
+ */
+export function getCategoryConfig(categoryName: string): CategoryConfig | undefined {
+  // Check direct match
+  const directMatch = CATEGORY_REGISTRY.find(c => c.name === categoryName);
+  if (directMatch) return directMatch;
+  
+  // Check if it's an alias
+  for (const category of CATEGORY_REGISTRY) {
+    if (category.aliases?.includes(categoryName)) {
+      return category;
+    }
+  }
+  
+  return undefined;
+}
 
 // ============================================================================
-// EXPORT
+// AUTOMATION SERVICE FUNCTIONS
 // ============================================================================
 
-export type { Coord };
+/**
+ * Configuration for the automation service
+ */
+export interface AutomationConfig {
+  enabled: boolean;
+  manualCategories: Set<string>;
+  autoSubmitThreshold: number;
+  debug: boolean;
+}
+
+/**
+ * Default automation configuration
+ */
+const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
+  enabled: true,
+  manualCategories: new Set([
+    'Photo',
+    'Video', 
+    'Image',
+    'Picture',
+    'Capture',
+    'Subjective',
+    'Opinion'
+  ]),
+  autoSubmitThreshold: 100,
+  debug: false,
+};
+
+let automationConfig: AutomationConfig = { ...DEFAULT_AUTOMATION_CONFIG };
+
+/**
+ * Initialize automation configuration
+ */
+export function initAutomationConfig(customConfig?: Partial<AutomationConfig>): void {
+  // Extract manual categories from custom config (could be Set or array)
+  const customManualCats = customConfig?.manualCategories;
+  const manualCats: string[] = customManualCats 
+    ? (customManualCats instanceof Set 
+        ? Array.from(customManualCats) 
+        : Array.isArray(customManualCats) 
+          ? customManualCats 
+          : [])
+    : [];
+  
+  const defaultCats = Array.from(DEFAULT_AUTOMATION_CONFIG.manualCategories);
+  
+  automationConfig = {
+    ...DEFAULT_AUTOMATION_CONFIG,
+    ...customConfig,
+    manualCategories: new Set([...defaultCats, ...manualCats]),
+  };
+  
+  // Update debug logging state
+  setAutomationDebug(automationConfig.debug);
+}
+
+/**
+ * Get current automation configuration
+ */
+export function getAutomationConfig(): AutomationConfig {
+  return { ...automationConfig };
+}
+
+/**
+ * Check if a category should be handled manually
+ */
+function isManualCategory(categoryName: string): boolean {
+  return automationConfig.manualCategories.has(categoryName);
+}
+
+/**
+ * Try to automatically compute an answer for a question
+ * Returns the computed answer or null if automation is not possible
+ */
+export function tryAutoAnswer(question: AskedQuestion): AutoAnswer | null {
+  if (!automationConfig.enabled) {
+    debugLog('Automation is disabled');
+    return null;
+  }
+
+  const categoryName = question.category.category_name;
+  debugLog(`Processing question: ${question.question_id}`, { category: categoryName });
+
+  // Check if category is manual-only
+  if (isManualCategory(categoryName)) {
+    debugLog(`Category "${categoryName}" is manual-only`);
+    return null;
+  }
+
+  // Get handler for this category (automatically resolves aliases)
+  const handler = getHandlerForCategory(categoryName);
+  if (!handler) {
+    debugLog(`No handler registered for category: ${categoryName}`);
+    return null;
+  }
+
+  // Try to compute answer
+  try {
+    const answer = handler({ question });
+    if (answer) {
+      debugLog(`Auto-answer computed for ${categoryName}`, answer);
+      return answer;
+    } else {
+      debugLog(`Handler for ${categoryName} returned null (missing data or not applicable)`);
+      return null;
+    }
+  } catch (error) {
+    debugLog(`Error in handler for ${categoryName}: ${error}`);
+    return null;
+  }
+}
+
+/**
+ * Check if a question can be auto-answered
+ */
+export function canAutoAnswer(question: AskedQuestion): boolean {
+  return tryAutoAnswer(question) !== null;
+}
+
+// ============================================================================
+// MODULE EXPORTS
+// ============================================================================
+
+export type { Coord, LocationPoint, FactMeta };
 export { extractAllCoordsFromQuestion } from '../utils/geo';
