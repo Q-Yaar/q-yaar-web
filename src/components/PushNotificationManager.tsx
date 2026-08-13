@@ -22,10 +22,31 @@ export default function PushNotificationManager() {
 
         // Check for existing subscription
         let subscription = await registration.pushManager.getSubscription();
+        const convertedVapidKey = urlBase64ToUint8Array(keysData.vapid_public_key);
+
+        if (subscription) {
+          const currentKey = subscription.options.applicationServerKey;
+          if (currentKey) {
+            const currentKeyArray = new Uint8Array(currentKey);
+            let isSameKey = currentKeyArray.length === convertedVapidKey.length;
+            if (isSameKey) {
+              for (let i = 0; i < currentKeyArray.length; i++) {
+                if (currentKeyArray[i] !== convertedVapidKey[i]) {
+                  isSameKey = false;
+                  break;
+                }
+              }
+            }
+            
+            if (!isSameKey) {
+              await subscription.unsubscribe();
+              subscription = null; // Forces re-subscription below
+            }
+          }
+        }
 
         if (!subscription) {
           // Subscribe using VAPID key
-          const convertedVapidKey = urlBase64ToUint8Array(keysData.vapid_public_key);
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: convertedVapidKey,
