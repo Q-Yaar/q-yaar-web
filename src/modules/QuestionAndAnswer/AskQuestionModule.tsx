@@ -688,6 +688,7 @@ export function AskQuestionModule() {
         'Circle': 'draw-circle',
         'Heading': 'split-by-direction',
         'Relative Heading': 'split-by-direction',
+        'Relative': 'split-by-direction',
         'Hotter/Colder': 'hotter-colder',
         'Hotter / Colder': 'hotter-colder',
         'Area Operations': 'areas',
@@ -1087,7 +1088,10 @@ export function AskQuestionModule() {
                         )}
 
                       {/* Map Picker for Geo Questions */}
-                      {selectedCategory && GEO_CATEGORIES.has(selectedCategory.category_name) && selectedCategory.category_name !== 'Radar' && selectedCategory.category_name !== 'Matching' && (
+                      {selectedCategory && GEO_CATEGORIES.has(selectedCategory.category_name) && 
+                        selectedCategory.category_name !== 'Radar' && 
+                        selectedCategory.category_name !== 'Matching' &&
+                        getAskRequiredLocations(selectedCategory.category_name).target && (
                         <div className="pt-4 border-t border-gray-100">
                           <h3 className="font-medium text-gray-900 mb-2">
                             Select Target Location

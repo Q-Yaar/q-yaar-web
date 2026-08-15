@@ -172,6 +172,7 @@ export function AnswerQuestionModule() {
     const requiresHiderLocation = categoryName === 'Measuring' || 
       categoryName === 'Heading' || 
       categoryName === 'Relative Heading' ||
+      categoryName === 'Relative' ||
       categoryName === 'Hotter/Colder' ||
       categoryName === 'Hotter / Colder' ||
       categoryName === 'Area Operations' ||
@@ -310,6 +311,7 @@ export function AnswerQuestionModule() {
     const requiresHiderLocation = categoryName === 'Measuring' || 
       categoryName === 'Heading' || 
       categoryName === 'Relative Heading' ||
+      categoryName === 'Relative' ||
       categoryName === 'Hotter/Colder' ||
       categoryName === 'Hotter / Colder' ||
       categoryName === 'Area Operations' ||
