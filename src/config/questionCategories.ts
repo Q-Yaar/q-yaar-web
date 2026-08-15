@@ -322,8 +322,8 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
       },
     },
     answer: {
-      requiredLocations: { target: true },
-      autoAddAnswererLocation: false,
+      requiredLocations: { hider: true },
+      autoAddAnswererLocation: true,
     },
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
@@ -841,22 +841,33 @@ function circleHandler(ctx: AutomationContext): AutoAnswer | null {
   
   debugLog(`Circle handler: category=${categoryName}, points=${points.length}, radius=${radius}`);
   
-  if (points.length < 2 || radius === undefined) {
-    debugLog('Circle: Missing points or radius', {
+  // Circle/Radar: requires 1 point (center) + radius + hiderLocation
+  if (points.length < 1) {
+    debugLog('Circle: Missing center point', {
       pointCount: points.length,
-      hasRadius: radius !== undefined,
+    });
+    return null;
+  }
+  
+  if (radius === undefined) {
+    debugLog('Circle: Missing radius', {
       radiusValue: factMeta.radius,
     });
     return null;
   }
   
+  if (!ctx.hiderLocation) {
+    debugLog('Circle: Missing hiderLocation from context');
+    return null;
+  }
+  
   const center = parseLocationPoint(points[0]);
-  const targetLoc = parseLocationPoint(points[1]);
+  const targetLoc = parseLocationPoint(ctx.hiderLocation);
   
   if (!center || !targetLoc) {
-    debugLog('Circle: Invalid center or target location', {
+    debugLog('Circle: Invalid center or hider location', {
       center: points[0],
-      target: points[1],
+      hiderLocation: ctx.hiderLocation,
     });
     return null;
   }
@@ -1477,14 +1488,14 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
         }
       }
 
-      // For Circle/Radar: need center, target, and radius
+      // For Circle/Radar: need 1 point (center) + radius + hiderLocation
       if (categoryName === 'Circle' || categoryName === 'Radar' || config.operation === 'Circle') {
         const points = factMeta?.points || meta.location_points || [];
         const hasRadius = factMeta?.radius !== undefined;
-        if (points.length < 2) {
+        if (points.length < 1) {
           return {
             answer: null,
-            reason: `Circle questions require at least 2 points (center and target), but only ${points.length} provided`,
+            reason: `Circle questions require at least 1 point (center), but only ${points.length} provided`,
             canAutoAnswer: false,
           };
         }
@@ -1492,6 +1503,13 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
           return {
             answer: null,
             reason: 'Circle questions require a radius value',
+            canAutoAnswer: false,
+          };
+        }
+        if (!hiderLocation) {
+          return {
+            answer: null,
+            reason: 'Circle questions require hider location to be provided separately',
             canAutoAnswer: false,
           };
         }
