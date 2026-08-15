@@ -25,6 +25,10 @@ import {
   GEO_CATEGORIES,
   getCategoryConfig,
   getCanonicalCategory,
+  getAskConfig,
+  getAskRequiredLocations,
+  getPlaceholderMap,
+  getAskRequiredPlaceholders,
   DEFAULT_FACT_META,
 } from '../../config/questionCategories';
 import { getAreaConfigByName, ALL_AREAS } from '../../config/areaConfig';
@@ -378,9 +382,10 @@ export function AskQuestionModule() {
     const categoryName = selectedCategory?.category_name;
     const effectiveOperation = resolveCategory(categoryName);
     
-    // Check if geo category requires target location using config
-    const config = getCategoryConfig(categoryName || '');
-    const requiresTargetLocation = config?.isGeo && config?.requiredLocations?.target && categoryName !== 'Radar' && categoryName !== 'Matching';
+    // Check if geo category requires target location using ASK phase config
+    const askConfig = getAskConfig(categoryName || '');
+    const askRequiredLocations = getAskRequiredLocations(categoryName || '');
+    const requiresTargetLocation = askRequiredLocations.target && categoryName !== 'Radar' && categoryName !== 'Matching';
     
     console.log('[AskQuestion] DEBUG: categoryName =', categoryName, 'effectiveOperation =', effectiveOperation, 'requiresTargetLocation =', requiresTargetLocation, 'targetLocation =', targetLocation);
     if (requiresTargetLocation && !targetLocation) {
@@ -406,45 +411,44 @@ export function AskQuestionModule() {
 
           console.log('[AskQuestion] DEBUG: categoryName =', categoryName, 'effectiveOperation =', effectiveOperation, 'placeholders =', placeholders, 'resolvedFeatureName =', resolvedFeatureName);
           
-          // Get config for this category (resolves aliases)
-          const config = getCategoryConfig(categoryName || '');
+          // Get ASK phase config for this category (resolves aliases)
+          const askConfig = getAskConfig(categoryName || '');
+          const askRequiredLocations = getAskRequiredLocations(categoryName || '');
+          const placeholderMap = getPlaceholderMap(categoryName || '');
           
           // Start with default fact_meta values
           const factMeta: FactMeta = { ...DEFAULT_FACT_META, feature_name: resolvedFeatureName };
           
-          // Collect location points based on config
+          // Collect location points based on ASK phase config only
+          // Note: hider location is NOT collected here - it's provided during ANSWER phase
           const locationPoints: LocationPoint[] = [];
-          const requiredLocations = config?.requiredLocations || {};
           
-          // Helper to add location points based on config
-          if (requiredLocations.seeker) {
+          // Helper to add location points based on ASK phase config
+          if (askRequiredLocations.seeker) {
             locationPoints.push(newSeekerLocation);
           }
-          if (requiredLocations.target && targetLocation) {
+          if (askRequiredLocations.target && targetLocation) {
             locationPoints.push(targetLocation);
           }
-          if (requiredLocations.hider && placeholders.hider_lat && placeholders.hider_lon) {
-            locationPoints.push({ lat: placeholders.hider_lat, lon: placeholders.hider_lon });
-          }
-          if (requiredLocations.center && placeholders.center_lat && placeholders.center_lon) {
+          if (askRequiredLocations.center && placeholders.center_lat && placeholders.center_lon) {
             locationPoints.push({ lat: placeholders.center_lat, lon: placeholders.center_lon });
           }
-          if (requiredLocations.previousLocation && placeholders.previous_lat && placeholders.previous_lon) {
+          if (askRequiredLocations.previousLocation && placeholders.previous_lat && placeholders.previous_lon) {
             locationPoints.push({ lat: placeholders.previous_lat, lon: placeholders.previous_lon });
           }
-          if (requiredLocations.currentLocation && placeholders.current_lat && placeholders.current_lon) {
+          if (askRequiredLocations.currentLocation && placeholders.current_lat && placeholders.current_lon) {
             locationPoints.push({ lat: placeholders.current_lat, lon: placeholders.current_lon });
           }
-          if (requiredLocations.linePoints && placeholders.line_points && Array.isArray(placeholders.line_points)) {
+          if (askRequiredLocations.linePoints && placeholders.line_points && Array.isArray(placeholders.line_points)) {
             locationPoints.push(...placeholders.line_points);
           }
           
           // Set points in fact_meta
           factMeta.points = locationPoints;
           
-          // Map placeholders to fact_meta fields using config
-          if (config?.placeholderMap) {
-            for (const [placeholderName, factMetaField] of Object.entries(config.placeholderMap)) {
+          // Map placeholders to fact_meta fields using ASK phase config
+          if (placeholderMap) {
+            for (const [placeholderName, factMetaField] of Object.entries(placeholderMap)) {
               if (placeholders[placeholderName] !== undefined) {
                 const value = placeholders[placeholderName];
                 // Special handling for numeric fields that need parsing
@@ -500,14 +504,14 @@ export function AskQuestionModule() {
         (error) => {
           console.error('[AskQuestion] DEBUG: Geolocation error:', error);
           console.log('[AskQuestion] DEBUG: values =', values);
-          // Build a minimal payload without geolocation data using config
+          // Build a minimal payload without geolocation data using ASK phase config
           const minimalFactMeta: FactMeta = { ...DEFAULT_FACT_META, feature_name: resolvedFeatureName };
           const placeholders = values.placeholders || {};
-          const config = getCategoryConfig(categoryName || '');
+          const placeholderMap = getPlaceholderMap(categoryName || '');
           
-          // Apply placeholder mappings from config
-          if (config?.placeholderMap) {
-            for (const [placeholderName, factMetaField] of Object.entries(config.placeholderMap)) {
+          // Apply placeholder mappings from ASK phase config
+          if (placeholderMap) {
+            for (const [placeholderName, factMetaField] of Object.entries(placeholderMap)) {
               if (placeholders[placeholderName] !== undefined) {
                 const value = placeholders[placeholderName];
                 if (factMetaField === 'selected_line_index' && typeof value === 'string') {
@@ -551,14 +555,14 @@ export function AskQuestionModule() {
     } else {
       console.warn('[AskQuestion] DEBUG: Geolocation not available');
       console.log('[AskQuestion] DEBUG: values =', values);
-      // Build a minimal payload without geolocation data using config
+      // Build a minimal payload without geolocation data using ASK phase config
       const minimalFactMeta: FactMeta = { ...DEFAULT_FACT_META, feature_name: resolvedFeatureName };
       const placeholders = values.placeholders || {};
-      const config = getCategoryConfig(categoryName || '');
+      const placeholderMap = getPlaceholderMap(categoryName || '');
       
-      // Apply placeholder mappings from config
-      if (config?.placeholderMap) {
-        for (const [placeholderName, factMetaField] of Object.entries(config.placeholderMap)) {
+      // Apply placeholder mappings from ASK phase config
+      if (placeholderMap) {
+        for (const [placeholderName, factMetaField] of Object.entries(placeholderMap)) {
           if (placeholders[placeholderName] !== undefined) {
             const value = placeholders[placeholderName];
             if (factMetaField === 'selected_line_index' && typeof value === 'string') {

@@ -56,12 +56,93 @@ export type GeoOperationType =
   | 'Text Fact';
 
 // ============================================================================
+// PHASE TYPES
+// ============================================================================
+
+/**
+ * Location types that can be required in different phases
+ */
+export type LocationType = 
+  | 'seeker'
+  | 'target'
+  | 'hider'
+  | 'center'
+  | 'linePoints'
+  | 'previousLocation'
+  | 'currentLocation';
+
+/**
+ * Configuration for the ASK phase (when seeker asks a question)
+ */
+export interface AskPhaseConfig {
+  /**
+   * Which locations the seeker must provide when asking.
+   * Note: hider location should NEVER be required here - seeker doesn't know it.
+   */
+  requiredLocations?: Partial<Record<LocationType, boolean>>;
+  
+  /**
+   * Placeholder names that must be provided by the seeker.
+   */
+  requiredPlaceholders?: string[];
+  
+  /**
+   * Maps template placeholder names to fact_meta fields.
+   * e.g., { distance: 'radius' } means placeholder {{distance}} -> fact_meta.radius
+   */
+  placeholderMap?: Record<string, string>;
+}
+
+/**
+ * Configuration for the ANSWER phase (when hider/answerer responds)
+ */
+export interface AnswerPhaseConfig {
+  /**
+   * Which locations the answerer must provide when answering.
+   * Typically this includes hider/currentLocation.
+   */
+  requiredLocations?: Partial<Record<LocationType, boolean>>;
+  
+  /**
+   * If true, automatically add the answerer's current location.
+   * This is the typical case for geo questions.
+   */
+  autoAddAnswererLocation?: boolean;
+  
+  /**
+   * Additional fact_meta fields that may be set during answering.
+   */
+  factMetaFields?: (keyof FactMeta)[];
+}
+
+/**
+ * Configuration for the FACT phase (when creating reusable facts)
+ */
+export interface FactPhaseConfig {
+  /**
+   * Fact meta fields that are required for fact creation.
+   */
+  requiredFactMeta?: (keyof FactMeta)[];
+  
+  /**
+   * Default values for fact_meta fields.
+   * Ensures all required fields are present (backend requirement).
+   */
+  factMetaDefaults?: FactMeta;
+}
+
+// ============================================================================
 // CATEGORY DEFINITIONS
 // ============================================================================
 
 /**
  * Configuration for a single category.
  * Each category is defined here exactly once.
+ * 
+ * The configuration is now organized into three phases:
+ * - ask: What the seeker provides when asking a question
+ * - answer: What the answerer provides when responding
+ * - fact: What's needed for fact creation/automation
  */
 export interface CategoryConfig {
   /** The display name of the category */
@@ -83,36 +164,19 @@ export interface CategoryConfig {
   aliases?: string[];
   
   /**
-   * Maps template placeholder names to fact_meta fields.
-   * e.g., { distance: 'radius' } means placeholder {{distance}} -> fact_meta.radius
+   * Configuration for the ASK phase (seeker asks question)
    */
-  placeholderMap?: Record<string, string>;
+  ask: AskPhaseConfig;
   
   /**
-   * Default values for all fact_meta fields.
-   * Ensures all required fields are present (backend requirement).
+   * Configuration for the ANSWER phase (hider answers question)
    */
-  factMetaDefaults?: FactMeta;
+  answer: AnswerPhaseConfig;
   
   /**
-   * Which locations are required for this category.
-   * Determines what gets collected from user during question asking.
+   * Configuration for the FACT phase (fact creation)
    */
-  requiredLocations?: {
-    seeker?: boolean;
-    target?: boolean;
-    hider?: boolean;
-    center?: boolean;
-    linePoints?: boolean;
-    previousLocation?: boolean;
-    currentLocation?: boolean;
-  };
-  
-  /**
-   * Placeholder names that must be provided for this category.
-   * Used for validation before submission.
-   */
-  requiredPlaceholders?: string[];
+  fact: FactPhaseConfig;
 }
 
 /**
@@ -178,34 +242,60 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     operation: 'Measuring',
     handler: measuringHandler,
     isGeo: true,
-    placeholderMap: {},
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true, target: true, hider: true },
-    requiredPlaceholders: [],
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      // hider location is NOT required when asking - seeker doesn't know it
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      requiredLocations: { hider: true },
+      autoAddAnswererLocation: true,  // Answerer (hider) provides their location
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points'],  // All 3 locations (seeker, target, hider)
+    },
   },
   {
     name: 'Polygon Location',
     operation: 'Polygon Location',
     handler: polygonLocationHandler,
     isGeo: true,
-    placeholderMap: {
-      polygon_vertices: 'polygon_geo_json',
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {
+        polygon_vertices: 'polygon_geo_json',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true, target: true },
-    requiredPlaceholders: [],
+    answer: {
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'polygon_geo_json'],
+    },
   },
   {
     name: 'Distance',
     operation: 'Distance',
     handler: distanceHandler,
     isGeo: true,
-    placeholderMap: {
-      distance_threshold: 'radius',
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {
+        distance_threshold: 'radius',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true, target: true },
-    requiredPlaceholders: [],
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'radius'],
+    },
   },
   {
     name: 'Circle',
@@ -213,13 +303,22 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: circleHandler,
     isGeo: true,
     aliases: ['Radar'],
-    placeholderMap: {
-      distance: 'radius',
-      radius: 'radius',
+    ask: {
+      requiredLocations: { seeker: true },
+      requiredPlaceholders: ['distance'],
+      placeholderMap: {
+        distance: 'radius',
+        radius: 'radius',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true },
-    requiredPlaceholders: ['distance'],
+    answer: {
+      requiredLocations: { target: true },
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'radius'],
+    },
   },
   {
     name: 'Heading',
@@ -227,10 +326,19 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: headingHandler,
     isGeo: true,
     aliases: ['Relative Heading'],
-    placeholderMap: {},
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true, target: true },
-    requiredPlaceholders: [],
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      requiredLocations: { hider: true },
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points'],
+    },
   },
   {
     name: 'Hotter/Colder',
@@ -238,12 +346,21 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: hotterColderHandler,
     isGeo: true,
     aliases: ['Hotter / Colder'],
-    placeholderMap: {
-      closerFurther: 'closer_further',
+    ask: {
+      requiredLocations: { target: true },
+      requiredPlaceholders: ['closerFurther'],
+      placeholderMap: {
+        closerFurther: 'closer_further',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { previousLocation: true, currentLocation: true, target: true },
-    requiredPlaceholders: ['closerFurther'],
+    answer: {
+      requiredLocations: { previousLocation: true, currentLocation: true },
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'closer_further'],
+    },
   },
   {
     name: 'Area Operations',
@@ -251,27 +368,43 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: areaOperationsHandler,
     isGeo: true,
     aliases: ['Matching'],
-    placeholderMap: {
-      radius: 'radius',
-      areaOpType: 'area_op_type',
-      feature_name: 'feature_name',
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {
+        radius: 'radius',
+        areaOpType: 'area_op_type',
+        feature_name: 'feature_name',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true, target: true },
-    requiredPlaceholders: [],
+    answer: {
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'radius', 'area_op_type', 'feature_name', 'polygon_geo_json'],
+    },
   },
   {
     name: 'closer-to-line',
     operation: 'Closer to Line',
     handler: closerToLineHandler,
     isGeo: true,
-    placeholderMap: {
-      selectedLineIndex: 'selected_line_index',
-      closerFurther: 'closer_further',
+    ask: {
+      requiredLocations: { seeker: true, target: true, linePoints: true },
+      requiredPlaceholders: [],
+      placeholderMap: {
+        selectedLineIndex: 'selected_line_index',
+        closerFurther: 'closer_further',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: { seeker: true, target: true, linePoints: true },
-    requiredPlaceholders: [],
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'selected_line_index', 'closer_further'],
+    },
   },
   
   // ========== Non-Geo Categories ==========
@@ -281,15 +414,101 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     operation: 'Text Fact',
     handler: textFactHandler,
     isGeo: false,
-    placeholderMap: {
-      expected_answer: 'text',
-      fact_text: 'text',
+    ask: {
+      requiredLocations: {},
+      requiredPlaceholders: [],
+      placeholderMap: {
+        expected_answer: 'text',
+        fact_text: 'text',
+      },
     },
-    factMetaDefaults: DEFAULT_FACT_META,
-    requiredLocations: {},
-    requiredPlaceholders: [],
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['text'],
+    },
   },
 ];
+
+// ============================================================================
+// PHASE-BASED CONFIG ACCESSORS
+// ============================================================================
+
+/**
+ * Get the ASK phase configuration for a category.
+ */
+export function getAskConfig(categoryName: string): AskPhaseConfig {
+  const config = getCategoryConfig(categoryName);
+  return config?.ask || { requiredLocations: {}, requiredPlaceholders: [], placeholderMap: {} };
+}
+
+/**
+ * Get the ANSWER phase configuration for a category.
+ */
+export function getAnswerConfig(categoryName: string): AnswerPhaseConfig {
+  const config = getCategoryConfig(categoryName);
+  return config?.answer || { autoAddAnswererLocation: false, requiredLocations: {} };
+}
+
+/**
+ * Get the FACT phase configuration for a category.
+ */
+export function getFactConfig(categoryName: string): FactPhaseConfig {
+  const config = getCategoryConfig(categoryName);
+  return config?.fact || { factMetaDefaults: DEFAULT_FACT_META, requiredFactMeta: [] };
+}
+
+/**
+ * Get required locations for ASK phase from a category.
+ * This is what the seeker must provide when asking.
+ */
+export function getAskRequiredLocations(categoryName: string): Partial<Record<LocationType, boolean>> {
+  const askConfig = getAskConfig(categoryName);
+  return askConfig?.requiredLocations || {};
+}
+
+/**
+ * Get required locations for ANSWER phase from a category.
+ * This is what the answerer must provide when answering.
+ */
+export function getAnswerRequiredLocations(categoryName: string): Partial<Record<LocationType, boolean>> {
+  const answerConfig = getAnswerConfig(categoryName);
+  return answerConfig?.requiredLocations || {};
+}
+
+/**
+ * Check if answerer's location should be automatically added for a category.
+ */
+export function shouldAutoAddAnswererLocation(categoryName: string): boolean {
+  const answerConfig = getAnswerConfig(categoryName);
+  return answerConfig?.autoAddAnswererLocation === true;
+}
+
+/**
+ * Get placeholder map for a category (for ASK phase).
+ */
+export function getPlaceholderMap(categoryName: string): Record<string, string> {
+  const askConfig = getAskConfig(categoryName);
+  return askConfig?.placeholderMap || {};
+}
+
+/**
+ * Get required placeholders for ASK phase from a category.
+ */
+export function getAskRequiredPlaceholders(categoryName: string): string[] {
+  const askConfig = getAskConfig(categoryName);
+  return askConfig?.requiredPlaceholders || [];
+}
+
+/**
+ * Get fact meta defaults for a category.
+ */
+export function getFactMetaDefaults(categoryName: string): FactMeta {
+  const factConfig = getFactConfig(categoryName);
+  return factConfig?.factMetaDefaults || DEFAULT_FACT_META;
+}
 
 // ============================================================================
 // DERIVED CONFIGURATION (Computed from registry - don't edit directly)
@@ -357,7 +576,7 @@ export const CATEGORY_CONFIGS: Record<string, CategoryConfig> =
 
 /**
  * Get the full configuration for a category (resolves aliases).
- * Returns undefined if category is not found.
+ * Returns the category config or undefined if not found.
  */
 export function getCategoryConfig(categoryName: string): CategoryConfig | undefined {
   return CATEGORY_CONFIGS[categoryName];
@@ -951,24 +1170,6 @@ export function getAllCategoryNames(): string[] {
 }
 
 /**
- * Get the canonical category name for a given category (resolves aliases)
- */
-export function getCanonicalCategory(categoryName: string): string | undefined {
-  // Check if it's a direct category name
-  const directMatch = CATEGORY_REGISTRY.find(c => c.name === categoryName);
-  if (directMatch) return directMatch.name;
-  
-  // Check if it's an alias
-  for (const category of CATEGORY_REGISTRY) {
-    if (category.aliases?.includes(categoryName)) {
-      return category.name;
-    }
-  }
-  
-  return undefined;
-}
-
-/**
  * Get the operation type for a category.
  * Returns the operation type or undefined if the category is not mapped.
  */
@@ -1013,24 +1214,6 @@ export function getHandlerForCategory(categoryName: string): AutomationHandler |
  */
 export function isKnownCategory(categoryName: string): boolean {
   return categoryName in CATEGORY_TO_OPERATION;
-}
-
-/**
- * Get the category config for a given category name
- */
-export function getCategoryConfig(categoryName: string): CategoryConfig | undefined {
-  // Check direct match
-  const directMatch = CATEGORY_REGISTRY.find(c => c.name === categoryName);
-  if (directMatch) return directMatch;
-  
-  // Check if it's an alias
-  for (const category of CATEGORY_REGISTRY) {
-    if (category.aliases?.includes(categoryName)) {
-      return category;
-    }
-  }
-  
-  return undefined;
 }
 
 // ============================================================================
@@ -1162,11 +1345,3 @@ export async function canAutoAnswer(question: AskedQuestion): Promise<boolean> {
 
 export type { Coord, LocationPoint, FactMeta };
 export { extractAllCoordsFromQuestion } from '../utils/geo';
-
-export {
-  CategoryConfig,
-  DEFAULT_FACT_META,
-  CATEGORY_CONFIGS,
-  getCategoryConfig,
-  getCanonicalCategory,
-};
