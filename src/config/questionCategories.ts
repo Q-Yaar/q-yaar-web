@@ -188,6 +188,7 @@ export interface AutoAnswer {
     text?: string;
     confidence: number;  // 0-100
     computationMethod: string;
+    split_direction?: string;  // Cardinal direction for heading questions
   };
 }
 
@@ -335,11 +336,13 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     operation: 'Heading',
     handler: headingHandler,
     isGeo: true,
-    aliases: ['Relative Heading'],
+    aliases: ['Relative Heading', 'Relative'],
     ask: {
-      requiredLocations: { seeker: true, target: true },
-      requiredPlaceholders: [],
-      placeholderMap: {},
+      requiredLocations: { seeker: true },
+      requiredPlaceholders: ['direction'],
+      placeholderMap: {
+        direction: 'split_direction',
+      },
     },
     answer: {
       requiredLocations: { hider: true },
@@ -347,7 +350,7 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     },
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points'],
+      requiredFactMeta: ['points', 'split_direction'],
     },
   },
   {
@@ -886,14 +889,14 @@ function circleHandler(ctx: AutomationContext): AutoAnswer | null {
 }
 
 /**
- * Handler for "Heading" or "Relative Heading" category
- * Checks directional relationship between points
+ * Handler for Heading, Relative Heading, and Relative categories
+ * For all three: calculates bearing from seeker to hider using split_direction
  */
 function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   const categoryName = q.category.category_name;
   
-  if (categoryName !== 'Heading' && categoryName !== 'Relative Heading') {
+  if (categoryName !== 'Heading' && categoryName !== 'Relative Heading' && categoryName !== 'Relative') {
     debugLog('Heading: Invalid category for this handler');
     return null;
   }
@@ -901,47 +904,42 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   const meta = q.question_meta as HeadingQuestionMeta;
   const locations = meta.location_points || [];
   
-  // Convention: location_points[0] = seekerLocation, [1] = targetLocation
-  // hiderLocation comes from answer-time context, not question metadata
-  if (locations.length < 2) {
-    debugLog('Heading: Missing reference or target location');
-    return null;
-  }
+  const referenceLoc = locations.length > 0 ? parseLocationPoint(locations[0]) : null;
   
-  const referenceLoc = parseLocationPoint(locations[0]);
-  const targetLoc = parseLocationPoint(locations[1]);
-  
-  if (!referenceLoc || !targetLoc) {
-    debugLog('Heading: Could not parse reference or target location');
+  if (!referenceLoc) {
+    debugLog('Heading: Missing reference location');
     return null;
   }
   
   // Hider location comes from answer-time context
   const hidingLoc = ctx.hiderLocation ? parseLocationPoint(ctx.hiderLocation) : null;
   
-  if (hidingLoc) {
-    const bearingToTarget = bearing(referenceLoc, targetLoc);
-    const bearingToHiding = bearing(referenceLoc, hidingLoc);
-    const angleDiff = Math.abs(bearingToTarget - bearingToHiding);
-    
-    return {
-      result: true,
-      metadata: {
-        text: `Target bearing: ${bearingToTarget.toFixed(0)}°, Hiding bearing: ${bearingToHiding.toFixed(0)}°, Difference: ${angleDiff.toFixed(0)}°`,
-        confidence: 100,
-        computationMethod: 'bearing_comparison'
-      }
-    };
+  if (!hidingLoc) {
+    debugLog('Heading: Missing hider location');
+    return null;
   }
   
-  const targetBearing = bearing(referenceLoc, targetLoc);
+  const bearingToHider = bearing(referenceLoc, hidingLoc);
+  const splitDirection = meta.split_direction || '';
+  
+  // Map bearing to cardinal direction for answer
+  const getCardinalDirection = (b: number): string => {
+    const normalized = ((b + 360) % 360);
+    if (normalized >= 315 || normalized < 45) return 'North';
+    if (normalized >= 45 && normalized < 135) return 'East';
+    if (normalized >= 135 && normalized < 225) return 'South';
+    return 'West';
+  };
+  
+  const direction = getCardinalDirection(bearingToHider);
   
   return {
     result: true,
     metadata: {
-      text: `Bearing to target: ${targetBearing.toFixed(0)}°`,
+      text: `Hider is ${direction} of seeker (bearing: ${bearingToHider.toFixed(0)}°)`,
       confidence: 100,
-      computationMethod: 'bearing_to_target'
+      computationMethod: 'bearing_to_cardinal_direction',
+      split_direction: direction,
     }
   };
 }
@@ -1515,13 +1513,13 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
         }
       }
 
-      // For Heading: need 2 location points from question (seeker, target) + hiderLocation from context
-      if (categoryName === 'Heading' || categoryName === 'Relative Heading' || config.operation === 'Heading') {
+      // For Heading/Relative Heading/Relative: need 1 location point from question (seeker) + hiderLocation from context
+      if (categoryName === 'Heading' || categoryName === 'Relative Heading' || categoryName === 'Relative' || config.operation === 'Heading') {
         const locationCount = meta.location_points?.length || 0;
-        if (locationCount < 2) {
+        if (locationCount < 1) {
           return {
             answer: null,
-            reason: `Heading questions require seeker and target locations from question, but only ${locationCount} provided`,
+            reason: `Heading questions require seeker location from question, but only ${locationCount} provided`,
             canAutoAnswer: false,
           };
         }

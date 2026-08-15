@@ -89,14 +89,15 @@ export interface CircleQuestionMeta extends BaseQuestionMeta {
 }
 
 /**
- * Metadata for "Heading" and "Relative Heading" category questions
- * Example: "What direction is the target relative to me?"
- * Requires: reference location (seeker) and target location
+ * Metadata for "Heading", "Relative Heading", and "Relative" category questions
+ * Example: "What direction is the hider relative to me?"
+ * Requires: reference location (seeker), hider location, and split_direction
  */
 export interface HeadingQuestionMeta extends BaseQuestionMeta {
   seekerLocation?: LocationPoint;  // Reference point for bearing calculation
   targetLocation?: LocationPoint; // Target point
   hiderLocation?: LocationPoint;  // Optional: for comparing against hider's direction
+  split_direction?: string;      // Cardinal direction (North, South, East, West)
 }
 
 /**
@@ -181,6 +182,7 @@ export type QuestionMetaByCategory = {
   'Circle': CircleQuestionMeta;
   'Heading': HeadingQuestionMeta;
   'Relative Heading': HeadingQuestionMeta;
+  'Relative': HeadingQuestionMeta;
   'Hotter/Colder': HotterColderQuestionMeta;
   'Hotter / Colder': HotterColderQuestionMeta;
   'Area Operations': AreaOperationsQuestionMeta;
