@@ -8,16 +8,6 @@ import { useFetchMyTeamQuery } from '../../apis/gameApi';
 import { AskedQuestion } from '../../models/QnA';
 import { LocationPoint, FactMeta } from '../../models/QuestionMeta';
 import {
-  GEO_CATEGORIES,
-  resolveCategory,
-  getOperationType,
-  tryAutoAnswer,
-  AutoAnswer,
-  getAutomationConfig,
-  shouldAutoAddAnswererLocation,
-  getAnswerRequiredLocations,
-} from '../../config/questionCategories';
-import {
   Loader,
   CheckCircle,
   XCircle,
@@ -27,7 +17,21 @@ import {
   MapPin,
   Gift,
   Zap,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import {
+  GEO_CATEGORIES,
+  resolveCategory,
+  getOperationType,
+  tryAutoAnswer,
+  tryAutoAnswerWithReason,
+  AutoAnswer,
+  AutoAnswerResult,
+  getAutomationConfig,
+  shouldAutoAddAnswererLocation,
+  getAnswerRequiredLocations,
+} from '../../config/questionCategories';
 
 import { QuestionCard } from './QuestionCard';
 import { Modal } from '../../components/ui/modal';
@@ -49,10 +53,34 @@ export function AnswerQuestionModule() {
     skip: !gameId,
   });
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+
+  // Reset pagination when game or team changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [gameId, myTeam?.team_id]);
+
+  // Fetch questions with pagination
   const { data: askedQuestionsData, isLoading, refetch: refetchAskedQuestions } = useFetchAskedQuestionsQuery(
-    { gameId: gameId || '', targetTeamId: myTeam?.team_id || '' },
+    { gameId: gameId || '', targetTeamId: myTeam?.team_id || '', page: currentPage },
     { skip: !gameId || !myTeam, pollingInterval: 30000 },
   );
+
+  // Update total pages when data changes
+  useEffect(() => {
+    if (askedQuestionsData) {
+      // Calculate total pages based on count and results length
+      // Assuming page size is consistent, we can derive it from results length
+      const pageSize = askedQuestionsData.results.length;
+      const newTotalPages = pageSize > 0 ? Math.ceil(askedQuestionsData.count / pageSize) : 1;
+      setTotalPages(Math.max(newTotalPages, 1));
+    }
+  }, [askedQuestionsData]);
+
+  // Get the actual data to display
+  const displayData = askedQuestionsData;
 
   const [answerQuestion, { isLoading: isAnswering }] =
     useAnswerQuestionMutation();
@@ -65,6 +93,10 @@ export function AnswerQuestionModule() {
   const [questionForAutoAnswer, setQuestionForAutoAnswer] = useState<AskedQuestion | null>(null);
   const [computedAutoAnswer, setComputedAutoAnswer] = useState<AutoAnswer | null>(null);
   const [isConfirmingAutoAnswer, setIsConfirmingAutoAnswer] = useState(false);
+  
+  // State for "cannot auto-answer" modal
+  const [cannotAutoAnswerModalOpen, setCannotAutoAnswerModalOpen] = useState(false);
+  const [cannotAutoAnswerReason, setCannotAutoAnswerReason] = useState<string>('');
   
   // Track which questions we've already checked for auto-answer
   const [checkedQuestions, setCheckedQuestions] = useState<Set<string>>(new Set());
@@ -131,21 +163,27 @@ export function AnswerQuestionModule() {
     const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
     
     // Use phase-based config to determine if we need answerer's location
-    const answerRequiredLocations = getAnswerRequiredLocations(categoryName);
     const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
     
-    // Check if we need more location data for automation
+    // Check if we need hider's current location for automation
     const locationCount = question.question_meta?.location_points?.length || 0;
     
-    // Determine if we need to collect answerer's location based on answer phase config
-    // For Measuring: needs hider location (3rd point)
-    // For most geo: needs answerer's location to be added
-    const hasAllRequiredLocations = 
-      categoryName === 'Measuring' 
-        ? locationCount >= 3
-        : locationCount >= 2;
+    // Categories that need hider's current location passed separately
+    const requiresHiderLocation = categoryName === 'Measuring' || 
+      categoryName === 'Heading' || 
+      categoryName === 'Relative Heading' ||
+      categoryName === 'Hotter/Colder' ||
+      categoryName === 'Hotter / Colder' ||
+      categoryName === 'Area Operations' ||
+      categoryName === 'Matching' ||
+      categoryName === 'Polygon Location';
     
-    const needsUserLocation = isGeoQuestion && needsAnswererLocation && !hasAllRequiredLocations && navigator.geolocation;
+    const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
+      ? locationCount >= 2
+      : locationCount >= 2;
+    
+    // Need user location if category requires hider location and we have geolocation
+    const needsUserLocation = isGeoQuestion && needsAnswererLocation && requiresHiderLocation && navigator.geolocation;
     
     if (needsUserLocation) {
       // Get current location and check auto-answer with it
@@ -156,39 +194,8 @@ export function AnswerQuestionModule() {
             lon: position.coords.longitude.toString(),
           };
           
-          // Create a temporary question with user location added to fact_meta
-          const existingFactMeta = question.fact_meta || {};
-          const augmentedFactMeta: FactMeta = {
-            points: [
-              ...(existingFactMeta.points || []),
-              userLocation,
-            ],
-            radius: existingFactMeta.radius || '',
-            hider_location: existingFactMeta.hider_location || '',
-            split_direction: existingFactMeta.split_direction || '',
-            preferred_point: existingFactMeta.preferred_point || '',
-            area_op_type: existingFactMeta.area_op_type || '',
-            uploaded_area: existingFactMeta.uploaded_area || '',
-            text: existingFactMeta.text || '',
-            closer_further: existingFactMeta.closer_further || '',
-            selected_line_index: existingFactMeta.selected_line_index || 0,
-            polygon_geo_json: existingFactMeta.polygon_geo_json || {},
-            feature_name: existingFactMeta.feature_name || '',
-          };
-          
-          const augmentedQuestion: AskedQuestion = {
-            ...question,
-            question_meta: {
-              ...question.question_meta,
-              location_points: [
-                ...(question.question_meta?.location_points || []),
-                userLocation,
-              ],
-            },
-            fact_meta: augmentedFactMeta,
-          };
-          
-          const autoAnswer = await tryAutoAnswer(augmentedQuestion);
+          // Pass hider location as separate parameter - do NOT mutate the question
+          const autoAnswer = await tryAutoAnswer(question, userLocation);
           if (autoAnswer) {
             // Mark as checked so we don't show modal repeatedly
             setCheckedQuestions(prev => new Set(prev).add(question.question_id));
@@ -201,7 +208,7 @@ export function AnswerQuestionModule() {
         },
         async (err) => {
           console.error('Failed to get location for auto-answer:', err);
-          // If we can't get location, try without it (might work if locations already present)
+          // If we can't get location, try without it (might work if not needed)
           const autoAnswer = await tryAutoAnswer(question);
           if (autoAnswer) {
             setCheckedQuestions(prev => new Set(prev).add(question.question_id));
@@ -275,17 +282,117 @@ export function AnswerQuestionModule() {
     setComputedAutoAnswer(null);
   };
 
+  // Handle closing the "cannot auto-answer" modal
+  const handleCloseCannotAutoAnswer = () => {
+    setCannotAutoAnswerModalOpen(false);
+    setCannotAutoAnswerReason('');
+  };
+
+  // Handle manual auto-answer button click on a card
+  const handleAutoAnswerButtonClick = useCallback(async (question: AskedQuestion) => {
+    const automationConfig = getAutomationConfig();
+    if (!automationConfig.enabled) {
+      setCannotAutoAnswerReason('Automation is disabled');
+      setCannotAutoAnswerModalOpen(true);
+      return;
+    }
+
+    const categoryName = question.category.category_name;
+    const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
+    const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
+    
+    // Check if we need to get user's location for this category
+    const locationCount = question.question_meta?.location_points?.length || 0;
+    
+    // Categories that need hider's current location passed separately
+    const requiresHiderLocation = categoryName === 'Measuring' || 
+      categoryName === 'Heading' || 
+      categoryName === 'Relative Heading' ||
+      categoryName === 'Hotter/Colder' ||
+      categoryName === 'Hotter / Colder' ||
+      categoryName === 'Area Operations' ||
+      categoryName === 'Matching' ||
+      categoryName === 'Polygon Location';
+    
+    const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
+      ? locationCount >= 2
+      : locationCount >= 2;
+    
+    const needsUserLocation = isGeoQuestion && needsAnswererLocation && requiresHiderLocation && navigator.geolocation;
+
+    if (needsUserLocation) {
+      // Get current location and check auto-answer with it
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const userLocation: LocationPoint = {
+            lat: position.coords.latitude.toString(),
+            lon: position.coords.longitude.toString(),
+          };
+          
+          // Pass hider location as separate parameter - do NOT mutate the question
+          const result: AutoAnswerResult = await tryAutoAnswerWithReason(question, userLocation);
+          if (result.canAutoAnswer && result.answer) {
+            setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+            setQuestionForAutoAnswer(question);
+            setComputedAutoAnswer(result.answer);
+            setAutoAnswerModalOpen(true);
+          } else {
+            setCannotAutoAnswerReason(result.reason || 'Unknown reason');
+            setCannotAutoAnswerModalOpen(true);
+          }
+        },
+        async (err) => {
+          console.error('Failed to get location for auto-answer:', err);
+          // Try without location
+          const result: AutoAnswerResult = await tryAutoAnswerWithReason(question);
+          if (result.canAutoAnswer && result.answer) {
+            setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+            setQuestionForAutoAnswer(question);
+            setComputedAutoAnswer(result.answer);
+            setAutoAnswerModalOpen(true);
+          } else {
+            setCannotAutoAnswerReason(result.reason || 'Unknown reason');
+            setCannotAutoAnswerModalOpen(true);
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        },
+      );
+      return;
+    }
+
+    // Check if we can auto-answer this question with a reason (no location needed)
+    const result: AutoAnswerResult = await tryAutoAnswerWithReason(question);
+    
+    if (result.canAutoAnswer && result.answer) {
+      // Mark as checked so we don't show modal repeatedly
+      setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+      
+      // Store the question and computed answer for the modal
+      setQuestionForAutoAnswer(question);
+      setComputedAutoAnswer(result.answer);
+      setAutoAnswerModalOpen(true);
+    } else {
+      // Show the reason why it can't be auto-answered
+      setCannotAutoAnswerReason(result.reason || 'Unknown reason');
+      setCannotAutoAnswerModalOpen(true);
+    }
+  }, []);
+
   // Check all pending questions for auto-answers when they load
   useEffect(() => {
-    if (!askedQuestionsData?.results) return;
+    if (!displayData?.results) return;
     
-    const pending = askedQuestionsData.results.filter(q => !q.answered);
+    const pending = displayData.results.filter(q => !q.answered);
     pending.forEach(question => {
       checkAndShowAutoAnswer(question);
     });
-  }, [askedQuestionsData, checkAndShowAutoAnswer]);
+  }, [displayData, checkAndShowAutoAnswer]);
 
-  if (isLoading) {
+  if (isLoading && !displayData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader className="animate-spin text-indigo-600 w-8 h-8" />
@@ -293,7 +400,7 @@ export function AnswerQuestionModule() {
     );
   }
 
-  const questions = askedQuestionsData?.results || [];
+  const questions = displayData?.results || [];
   const pendingQuestions = questions.filter((q) => !q.answered);
   const answeredQuestions = questions.filter((q) => q.answered);
 
@@ -468,6 +575,19 @@ export function AnswerQuestionModule() {
                         }
                       />
 
+                      {/* Auto-answer button */}
+                      <Button
+                        variant="outline"
+                        onClick={() => handleAutoAnswerButtonClick(question)}
+                        disabled={
+                          isAnswering && answeringId === question.question_id
+                        }
+                        className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Auto-Answer
+                      </Button>
+
                       <div className="grid grid-cols-2 gap-3">
                         <Button
                           variant="outline"
@@ -525,6 +645,49 @@ export function AnswerQuestionModule() {
               {answeredQuestions.map((q) => (
                 <QuestionCard key={q.question_id} question={q} gameId={gameId} />
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {displayData && totalPages > 1 && (
+          <div className="flex items-center justify-between gap-4 pt-6 border-t border-gray-200">
+            <div className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages} ({displayData.count} total)
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1 || isLoading}
+                className="flex items-center gap-1 min-w-[100px]"
+              >
+                {isLoading ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages || isLoading}
+                className="flex items-center gap-1 min-w-[80px]"
+              >
+                {isLoading ? (
+                  <Loader className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         )}
@@ -590,6 +753,27 @@ export function AnswerQuestionModule() {
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      {/* Cannot Auto-Answer Reason Modal */}
+      <Modal
+        isOpen={cannotAutoAnswerModalOpen}
+        onClose={handleCloseCannotAutoAnswer}
+        title="Cannot Auto-Answer"
+      >
+        <div className="space-y-4">
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-gray-900">{cannotAutoAnswerReason}</p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              onClick={handleCloseCannotAutoAnswer}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Close
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

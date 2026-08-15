@@ -33,13 +33,19 @@ export const qnaApi = api.injectEndpoints({
     }),
     fetchAskedQuestions: builder.query<
       ListResponse<AskedQuestion>,
-      { gameId: string; targetTeamId: string }
+      { gameId: string; targetTeamId: string; page?: number }
     >({
-      query: ({ gameId, targetTeamId }) => ({
-        url: `${QNA_API}game/${gameId}/asked-questions`,
-        method: 'GET',
-        params: { target_team_id: targetTeamId },
-      }),
+      query: ({ gameId, targetTeamId, page }) => {
+        const params: Record<string, any> = { target_team_id: targetTeamId };
+        if (page !== undefined) {
+          params.page = page;
+        }
+        return {
+          url: `${QNA_API}game/${gameId}/asked-questions`,
+          method: 'GET',
+          params,
+        };
+      },
       providesTags: [QNA_MODULE],
     }),
     askQuestion: builder.mutation<
