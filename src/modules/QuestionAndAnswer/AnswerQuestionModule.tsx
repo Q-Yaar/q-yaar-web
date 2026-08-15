@@ -35,6 +35,7 @@ import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
 import { formatDate } from 'utils/dateUtils';
+import type { Coord } from '../../utils/geo';
 
 export function AnswerQuestionModule() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -115,7 +116,7 @@ export function AnswerQuestionModule() {
   };
 
   // Check if a question can be auto-answered and show confirmation modal
-  const checkAndShowAutoAnswer = useCallback((question: AskedQuestion) => {
+  const checkAndShowAutoAnswer = useCallback(async (question: AskedQuestion) => {
     const config = getAutomationConfig();
     if (!config.enabled) return;
 
@@ -144,13 +145,13 @@ export function AnswerQuestionModule() {
     if (needsUserLocation) {
       // Get current location and check auto-answer with it
       navigator.geolocation.getCurrentPosition(
-        (position) => {
+        async (position) => {
           const userLocation: LocationPoint = {
             lat: position.coords.latitude.toString(),
             lon: position.coords.longitude.toString(),
           };
           
-          // Create a temporary question with user location added to both question_meta and fact_meta
+          // Create a temporary question with user location added to fact_meta
           const existingFactMeta = question.fact_meta || {};
           const augmentedFactMeta: FactMeta = {
             points: [
@@ -182,7 +183,7 @@ export function AnswerQuestionModule() {
             fact_meta: augmentedFactMeta,
           };
           
-          const autoAnswer = tryAutoAnswer(augmentedQuestion);
+          const autoAnswer = await tryAutoAnswer(augmentedQuestion);
           if (autoAnswer) {
             // Mark as checked so we don't show modal repeatedly
             setCheckedQuestions(prev => new Set(prev).add(question.question_id));
@@ -193,10 +194,10 @@ export function AnswerQuestionModule() {
             setAutoAnswerModalOpen(true);
           }
         },
-        (err) => {
+        async (err) => {
           console.error('Failed to get location for auto-answer:', err);
           // If we can't get location, try without it (might work if locations already present)
-          const autoAnswer = tryAutoAnswer(question);
+          const autoAnswer = await tryAutoAnswer(question);
           if (autoAnswer) {
             setCheckedQuestions(prev => new Set(prev).add(question.question_id));
             setQuestionForAutoAnswer(question);
@@ -213,7 +214,7 @@ export function AnswerQuestionModule() {
       return;
     }
 
-    const autoAnswer = tryAutoAnswer(question);
+    const autoAnswer = await tryAutoAnswer(question);
     if (autoAnswer) {
       // Mark as checked so we don't show modal repeatedly
       setCheckedQuestions(prev => new Set(prev).add(question.question_id));
@@ -323,8 +324,8 @@ export function AnswerQuestionModule() {
           ) : (
             <div className="space-y-4">
               {pendingQuestions.map((question) => {
-                const autoAnswer = tryAutoAnswer(question);
-                const isAutoAnswerable = autoAnswer !== null;
+                // For UI badge, just check if it's a geo category (actual auto-answer computed async)
+                const isAutoAnswerable = GEO_CATEGORIES.has(question.category.category_name);
                 
                 return (
                   <Card
