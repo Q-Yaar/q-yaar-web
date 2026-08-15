@@ -176,7 +176,9 @@ export function AnswerQuestionModule() {
       categoryName === 'Hotter / Colder' ||
       categoryName === 'Area Operations' ||
       categoryName === 'Matching' ||
-      categoryName === 'Polygon Location';
+      categoryName === 'Polygon Location' ||
+      categoryName === 'Circle' ||
+      categoryName === 'Radar';
     
     const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
       ? locationCount >= 2
@@ -312,7 +314,9 @@ export function AnswerQuestionModule() {
       categoryName === 'Hotter / Colder' ||
       categoryName === 'Area Operations' ||
       categoryName === 'Matching' ||
-      categoryName === 'Polygon Location';
+      categoryName === 'Polygon Location' ||
+      categoryName === 'Circle' ||
+      categoryName === 'Radar';
     
     const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
       ? locationCount >= 2
