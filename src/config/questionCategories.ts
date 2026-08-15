@@ -18,6 +18,7 @@ import {
   pointInCircle,
   extractAllCoordsFromQuestion
 } from '../utils/geo';
+import { getRelativeHeading } from '../utils/geoUtils';
 import { getPolygonForFeature } from '../utils/featureUtils';
 import type { Coord } from '../utils/geo';
 import type { LocationPoint, FactMeta } from '../models/QuestionMeta';
@@ -189,6 +190,7 @@ export interface AutoAnswer {
     confidence: number;  // 0-100
     computationMethod: string;
     split_direction?: string;  // Cardinal direction for heading questions
+    details?: string;  // Additional details for validation (e.g., coordinates, heading)
   };
 }
 
@@ -919,8 +921,41 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
     return null;
   }
   
+  const splitDirection = q.fact_meta?.split_direction || '';
+  
+  // For Relative questions: use getRelativeHeading which returns separate lat/lon directions
+  // This allows for simultaneously being North AND East (northeast), etc.
+  if (categoryName === 'Relative' && splitDirection) {
+    // Convert Coord {lat, lon} to [lon, lat] array format expected by getRelativeHeading
+    const p1 = [referenceLoc.lon, referenceLoc.lat];
+    const p2 = [hidingLoc.lon, hidingLoc.lat];
+    const relativeHeading = getRelativeHeading(p1, p2);
+    const normalizedPlaceholder = splitDirection.toLowerCase();
+    
+    // Check the appropriate axis based on placeholder
+    let isMatch = false;
+    if (normalizedPlaceholder === 'north' || normalizedPlaceholder === 'south') {
+      isMatch = relativeHeading.lat.toLowerCase() === normalizedPlaceholder;
+    } else if (normalizedPlaceholder === 'east' || normalizedPlaceholder === 'west') {
+      isMatch = relativeHeading.lon.toLowerCase() === normalizedPlaceholder;
+    }
+    
+    const validationDetails = `Seeker: (${referenceLoc.lat.toFixed(6)}, ${referenceLoc.lon.toFixed(6)}), ` +
+                            `Hider: (${hidingLoc.lat.toFixed(6)}, ${hidingLoc.lon.toFixed(6)}), ` +
+                            `Heading: ${relativeHeading.lat}/${relativeHeading.lon}`;
+    
+    return {
+      result: isMatch,  // UI converts boolean to "Yes"/"No" for Result display
+      metadata: {
+        text: validationDetails,  // Displayed as Details in UI
+        confidence: 100,
+        computationMethod: 'relative_heading_comparison',
+      }
+    };
+  }
+  
+  // For Heading/Relative Heading: use bearing-based cardinal direction (legacy behavior)
   const bearingToHider = bearing(referenceLoc, hidingLoc);
-  const splitDirection = meta.split_direction || '';
   
   // Map bearing to cardinal direction for answer
   const getCardinalDirection = (b: number): string => {
