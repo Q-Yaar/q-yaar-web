@@ -14,6 +14,8 @@ import {
   tryAutoAnswer,
   AutoAnswer,
   getAutomationConfig,
+  shouldAutoAddAnswererLocation,
+  getAnswerRequiredLocations,
 } from '../../config/questionCategories';
 import {
   Loader,
@@ -117,8 +119,8 @@ export function AnswerQuestionModule() {
 
   // Check if a question can be auto-answered and show confirmation modal
   const checkAndShowAutoAnswer = useCallback(async (question: AskedQuestion) => {
-    const config = getAutomationConfig();
-    if (!config.enabled) return;
+    const automationConfig = getAutomationConfig();
+    if (!automationConfig.enabled) return;
 
     // Skip if already checked or answered
     if (checkedQuestions.has(question.question_id) || question.answered) return;
@@ -128,19 +130,22 @@ export function AnswerQuestionModule() {
     const categoryName = question.category.category_name;
     const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
     
+    // Use phase-based config to determine if we need answerer's location
+    const answerRequiredLocations = getAnswerRequiredLocations(categoryName);
+    const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
+    
     // Check if we need more location data for automation
-    // Different categories need different numbers of points:
-    // - Measuring: needs 3 points (seeker, target, hider)
-    // - Circle/Radar: needs 2 points (center, target) + user location
-    // - Other geo: needs at least 2 points
     const locationCount = question.question_meta?.location_points?.length || 0;
     
-    // Measuring needs 3 points total, others need at least 2
-    const requiresUserLocation = categoryName === 'Measuring' 
-      ? locationCount < 3 
-      : locationCount < 2;
+    // Determine if we need to collect answerer's location based on answer phase config
+    // For Measuring: needs hider location (3rd point)
+    // For most geo: needs answerer's location to be added
+    const hasAllRequiredLocations = 
+      categoryName === 'Measuring' 
+        ? locationCount >= 3
+        : locationCount >= 2;
     
-    const needsUserLocation = isGeoQuestion && requiresUserLocation && navigator.geolocation;
+    const needsUserLocation = isGeoQuestion && needsAnswererLocation && !hasAllRequiredLocations && navigator.geolocation;
     
     if (needsUserLocation) {
       // Get current location and check auto-answer with it
