@@ -192,10 +192,20 @@ export interface AutoAnswer {
 }
 
 /**
+ * Result of an automation attempt with reason information
+ */
+export interface AutoAnswerResult {
+  answer: AutoAnswer | null;
+  reason?: string;
+  canAutoAnswer: boolean;
+}
+
+/**
  * Context passed to automation handlers
  */
 export interface AutomationContext {
   question: AskedQuestion;
+  hiderLocation?: LocationPoint;
 }
 
 /**
@@ -375,6 +385,7 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
         radius: 'radius',
         areaOpType: 'area_op_type',
         feature_name: 'feature_name',
+        metro_line: 'feature_name',
       },
     },
     answer: {
@@ -673,8 +684,9 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   const meta = q.question_meta as MeasuringQuestionMeta;
   const locations = meta.location_points || [];
   
-  if (locations.length < 3) {
-    debugLog('Measuring: Not enough locations. Need seeker, target, and hider.', {
+  // Need at least seeker (index 0) and target (index 1) from question
+  if (locations.length < 2) {
+    debugLog('Measuring: Not enough locations. Need seeker and target.', {
       locationCount: locations.length
     });
     return null;
@@ -682,10 +694,16 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   
   const seekingLoc = parseLocationPoint(locations[0]);
   const targetLoc = parseLocationPoint(locations[1]);
-  const hidingLoc = parseLocationPoint(locations[2]);
+  
+  // Hider location comes from answer-time context, not question metadata
+  const hidingLoc = ctx.hiderLocation ? parseLocationPoint(ctx.hiderLocation) : null;
   
   if (!seekingLoc || !hidingLoc || !targetLoc) {
-    debugLog('Measuring: Could not parse required locations');
+    debugLog('Measuring: Could not parse required locations', {
+      hasSeeker: !!seekingLoc,
+      hasHider: !!hidingLoc,
+      hasTarget: !!targetLoc
+    });
     return null;
   }
   
@@ -870,15 +888,25 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   }
   
   const meta = q.question_meta as HeadingQuestionMeta;
-  const referenceLoc = getCoordFromMeta(q, 'seekerLocation');
-  const targetLoc = getCoordFromMeta(q, 'targetLocation');
+  const locations = meta.location_points || [];
   
-  if (!referenceLoc || !targetLoc) {
+  // Convention: location_points[0] = seekerLocation, [1] = targetLocation
+  // hiderLocation comes from answer-time context, not question metadata
+  if (locations.length < 2) {
     debugLog('Heading: Missing reference or target location');
     return null;
   }
   
-  const hidingLoc = getCoordFromMeta(q, 'hiderLocation');
+  const referenceLoc = parseLocationPoint(locations[0]);
+  const targetLoc = parseLocationPoint(locations[1]);
+  
+  if (!referenceLoc || !targetLoc) {
+    debugLog('Heading: Could not parse reference or target location');
+    return null;
+  }
+  
+  // Hider location comes from answer-time context
+  const hidingLoc = ctx.hiderLocation ? parseLocationPoint(ctx.hiderLocation) : null;
   
   if (hidingLoc) {
     const bearingToTarget = bearing(referenceLoc, targetLoc);
@@ -922,11 +950,17 @@ function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
   
   const meta = q.question_meta as HotterColderQuestionMeta;
   const previousLoc = getCoordFromMeta(q, 'previousLocation');
-  const currentLoc = getCoordFromMeta(q, 'currentLocation');
   const targetLoc = getCoordFromMeta(q, 'targetLocation');
   
+  // Current location comes from answer-time context (hider's current location)
+  const currentLoc = ctx.hiderLocation ? parseLocationPoint(ctx.hiderLocation) : null;
+  
   if (!previousLoc || !currentLoc || !targetLoc) {
-    debugLog('Hotter/Colder: Missing locations');
+    debugLog('Hotter/Colder: Missing locations', {
+      hasPrevious: !!previousLoc,
+      hasCurrent: !!currentLoc,
+      hasTarget: !!targetLoc
+    });
     return null;
   }
   
@@ -1012,29 +1046,25 @@ async function areaOperationsHandler(ctx: AutomationContext): Promise<AutoAnswer
 
   // For "Matching" category
   if (categoryName === 'Matching') {
-    // Get the feature name from question_meta (set when asker selects from dropdown)
-    const questionFeatureName = (meta as any).feature_name;
+    // Get the feature name from fact_meta (where placeholder values are mapped)
+    const questionFeatureName = factMeta?.feature_name;
+    console.log(`[Matching Handler] questionFeatureName: ${questionFeatureName}`);
     if (!questionFeatureName) {
-      debugLog('Matching: No feature_name in question_meta');
+      debugLog('Matching: No feature_name in fact_meta');
       return null;
     }
     
-    // Get the answerer's location from fact_meta.points
-    const answererPoints = factMeta?.points || [];
-    if (answererPoints.length === 0) {
-      debugLog('Matching: No points in fact_meta');
-      return null;
-    }
-    
-    // Convert the first answerer point to Coord
-    const answererCoord = parseLocationPoint(answererPoints[0]);
+    // Get the answerer's (hider's) current location from context
+    const answererCoord = ctx.hiderLocation ? parseLocationPoint(ctx.hiderLocation) : null;
+    console.log(`[Matching Handler] answererCoord:`, answererCoord);
     if (!answererCoord) {
-      debugLog('Matching: Could not parse answerer coordinates');
+      debugLog('Matching: Could not parse answerer coordinates from hiderLocation');
       return null;
     }
     
     // Get the polygon for the question's feature_name
     const polygon = await getPolygonForFeature(questionFeatureName);
+    console.log(`[Matching Handler] polygon result:`, polygon);
     if (!polygon || polygon.length < 3) {
       debugLog(`Matching: Could not load polygon for feature: ${questionFeatureName}`);
       return null;
@@ -1042,6 +1072,7 @@ async function areaOperationsHandler(ctx: AutomationContext): Promise<AutoAnswer
     
     // Check if answerer's point is inside the polygon
     const isMatch = pointInPolygon(answererCoord, polygon);
+    console.log(`[Matching Handler] isMatch: ${isMatch}`);
     
     return {
       result: isMatch,
@@ -1245,7 +1276,7 @@ const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
     'Opinion'
   ]),
   autoSubmitThreshold: 100,
-  debug: false,
+  debug: true,
 };
 
 let automationConfig: AutomationConfig = { ...DEFAULT_AUTOMATION_CONFIG };
@@ -1293,8 +1324,10 @@ function isManualCategory(categoryName: string): boolean {
 /**
  * Try to automatically compute an answer for a question
  * Returns the computed answer or null if automation is not possible
+ * @param question - The question to answer
+ * @param hiderLocation - Optional hider's current location for answer-time context
  */
-export async function tryAutoAnswer(question: AskedQuestion): Promise<AutoAnswer | null> {
+export async function tryAutoAnswer(question: AskedQuestion, hiderLocation?: LocationPoint): Promise<AutoAnswer | null> {
   if (!automationConfig.enabled) {
     debugLog('Automation is disabled');
     return null;
@@ -1318,7 +1351,7 @@ export async function tryAutoAnswer(question: AskedQuestion): Promise<AutoAnswer
 
   // Try to compute answer (handler may be async)
   try {
-    const answer = await handler({ question });
+    const answer = await handler({ question, hiderLocation });
     if (answer) {
       debugLog(`Auto-answer computed for ${categoryName}`, answer);
       return answer;
@@ -1337,6 +1370,248 @@ export async function tryAutoAnswer(question: AskedQuestion): Promise<AutoAnswer
  */
 export async function canAutoAnswer(question: AskedQuestion): Promise<boolean> {
   return (await tryAutoAnswer(question)) !== null;
+}
+
+/**
+ * Try to automatically compute an answer for a question with reason
+ * Returns both the answer and the reason if it fails
+ * @param question - The question to answer
+ * @param hiderLocation - Optional hider's current location for answer-time context
+ */
+export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLocation?: LocationPoint): Promise<AutoAnswerResult> {
+  const categoryName = question.category.category_name;
+  console.log(`[tryAutoAnswerWithReason] Starting for question ${question.question_id}, category: ${categoryName}`);
+  
+  if (!automationConfig.enabled) {
+    console.log(`[tryAutoAnswerWithReason] Automation disabled`);
+    return {
+      answer: null,
+      reason: 'Automation is disabled',
+      canAutoAnswer: false,
+    };
+  }
+
+  // Check if category is manual-only
+  if (isManualCategory(categoryName)) {
+    return {
+      answer: null,
+      reason: `Category "${categoryName}" is manual-only and cannot be auto-answered`,
+      canAutoAnswer: false,
+    };
+  }
+
+  // Get handler for this category (automatically resolves aliases)
+  const handler = getHandlerForCategory(categoryName);
+  if (!handler) {
+    return {
+      answer: null,
+      reason: `No handler registered for category: ${categoryName}`,
+      canAutoAnswer: false,
+    };
+  }
+
+  // Try to compute answer (handler may be async)
+  try {
+    console.log(`[tryAutoAnswerWithReason] Calling handler for ${categoryName}`);
+    const answer = await handler({ question, hiderLocation });
+    if (answer) {
+      console.log(`[tryAutoAnswerWithReason] Handler returned success for ${categoryName}:`, answer);
+      return {
+        answer,
+        reason: undefined,
+        canAutoAnswer: true,
+      };
+    } else {
+      console.log(`[tryAutoAnswerWithReason] Handler returned null for ${categoryName}`);
+      // Try to determine the reason from the handler
+      // For now, return a generic reason; handlers can be updated to provide specific reasons
+      const config = getCategoryConfig(categoryName);
+      if (!config) {
+        return {
+          answer: null,
+          reason: `Category "${categoryName}" is not a recognized auto-answerable category`,
+          canAutoAnswer: false,
+        };
+      }
+
+      // Check for common missing data patterns
+      const meta = question.question_meta as any;
+      const factMeta = question.fact_meta;
+
+      // For Measuring: need 2 location points from question (seeker, target) + hiderLocation from context
+      if (categoryName === 'Measuring' || config.operation === 'Measuring') {
+        const locationCount = meta.location_points?.length || 0;
+        if (locationCount < 2) {
+          return {
+            answer: null,
+            reason: `Measuring questions require seeker and target locations from question, but only ${locationCount} provided`,
+            canAutoAnswer: false,
+          };
+        }
+        if (!hiderLocation) {
+          return {
+            answer: null,
+            reason: 'Measuring questions require hider location to be provided separately',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Distance: need at least 2 location points and radius
+      if (categoryName === 'Distance' || config.operation === 'Distance') {
+        const locationCount = meta.location_points?.length || 0;
+        const hasRadius = factMeta?.radius || meta.distance_threshold !== undefined;
+        if (locationCount < 2) {
+          return {
+            answer: null,
+            reason: `Distance questions require at least 2 location points, but only ${locationCount} provided`,
+            canAutoAnswer: false,
+          };
+        }
+        if (!hasRadius) {
+          return {
+            answer: null,
+            reason: 'Distance questions require a radius/distance threshold value',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Circle/Radar: need center, target, and radius
+      if (categoryName === 'Circle' || categoryName === 'Radar' || config.operation === 'Circle') {
+        const points = factMeta?.points || meta.location_points || [];
+        const hasRadius = factMeta?.radius !== undefined;
+        if (points.length < 2) {
+          return {
+            answer: null,
+            reason: `Circle questions require at least 2 points (center and target), but only ${points.length} provided`,
+            canAutoAnswer: false,
+          };
+        }
+        if (!hasRadius) {
+          return {
+            answer: null,
+            reason: 'Circle questions require a radius value',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Heading: need 2 location points from question (seeker, target) + hiderLocation from context
+      if (categoryName === 'Heading' || categoryName === 'Relative Heading' || config.operation === 'Heading') {
+        const locationCount = meta.location_points?.length || 0;
+        if (locationCount < 2) {
+          return {
+            answer: null,
+            reason: `Heading questions require seeker and target locations from question, but only ${locationCount} provided`,
+            canAutoAnswer: false,
+          };
+        }
+        if (!hiderLocation) {
+          return {
+            answer: null,
+            reason: 'Heading questions require hider location to be provided separately',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Hotter/Colder: need previous and target from question + current (hiderLocation) from context
+      if (categoryName === 'Hotter/Colder' || categoryName === 'Hotter / Colder' || config.operation === 'Hotter/Colder') {
+        const locationCount = meta.location_points?.length || 0;
+        if (locationCount < 2) {
+          return {
+            answer: null,
+            reason: `Hotter/Colder questions require previous and target locations from question, but only ${locationCount} provided`,
+            canAutoAnswer: false,
+          };
+        }
+        if (!hiderLocation) {
+          return {
+            answer: null,
+            reason: 'Hotter/Colder questions require current location (hider) to be provided separately',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Polygon Location: need polygon vertices and target
+      if (categoryName === 'Polygon Location' || config.operation === 'Polygon Location') {
+        const hasPolygon = factMeta?.polygon_geo_json || meta.polygon_vertices;
+        const locationCount = meta.location_points?.length || 0;
+        if (!hasPolygon) {
+          return {
+            answer: null,
+            reason: 'Polygon Location questions require polygon vertex data',
+            canAutoAnswer: false,
+          };
+        }
+        if (locationCount < 1) {
+          return {
+            answer: null,
+            reason: 'Polygon Location questions require a target location to check',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Area Operations / Matching: need feature name and answerer location
+      if (categoryName === 'Area Operations' || categoryName === 'Matching' || config.operation === 'Area Operations') {
+        const featureName = factMeta?.feature_name || meta.feature_name;
+        if (!featureName) {
+          return {
+            answer: null,
+            reason: 'Area Operations questions require a feature name to check against',
+            canAutoAnswer: false,
+          };
+        }
+        if (!hiderLocation) {
+          return {
+            answer: null,
+            reason: 'Area Operations questions require answerer location (hider) to be provided separately',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Closer to Line: need line points, seeker, and target locations
+      if (categoryName === 'closer-to-line' || config.operation === 'Closer to Line') {
+        const linePoints = meta.line_points || [];
+        const locationCount = meta.location_points?.length || 0;
+        if (linePoints.length < 2) {
+          return {
+            answer: null,
+            reason: `Closer to Line questions require at least 2 line points, but only ${linePoints.length} provided`,
+            canAutoAnswer: false,
+          };
+        }
+        if (locationCount < 2) {
+          return {
+            answer: null,
+            reason: `Closer to Line questions require seeker and target locations, but only ${locationCount} provided`,
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // Generic reason if we couldn't determine a specific one
+      const genericReason = `Handler for category "${categoryName}" could not compute an answer (missing or incomplete data)`;
+      console.log(`[tryAutoAnswerWithReason] Returning generic failure: ${genericReason}`);
+      return {
+        answer: null,
+        reason: genericReason,
+        canAutoAnswer: false,
+      };
+    }
+  } catch (error) {
+    const errorReason = `Error computing auto-answer for category "${categoryName}": ${error}`;
+    console.log(`[tryAutoAnswerWithReason] Error: ${errorReason}`);
+    return {
+      answer: null,
+      reason: errorReason,
+      canAutoAnswer: false,
+    };
+  }
 }
 
 // ============================================================================

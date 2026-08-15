@@ -46,7 +46,6 @@ export const BENGALURU_URBAN_DISTRICT: AreaConfig = {
  */
 export const METRO_LINES: AreaConfig[] = [
   { displayName: 'Purple Line', featureProperty: 'ref', geoJsonPath: '/assets/geojsons/bengaluru/metro_lines.geojson', featureIdentifier: 'Purple' },
-  { displayName: 'Green Line', featureProperty: 'ref', geoJsonPath: '/assets/geojsons/bengaluru/metro_lines.geojson', featureIdentifier: 'Green' },
 ];
 
 /**
@@ -56,6 +55,7 @@ export const METRO_LINES: AreaConfig[] = [
  * Example: "Yellow Line (Silk Board Line)"
  */
 export const METRO_REGIONS: AreaConfig[] = [
+  { displayName: 'Green', featureProperty: 'name', geoJsonPath: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson', featureIdentifier: 'Green Line' },
   { displayName: 'Yellow Line (Silk Board Line)', featureProperty: 'name', geoJsonPath: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson' },
 ];
 
@@ -84,6 +84,13 @@ export const ALL_AREAS: AreaConfig[] = [
  */
 export function getAreaConfigByName(displayName: string): AreaConfig | null {
   return ALL_AREAS.find(area => area.displayName === displayName) || null;
+}
+
+/**
+ * Get an AreaConfig by its feature identifier
+ */
+export function getAreaConfigByIdentifier(featureIdentifier: string): AreaConfig | null {
+  return ALL_AREAS.find(area => area.featureIdentifier === featureIdentifier) || null;
 }
 
 /**

@@ -48,7 +48,12 @@ async function getFeatureByName(
  */
 function extractFeatureCoordinates(feature: Feature): Coord[] | null {
   const geometry = feature.geometry;
-  if (!geometry) return null;
+  if (!geometry) {
+    console.warn(`[featureUtils] Feature has no geometry`);
+    return null;
+  }
+
+  console.log(`[featureUtils] Geometry type: ${geometry.type}`, geometry);
 
   const extractCoords = (coords: number[][]): Coord[] => {
     return coords.map(coord => ({
@@ -60,6 +65,10 @@ function extractFeatureCoordinates(feature: Feature): Coord[] | null {
   switch (geometry.type) {
     case 'Polygon':
       // Return the outer ring (first ring of the polygon)
+      if (!geometry.coordinates || geometry.coordinates.length === 0) {
+        console.warn(`[featureUtils] Polygon has no coordinates`);
+        return null;
+      }
       return extractCoords(geometry.coordinates[0]);
     
     case 'MultiPolygon':
@@ -67,9 +76,11 @@ function extractFeatureCoordinates(feature: Feature): Coord[] | null {
       if (geometry.coordinates.length > 0 && geometry.coordinates[0].length > 0) {
         return extractCoords(geometry.coordinates[0][0]);
       }
+      console.warn(`[featureUtils] MultiPolygon has empty coordinates`);
       return null;
     
     default:
+      console.warn(`[featureUtils] Unsupported geometry type: ${geometry.type}`);
       return null;
   }
 }
@@ -89,11 +100,20 @@ export async function getPolygonForFeature(featureName: string): Promise<Coord[]
   
   if (!areaConfig) {
     console.warn(`[featureUtils] No area config found for feature: ${featureName}`);
+    console.warn(`[featureUtils] Available configs:`, ALL_AREAS.map(a => ({ displayName: a.displayName, featureIdentifier: a.featureIdentifier })));
     return null;
   }
 
+  console.log(`[featureUtils] Found area config for "${featureName}":`, {
+    displayName: areaConfig.displayName,
+    featureProperty: areaConfig.featureProperty,
+    featureIdentifier: areaConfig.featureIdentifier,
+    geoJsonPath: areaConfig.geoJsonPath
+  });
+
   // If a specific feature identifier is specified, use it
   const targetFeatureName = areaConfig.featureIdentifier || featureName;
+  console.log(`[featureUtils] Target feature name: ${targetFeatureName}`);
   
   const feature = await getFeatureByName(
     areaConfig.geoJsonPath,
@@ -103,10 +123,16 @@ export async function getPolygonForFeature(featureName: string): Promise<Coord[]
   
   if (!feature) {
     console.warn(`[featureUtils] Feature not found: ${targetFeatureName}`);
+    console.warn(`[featureUtils] Searched in: ${areaConfig.geoJsonPath} with property: ${areaConfig.featureProperty}`);
     return null;
   }
 
-  return extractFeatureCoordinates(feature);
+  console.log(`[featureUtils] Found feature:`, feature);
+
+  const coords = extractFeatureCoordinates(feature);
+  console.log(`[featureUtils] Extracted coordinates (${coords?.length || 0} points):`, coords);
+
+  return coords;
 }
 
 /**

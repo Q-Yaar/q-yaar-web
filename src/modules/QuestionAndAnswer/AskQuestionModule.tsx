@@ -31,7 +31,7 @@ import {
   getAskRequiredPlaceholders,
   DEFAULT_FACT_META,
 } from '../../config/questionCategories';
-import { getAreaConfigByName, ALL_AREAS } from '../../config/areaConfig';
+import { getAreaConfigByName, getAreaConfigByIdentifier, ALL_AREAS } from '../../config/areaConfig';
 import { resolveAreaToFeatureName } from '../../utils/geoJsonLoader';
 import MapComponent from '../../components/Map';
 import {
@@ -355,15 +355,17 @@ export function AskQuestionModule() {
 
   /**
    * Find and resolve area selections from placeholders
+   * Matching is done on featureIdentifier, not displayName (displayName is for UI only)
    */
   const resolveAreasFromPlaceholders = async (placeholders: Record<string, any>): Promise<string | null> => {
-    // Check each placeholder value to see if it matches an area display name
+    // Check each placeholder value to see if it matches a feature identifier
     for (const [key, value] of Object.entries(placeholders)) {
       if (typeof value === 'string') {
-        const areaConfig = getAreaConfigByName(value);
+        // First try to match by featureIdentifier (primary)
+        const areaConfig = getAreaConfigByIdentifier(value);
         if (areaConfig) {
-          // Found a matching area, resolve it to feature name
-          const resolved = await resolveAreaToFeatureName(value);
+          // Found a matching area, resolve it to feature name from GeoJSON
+          const resolved = await resolveAreaToFeatureName(areaConfig.displayName);
           if (resolved) {
             console.log('[AskQuestion] DEBUG: Resolved area selection:', value, '-> feature_name:', resolved.featureName);
             return resolved.featureName;
@@ -491,7 +493,9 @@ export function AskQuestionModule() {
             chosen_placeholders: values.placeholders,
             question_meta: {
               location_points: locationPoints,
-              ...(resolvedFeatureName && { feature_name: resolvedFeatureName }),
+              ...((resolvedFeatureName || placeholders.feature_name) && {
+                feature_name: resolvedFeatureName || placeholders.feature_name
+              }),
             },
             fact_meta: factMeta,
           };
@@ -542,7 +546,9 @@ export function AskQuestionModule() {
             chosen_placeholders: values.placeholders,
             question_meta: {
               location_points: [],
-              ...(resolvedFeatureName && { feature_name: resolvedFeatureName }),
+              ...((resolvedFeatureName || placeholders.feature_name) && {
+                feature_name: resolvedFeatureName || placeholders.feature_name
+              }),
             },
             fact_meta: minimalFactMeta,
           };
@@ -595,7 +601,9 @@ export function AskQuestionModule() {
         chosen_placeholders: values.placeholders,
         question_meta: {
           location_points: [],
-          ...(resolvedFeatureName && { feature_name: resolvedFeatureName }),
+          ...((resolvedFeatureName || placeholders.feature_name) && {
+            feature_name: resolvedFeatureName || placeholders.feature_name
+          }),
         },
         fact_meta: minimalFactMeta,
       };
