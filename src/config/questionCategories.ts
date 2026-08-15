@@ -18,7 +18,9 @@ import {
   pointInCircle,
   extractAllCoordsFromQuestion
 } from '../utils/geo';
-import type { Coord, LocationPoint } from '../utils/geo';
+import { getPolygonForFeature } from '../utils/featureUtils';
+import type { Coord } from '../utils/geo';
+import type { LocationPoint, FactMeta } from '../models/QuestionMeta';
 import { AskedQuestion } from '../models/QnA';
 import {
   MeasuringQuestionMeta,
@@ -30,7 +32,6 @@ import {
   AreaOperationsQuestionMeta,
   CloserToLineQuestionMeta,
   TextFactQuestionMeta,
-  FactMeta,
   getLocationFromMeta,
   isCategory,
 } from '../models/QuestionMeta';
@@ -80,6 +81,38 @@ export interface CategoryConfig {
    * Questions with these category names will be treated as this category.
    */
   aliases?: string[];
+  
+  /**
+   * Maps template placeholder names to fact_meta fields.
+   * e.g., { distance: 'radius' } means placeholder {{distance}} -> fact_meta.radius
+   */
+  placeholderMap?: Record<string, string>;
+  
+  /**
+   * Default values for all fact_meta fields.
+   * Ensures all required fields are present (backend requirement).
+   */
+  factMetaDefaults?: FactMeta;
+  
+  /**
+   * Which locations are required for this category.
+   * Determines what gets collected from user during question asking.
+   */
+  requiredLocations?: {
+    seeker?: boolean;
+    target?: boolean;
+    hider?: boolean;
+    center?: boolean;
+    linePoints?: boolean;
+    previousLocation?: boolean;
+    currentLocation?: boolean;
+  };
+  
+  /**
+   * Placeholder names that must be provided for this category.
+   * Used for validation before submission.
+   */
+  requiredPlaceholders?: string[];
 }
 
 /**
@@ -103,8 +136,31 @@ export interface AutomationContext {
 
 /**
  * Automation handler function type
+ * Can be sync or async to support operations that need to load data
  */
-export type AutomationHandler = (ctx: AutomationContext) => AutoAnswer | null;
+export type AutomationHandler = (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
+
+// ============================================================================
+// DEFAULT FACT META
+// ============================================================================
+
+/**
+ * Default values for FactMeta - all fields must be present for backend compatibility.
+ */
+export const DEFAULT_FACT_META: FactMeta = {
+  points: [],
+  radius: '',
+  hider_location: '',
+  split_direction: '',
+  preferred_point: '',
+  area_op_type: '',
+  uploaded_area: '',
+  text: '',
+  closer_further: '',
+  selected_line_index: 0,
+  polygon_geo_json: {},
+  feature_name: '',
+};
 
 // ============================================================================
 // CATEGORY REGISTRY (Single Source of Truth)
@@ -122,18 +178,34 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     operation: 'Measuring',
     handler: measuringHandler,
     isGeo: true,
+    placeholderMap: {},
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true, target: true, hider: true },
+    requiredPlaceholders: [],
   },
   {
     name: 'Polygon Location',
     operation: 'Polygon Location',
     handler: polygonLocationHandler,
     isGeo: true,
+    placeholderMap: {
+      polygon_vertices: 'polygon_geo_json',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true, target: true },
+    requiredPlaceholders: [],
   },
   {
     name: 'Distance',
     operation: 'Distance',
     handler: distanceHandler,
     isGeo: true,
+    placeholderMap: {
+      distance_threshold: 'radius',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true, target: true },
+    requiredPlaceholders: [],
   },
   {
     name: 'Circle',
@@ -141,6 +213,13 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: circleHandler,
     isGeo: true,
     aliases: ['Radar'],
+    placeholderMap: {
+      distance: 'radius',
+      radius: 'radius',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true },
+    requiredPlaceholders: ['distance'],
   },
   {
     name: 'Heading',
@@ -148,6 +227,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: headingHandler,
     isGeo: true,
     aliases: ['Relative Heading'],
+    placeholderMap: {},
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true, target: true },
+    requiredPlaceholders: [],
   },
   {
     name: 'Hotter/Colder',
@@ -155,18 +238,40 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     handler: hotterColderHandler,
     isGeo: true,
     aliases: ['Hotter / Colder'],
+    placeholderMap: {
+      closerFurther: 'closer_further',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { previousLocation: true, currentLocation: true, target: true },
+    requiredPlaceholders: ['closerFurther'],
   },
   {
     name: 'Area Operations',
     operation: 'Area Operations',
     handler: areaOperationsHandler,
     isGeo: true,
+    aliases: ['Matching'],
+    placeholderMap: {
+      radius: 'radius',
+      areaOpType: 'area_op_type',
+      feature_name: 'feature_name',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true, target: true },
+    requiredPlaceholders: [],
   },
   {
     name: 'closer-to-line',
     operation: 'Closer to Line',
     handler: closerToLineHandler,
     isGeo: true,
+    placeholderMap: {
+      selectedLineIndex: 'selected_line_index',
+      closerFurther: 'closer_further',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: { seeker: true, target: true, linePoints: true },
+    requiredPlaceholders: [],
   },
   
   // ========== Non-Geo Categories ==========
@@ -176,6 +281,13 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     operation: 'Text Fact',
     handler: textFactHandler,
     isGeo: false,
+    placeholderMap: {
+      expected_answer: 'text',
+      fact_text: 'text',
+    },
+    factMetaDefaults: DEFAULT_FACT_META,
+    requiredLocations: {},
+    requiredPlaceholders: [],
   },
 ];
 
@@ -227,6 +339,38 @@ export const GEO_CATEGORIES = new Set<string>(
     .filter(c => c.isGeo)
     .flatMap(c => [c.name, ...(c.aliases || [])])
 );
+
+/**
+ * Full registry mapping: category name (including aliases) -> CategoryConfig
+ * Built from CATEGORY_REGISTRY.
+ */
+export const CATEGORY_CONFIGS: Record<string, CategoryConfig> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    acc[category.name] = category;
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = category;
+      }
+    }
+    return acc;
+  }, {} as Record<string, CategoryConfig>);
+
+/**
+ * Get the full configuration for a category (resolves aliases).
+ * Returns undefined if category is not found.
+ */
+export function getCategoryConfig(categoryName: string): CategoryConfig | undefined {
+  return CATEGORY_CONFIGS[categoryName];
+}
+
+/**
+ * Get the resolved category name (handles aliases).
+ * Returns undefined if category is not found.
+ */
+export function getCanonicalCategory(categoryName: string): string | undefined {
+  const config = getCategoryConfig(categoryName);
+  return config?.name;
+}
 
 /**
  * Maps category names (including aliases) to their handler.
@@ -635,15 +779,62 @@ function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
  * Handler for "Area Operations" category
  * Handles area-based geometric questions
  */
-function areaOperationsHandler(ctx: AutomationContext): AutoAnswer | null {
+async function areaOperationsHandler(ctx: AutomationContext): Promise<AutoAnswer | null> {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
   
-  if (!isCategory(q, 'Area Operations')) {
+  if (!isCategory(q, 'Area Operations') && categoryName !== 'Matching') {
     debugLog('Area Operations: Invalid metadata type');
     return null;
   }
   
   const meta = q.question_meta as AreaOperationsQuestionMeta;
+  const factMeta = q.fact_meta;
+
+  // For "Matching" category
+  if (categoryName === 'Matching') {
+    // Get the feature name from question_meta (set when asker selects from dropdown)
+    const questionFeatureName = (meta as any).feature_name;
+    if (!questionFeatureName) {
+      debugLog('Matching: No feature_name in question_meta');
+      return null;
+    }
+    
+    // Get the answerer's location from fact_meta.points
+    const answererPoints = factMeta?.points || [];
+    if (answererPoints.length === 0) {
+      debugLog('Matching: No points in fact_meta');
+      return null;
+    }
+    
+    // Convert the first answerer point to Coord
+    const answererCoord = parseLocationPoint(answererPoints[0]);
+    if (!answererCoord) {
+      debugLog('Matching: Could not parse answerer coordinates');
+      return null;
+    }
+    
+    // Get the polygon for the question's feature_name
+    const polygon = await getPolygonForFeature(questionFeatureName);
+    if (!polygon || polygon.length < 3) {
+      debugLog(`Matching: Could not load polygon for feature: ${questionFeatureName}`);
+      return null;
+    }
+    
+    // Check if answerer's point is inside the polygon
+    const isMatch = pointInPolygon(answererCoord, polygon);
+    
+    return {
+      result: isMatch,
+      metadata: {
+        text: isMatch 
+          ? `Yes, in ${questionFeatureName}`
+          : `No, not in ${questionFeatureName}`,
+        confidence: 100,
+        computationMethod: 'polygon_containment'
+      }
+    };
+  }
   
   // Check if we have polygon data
   if (meta.polygon_vertices) {
@@ -920,7 +1111,7 @@ function isManualCategory(categoryName: string): boolean {
  * Try to automatically compute an answer for a question
  * Returns the computed answer or null if automation is not possible
  */
-export function tryAutoAnswer(question: AskedQuestion): AutoAnswer | null {
+export async function tryAutoAnswer(question: AskedQuestion): Promise<AutoAnswer | null> {
   if (!automationConfig.enabled) {
     debugLog('Automation is disabled');
     return null;
@@ -942,9 +1133,9 @@ export function tryAutoAnswer(question: AskedQuestion): AutoAnswer | null {
     return null;
   }
 
-  // Try to compute answer
+  // Try to compute answer (handler may be async)
   try {
-    const answer = handler({ question });
+    const answer = await handler({ question });
     if (answer) {
       debugLog(`Auto-answer computed for ${categoryName}`, answer);
       return answer;
@@ -961,8 +1152,8 @@ export function tryAutoAnswer(question: AskedQuestion): AutoAnswer | null {
 /**
  * Check if a question can be auto-answered
  */
-export function canAutoAnswer(question: AskedQuestion): boolean {
-  return tryAutoAnswer(question) !== null;
+export async function canAutoAnswer(question: AskedQuestion): Promise<boolean> {
+  return (await tryAutoAnswer(question)) !== null;
 }
 
 // ============================================================================
@@ -971,3 +1162,11 @@ export function canAutoAnswer(question: AskedQuestion): boolean {
 
 export type { Coord, LocationPoint, FactMeta };
 export { extractAllCoordsFromQuestion } from '../utils/geo';
+
+export {
+  CategoryConfig,
+  DEFAULT_FACT_META,
+  CATEGORY_CONFIGS,
+  getCategoryConfig,
+  getCanonicalCategory,
+};
