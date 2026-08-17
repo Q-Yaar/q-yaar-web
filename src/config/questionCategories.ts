@@ -538,6 +538,35 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
 ];
 
 // ============================================================================
+// MANUAL CATEGORIES (Derived from registry)
+// ============================================================================
+
+/**
+ * Get all categories that should be handled manually (no automation handler).
+ * A category is manual if it has no handler or its handler is the manualCategoryHandler.
+ */
+export function getManualCategories(): Set<string> {
+  const manual = new Set<string>();
+  
+  for (const category of CATEGORY_REGISTRY) {
+    // Check if the handler is manualCategoryHandler or undefined/null
+    if (!category.handler || category.handler === manualCategoryHandler) {
+      // Add the main category name
+      manual.add(category.name);
+      
+      // Add aliases
+      if (category.aliases) {
+        for (const alias of category.aliases) {
+          manual.add(alias);
+        }
+      }
+    }
+  }
+  
+  return manual;
+}
+
+// ============================================================================
 // PHASE-BASED CONFIG ACCESSORS
 // ============================================================================
 
@@ -1495,28 +1524,26 @@ export interface AutomationConfig {
 
 /**
  * Default automation configuration
+ * Note: manualCategories is omitted here and derived from the registry
  */
-const DEFAULT_AUTOMATION_CONFIG: AutomationConfig = {
+const DEFAULT_AUTOMATION_CONFIG: Omit<AutomationConfig, 'manualCategories'> = {
   enabled: true,
-  manualCategories: new Set([
-    'Photo',
-    'Video', 
-    'Image',
-    'Picture',
-    'Capture',
-    'Subjective',
-    'Opinion'
-  ]),
   autoSubmitThreshold: 100,
   debug: true,
 };
 
-let automationConfig: AutomationConfig = { ...DEFAULT_AUTOMATION_CONFIG };
+let automationConfig: AutomationConfig = {
+  ...DEFAULT_AUTOMATION_CONFIG,
+  manualCategories: getManualCategories(),
+};
 
 /**
  * Initialize automation configuration
  */
 export function initAutomationConfig(customConfig?: Partial<AutomationConfig>): void {
+  // Get manual categories from registry
+  const registryManualCats = getManualCategories();
+  
   // Extract manual categories from custom config (could be Set or array)
   const customManualCats = customConfig?.manualCategories;
   const manualCats: string[] = customManualCats 
@@ -1527,12 +1554,21 @@ export function initAutomationConfig(customConfig?: Partial<AutomationConfig>): 
           : [])
     : [];
   
-  const defaultCats = Array.from(DEFAULT_AUTOMATION_CONFIG.manualCategories);
+  // Merge: start with registry-derived, add any custom ones
+  const allManualCats = new Set(registryManualCats);
+  for (const cat of manualCats) {
+    allManualCats.add(cat);
+  }
+  
+  // Build the final manual categories set
+  const finalManualCats = customConfig?.manualCategories 
+    ? new Set([...Array.from(allManualCats), ...(Array.from(customConfig.manualCategories))])
+    : allManualCats;
   
   automationConfig = {
     ...DEFAULT_AUTOMATION_CONFIG,
     ...customConfig,
-    manualCategories: new Set([...defaultCats, ...manualCats]),
+    manualCategories: finalManualCats,
   };
   
   // Update debug logging state
@@ -1543,6 +1579,13 @@ export function initAutomationConfig(customConfig?: Partial<AutomationConfig>): 
  * Get current automation configuration
  */
 export function getAutomationConfig(): AutomationConfig {
+  // Ensure manualCategories is populated from registry if empty
+  if (automationConfig.manualCategories.size === 0) {
+    automationConfig = {
+      ...automationConfig,
+      manualCategories: getManualCategories(),
+    };
+  }
   return { ...automationConfig };
 }
 
