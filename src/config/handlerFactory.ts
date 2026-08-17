@@ -26,6 +26,19 @@ import type {
   HandlerOutput,
 } from './questionCategories.types';
 
+// Debug logging flag - can be enabled to troubleshoot handler issues
+let HANDLER_DEBUG = false;
+
+export function setHandlerDebug(enabled: boolean): void {
+  HANDLER_DEBUG = enabled;
+}
+
+export function debugHandler(message: string, data?: any): void {
+  if (HANDLER_DEBUG) {
+    console.log(`[HandlerDebug] ${message}`, data || '');
+  }
+}
+
 // ============================================================================
 // RE-EXPORTS (for convenience)
 // ============================================================================
@@ -125,16 +138,20 @@ function extractValue(ctx: AutomationContext, extractor: ValueExtractor): any {
   switch (extractor.source) {
     case 'question_meta':
       rawValue = getNestedValue(ctx.question.question_meta, extractor.path);
+      debugHandler(`Extracting from question_meta.${extractor.path}:`, rawValue);
       break;
     case 'fact_meta':
       rawValue = getNestedValue(ctx.question.fact_meta, extractor.path);
+      debugHandler(`Extracting from fact_meta.${extractor.path}:`, rawValue);
       break;
     case 'context':
       // Handle hiderLocation specially since it's in ctx.hiderLocation, not ctx.question
       if (extractor.path === 'hiderLocation') {
         rawValue = ctx.hiderLocation;
+        debugHandler(`Extracting hiderLocation from context:`, rawValue);
       } else {
         rawValue = getNestedValue(ctx, extractor.path);
+        debugHandler(`Extracting from context.${extractor.path}:`, rawValue);
       }
       break;
     default:
@@ -142,10 +159,13 @@ function extractValue(ctx: AutomationContext, extractor: ValueExtractor): any {
   }
   
   if (rawValue === undefined || rawValue === null) {
+    debugHandler(`Value is null/undefined for ${extractor.source}.${extractor.path}`);
     return null;
   }
   
-  return convertValue(rawValue, extractor.type);
+  const converted = convertValue(rawValue, extractor.type);
+  debugHandler(`Converted ${extractor.source}.${extractor.path} (${extractor.type}) to:`, converted);
+  return converted;
 }
 
 /**
@@ -301,16 +321,24 @@ async function executeFeatureContainment(inputs: Record<string, any>): Promise<R
   const point = inputs.point as Coord;
   const featureName = inputs.featureName as string;
   
+  debugHandler(`executeFeatureContainment: point=${JSON.stringify(point)}, featureName='${featureName}'`);
+  
   if (!point || !featureName) {
+    // Always log this critical error - featureName missing causes incomplete messages
+    console.warn(`[HandlerFactory] WARNING: executeFeatureContainment missing data - point: ${!!point}, featureName: '${featureName}'`);
+    debugHandler(`executeFeatureContainment: Missing point or feature name (point=${!!point}, featureName='${featureName}')`);
     return { result: false, error: 'Missing point or feature name' };
   }
   
   const polygon = await getPolygonForFeature(featureName);
   if (!polygon || polygon.length < 3) {
+    console.warn(`[HandlerFactory] WARNING: Could not load polygon for feature '${featureName}'`);
+    debugHandler(`executeFeatureContainment: Could not load polygon for feature '${featureName}'`);
     return { result: false, error: 'Could not load polygon for feature' };
   }
   
   const isInside = pointInPolygon(point, polygon);
+  debugHandler(`executeFeatureContainment: featureName='${featureName}', isInside=${isInside}`);
   return {
     result: isInside,
     isInside,
@@ -480,16 +508,26 @@ async function executeOperation(
  */
 export function createHandlerFromConfig(config: HandlerConfig): AutomationHandler {
   return async (ctx: AutomationContext): Promise<AutoAnswer | null> => {
+    debugHandler(`Handler invoked for operation: ${config.operation}`);
+    
     // Extract all inputs
     const extractedInputs: Record<string, any> = {};
     for (const input of config.inputs) {
       const value = extractValue(ctx, input.extractor);
       if (value === null) {
         console.log(`[ConfigHandler] Missing input: ${input.name} from ${input.extractor.source}.${input.extractor.path}`);
+        debugHandler(`Handler returning null due to missing input: ${input.name}`);
         return null;
       }
       extractedInputs[input.name] = value;
+      
+      // Warn about empty/undefined values that might cause issues
+      if (value === undefined || value === null || value === '') {
+        console.warn(`[HandlerFactory] WARNING: Input "${input.name}" has empty value:`, value);
+      }
     }
+    
+    debugHandler(`Extracted inputs:`, extractedInputs);
     
     // Execute the operation
     let operationResult: Record<string, any> | null;
@@ -502,32 +540,54 @@ export function createHandlerFromConfig(config: HandlerConfig): AutomationHandle
       }
     } catch (error) {
       console.log(`[ConfigHandler] Error executing operation ${config.operation}:`, error);
+      debugHandler(`Handler error:`, error);
       return null;
     }
     
+    debugHandler(`Operation result:`, operationResult);
+    
     if (!operationResult) {
       console.log(`[ConfigHandler] Operation ${config.operation} returned null`);
+      debugHandler(`Operation returned null`);
+      return null;
+    }
+    
+    // If operation returned an error, don't proceed with automation
+    if (operationResult.error) {
+      console.log(`[ConfigHandler] Operation ${config.operation} returned error:`, operationResult.error);
+      debugHandler(`Operation returned error: ${operationResult.error}`);
       return null;
     }
     
     // Get the result value
     const resultValue = operationResult[config.output.resultField];
     
+    debugHandler(`Result field '${config.output.resultField}' value:`, resultValue);
+    
     if (resultValue === undefined) {
       console.log(`[ConfigHandler] Result field ${config.output.resultField} not found in operation result`);
+      debugHandler(`Result field not found in operation result`);
       return null;
     }
     
     // Render text template if provided
     let text: string | undefined;
     if (config.output.textTemplate) {
+      debugHandler(`Rendering template: ${config.output.textTemplate}`);
+      debugHandler(`Template values:`, { ...extractedInputs, ...operationResult });
       text = renderTemplate(config.output.textTemplate, {
         ...extractedInputs,
         ...operationResult,
       });
+      debugHandler(`Rendered text:`, text);
+      
+      // Always warn if rendered text contains incomplete template patterns
+      if (text && text.includes('{{') && text.includes('}}')) {
+        console.warn(`[HandlerFactory] WARNING: Template not fully rendered - "${config.output.textTemplate}" produced "${text}"`);
+      }
     }
     
-    return {
+    const answer = {
       result: resultValue,
       metadata: {
         text,
@@ -535,5 +595,7 @@ export function createHandlerFromConfig(config: HandlerConfig): AutomationHandle
         computationMethod: config.output.computationMethod,
       },
     };
+    debugHandler(`Final answer:`, answer);
+    return answer;
   };
 }

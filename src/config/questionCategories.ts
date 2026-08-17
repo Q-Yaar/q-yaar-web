@@ -85,6 +85,9 @@ export {
   debugLog,
 } from './questionCategoryHandlers';
 
+// Re-export debug functions from handlerFactory
+export { setHandlerDebug, debugHandler } from './handlerFactory';
+
 // ============================================================================
 // HANDLER REGISTRATION
 // ============================================================================
