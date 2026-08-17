@@ -32,7 +32,9 @@ import {
   shouldAutoAddAnswererLocation,
   getAnswerRequiredLocations,
   getAskRequiredLocations,
+  getAnswerConfig,
 } from '../../config/questionCategories';
+import type { LocationType } from '../../config/questionCategories.types';
 
 import { QuestionCard } from './QuestionCard';
 import { Modal } from '../../components/ui/modal';
@@ -53,7 +55,8 @@ function hasRequiredLocationsForAnswer(
   hiderLocation?: LocationPoint
 ): boolean {
   const categoryName = question.category.category_name;
-  const answerRequiredLocations = getAnswerRequiredLocations(categoryName);
+  const answerConfig = getAnswerConfig(categoryName);
+  const answerRequiredLocations = answerConfig?.requiredLocations || {};
   
   // Count how many distinct location types are required
   const requiredCount = Object.values(answerRequiredLocations)
@@ -72,11 +75,6 @@ function hasRequiredLocationsForAnswer(
   const hasHiderLocation = !!(hiderLocation || 
     question.question_meta?.hiderLocation);
   
-  // For most geo categories, we need:
-  // - At least 2 locations from question (seeker + target, or similar)
-  // - Plus hider location if autoAddAnswererLocation is true
-  const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
-  
   // Minimum locations needed in question_meta
   // This depends on the category's ASK phase requirements
   const askRequiredLocations = getAskRequiredLocations(categoryName);
@@ -88,9 +86,23 @@ function hasRequiredLocationsForAnswer(
     return false;
   }
   
-  // If answer phase needs answerer's location, we need it
-  if (needsAnswererLocation && !hasHiderLocation) {
-    return false;
+  // Check each required location from answer config
+  for (const [locType, isRequired] of Object.entries(answerRequiredLocations)) {
+    if (isRequired) {
+      switch (locType as LocationType) {
+        case 'hider':
+          if (!hasHiderLocation) {
+            // If auto-add is enabled, hider location will be fetched at answer-time
+            if (!answerConfig.autoAddAnswererLocation) {
+              return false;
+            }
+          }
+          break;
+        // Other location types would need additional handling
+        default:
+          break;
+      }
+    }
   }
   
   return true;
