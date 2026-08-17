@@ -267,6 +267,11 @@ export const DEFAULT_FACT_META: FactMeta = {
 // ============================================================================
 
 /**
+ * Handler for manual-only categories (returns null to indicate manual answering required)
+ */
+const manualCategoryHandler: AutomationHandler = () => null;
+
+/**
  * All categories with their complete configuration.
  * Add new categories here and ONLY here.
  */
@@ -503,6 +508,31 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     ui: {
       toolType: 'text',
       displayLabel: 'Text Fact',
+    },
+  },
+  // ========== Non-Geo Categories ==========
+
+  {
+    name: 'Photo',
+    operation: 'Text Fact',
+    handler: manualCategoryHandler,
+    isGeo: false,
+    ask: {
+      requiredLocations: {},
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: false,
+      requiredLocations: {},
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: [],
+    },
+    ui: {
+      toolType: 'text',
+      displayLabel: 'Photo',
     },
   },
 ];
