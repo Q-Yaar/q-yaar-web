@@ -9,6 +9,74 @@ import type { LocationPoint, FactMeta } from '../models/QuestionMeta';
 import type { AskedQuestion } from '../models/QnA';
 
 // ============================================================================
+// HANDLER CONFIG TYPES (moved from handlerFactory for circular dependency)
+// ============================================================================
+
+/**
+ * Supported operation types (matching geoUtils.ts and geo.ts capabilities)
+ */
+export type ConfigurableOperation = 
+  | 'distance_comparison'
+  | 'point_in_polygon'
+  | 'point_in_circle'
+  | 'bearing_calculation'
+  | 'distance_threshold'
+  | 'text_match'
+  | 'feature_containment'
+  | 'polygon_containment'
+  | 'relative_heading'
+  | 'hotter_colder'
+  | 'closer_to_line';
+
+/**
+ * How to extract a value from the question context
+ */
+export interface ValueExtractor {
+  /** Source of the value: question_meta, fact_meta, or context */
+  source: 'question_meta' | 'fact_meta' | 'context';
+  /** Path to the value, e.g., 'location_points[0]', 'radius', 'hiderLocation' */
+  path: string;
+  /** Type of the value for conversion */
+  type: 'coord' | 'coords' | 'number' | 'string' | 'boolean';
+}
+
+/**
+ * Operation input definition
+ */
+export interface OperationInput {
+  /** Name of the input variable */
+  name: string;
+  /** How to extract this value from the context */
+  extractor: ValueExtractor;
+}
+
+/**
+ * Output configuration for a handler
+ */
+export interface HandlerOutput {
+  /** Which field from the operation result becomes the answer result */
+  resultField: string;
+  /** Optional text template with {{variable}} placeholders */
+  textTemplate?: string;
+  /** The computation method identifier */
+  computationMethod: string;
+}
+
+/**
+ * Config-driven handler definition
+ */
+export interface HandlerConfig {
+  /** The operation type to execute */
+  operation: ConfigurableOperation;
+  /** Whether this operation is async (needs to await) */
+  async: boolean;
+  /** Inputs required for this operation */
+  inputs: OperationInput[];
+  /** Output configuration */
+  output: HandlerOutput;
+}
+
+// ============================================================================
 // OPERATION TYPES
 // ============================================================================
 
@@ -24,6 +92,7 @@ export type GeoOperationType =
   | 'Heading'
   | 'Hotter/Colder'
   | 'Area Operations'
+  | 'Matching'
   | 'Closer to Line'
   | 'Text Fact';
 
@@ -136,8 +205,11 @@ export interface CategoryConfig {
   /** The operation type this category uses */
   operation: GeoOperationType;
   
-  /** The handler function for this category */
-  handler: AutomationHandler;
+  /** Config-driven handler definition for this category */
+  handlerConfig?: HandlerConfig;
+  
+  /** The handler function for this category (can be derived from handlerConfig) */
+  handler?: AutomationHandler;
   
   /** Whether this is a geo category (requires location data) */
   isGeo: boolean;

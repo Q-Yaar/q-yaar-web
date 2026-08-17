@@ -41,7 +41,7 @@ import type {
 // Import everything from config module
 import * as Config from './questionCategories.config';
 
-// Import everything from handlers module  
+// Import handlers for backward compatibility (but they're no longer used for assignment)
 import * as Handlers from './questionCategoryHandlers';
 
 // Re-export types
@@ -77,17 +77,8 @@ export {
   CATEGORY_TO_DISPLAY_LABEL,
 } from './questionCategories.config';
 
-// Re-export handlers
+// Re-export utility functions from handlers (for backward compatibility)
 export {
-  measuringHandler,
-  polygonLocationHandler,
-  distanceHandler,
-  circleHandler,
-  headingHandler,
-  hotterColderHandler,
-  textFactHandler,
-  areaOperationsHandler,
-  closerToLineHandler,
   extractCoords,
   getCoordFromMeta,
   setAutomationDebug,
@@ -95,22 +86,15 @@ export {
 } from './questionCategoryHandlers';
 
 // ============================================================================
-// Wire up handlers to config registry
+// HANDLER REGISTRATION
 // ============================================================================
 
-// Assign handlers to the registry
-Config.assignHandlers({
-  measuringHandler: Handlers.measuringHandler,
-  polygonLocationHandler: Handlers.polygonLocationHandler,
-  distanceHandler: Handlers.distanceHandler,
-  circleHandler: Handlers.circleHandler,
-  headingHandler: Handlers.headingHandler,
-  hotterColderHandler: Handlers.hotterColderHandler,
-  textFactHandler: Handlers.textFactHandler,
-  areaOperationsHandler: Handlers.areaOperationsHandler,
-  closerToLineHandler: Handlers.closerToLineHandler,
-  manualCategoryHandler: Config.manualCategoryHandler,
-});
+// Handlers are now created from handlerConfig in questionCategories.config.ts
+// The assignHandlers call is no longer needed - handlers are created automatically
+// from the handlerConfig field in each category definition.
+
+// Call assignHandlers as a no-op for backward compatibility (it logs a message)
+Config.assignHandlers({});
 
 // ============================================================================
 // PHASE-BASED CONFIG ACCESSORS
@@ -195,11 +179,7 @@ export function getFactMetaDefaults(categoryName: string): FactMeta {
  * Returns the category config or undefined if not found.
  */
 export function getCategoryConfig(categoryName: string): CategoryConfig | undefined {
-  const canonical = resolveCategory(categoryName);
-  if (canonical) {
-    return Config.CATEGORY_CONFIGS[canonical];
-  }
-  return Config.CATEGORY_CONFIGS[categoryName];
+  return Handlers.getCategoryConfig(categoryName);
 }
 
 /**
@@ -207,9 +187,7 @@ export function getCategoryConfig(categoryName: string): CategoryConfig | undefi
  * Returns undefined if category is not found.
  */
 export function getCanonicalCategory(categoryName: string | undefined): string | undefined {
-  if (!categoryName) return undefined;
-  const config = getCategoryConfig(categoryName);
-  return config?.name;
+  return Handlers.getCanonicalCategory(categoryName || '');
 }
 
 // ============================================================================
@@ -310,7 +288,7 @@ export function resolveCategory(categoryName: string | undefined): GeoOperationT
  * Get the handler for a category (resolves aliases automatically)
  */
 export function getHandlerForCategory(categoryName: string): AutomationHandler | undefined {
-  return Config.CATEGORY_TO_HANDLER[categoryName];
+  return Handlers.getHandlerForCategory(categoryName);
 }
 
 /**
@@ -639,20 +617,40 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
         }
       }
 
-      // For Area Operations / Matching: need feature name and answerer location
+      // For Area Operations: need polygon data and target location
       if (config.operation === 'Area Operations') {
+        const hasPolygon = factMeta?.polygon_geo_json || meta.polygon_vertices;
+        const locationCount = meta.location_points?.length || 0;
+        if (!hasPolygon) {
+          return {
+            answer: null,
+            reason: 'Area Operations questions require polygon vertex data',
+            canAutoAnswer: false,
+          };
+        }
+        if (locationCount < 1) {
+          return {
+            answer: null,
+            reason: 'Area Operations questions require a target location to check',
+            canAutoAnswer: false,
+          };
+        }
+      }
+
+      // For Matching: need feature name and answerer location
+      if (config.operation === 'Matching') {
         const featureName = factMeta?.feature_name || meta.feature_name;
         if (!featureName) {
           return {
             answer: null,
-            reason: 'Area Operations questions require a feature name to check against',
+            reason: 'Matching questions require a feature name to check against',
             canAutoAnswer: false,
           };
         }
         if (!hiderLocation) {
           return {
             answer: null,
-            reason: 'Area Operations questions require answerer location (hider) to be provided separately',
+            reason: 'Matching questions require answerer location (hider) to be provided separately',
             canAutoAnswer: false,
           };
         }
