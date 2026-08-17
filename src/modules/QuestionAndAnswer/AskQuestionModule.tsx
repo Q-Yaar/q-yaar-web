@@ -1142,8 +1142,8 @@ export function AskQuestionModule() {
                                     // Only proceed with auto-population if we have a POI name
                                     if (poiName) {
                                       // Try to find a suitable placeholder for the POI name
-                                      // Common names: landmark, location, target, place, destination
-                                      const landmarkPlaceholderNames = ['landmark', 'location', 'target', 'place', 'destination', 'poi'];
+                                      // Common names: landmark, landmark_name, location, target, place, destination
+                                      const landmarkPlaceholderNames = ['landmark', 'landmark_name', 'location', 'target', 'place', 'destination', 'poi'];
                                       let placeholderToSet: string | null = null;
                                       
                                       for (const name of landmarkPlaceholderNames) {
