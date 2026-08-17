@@ -22,6 +22,7 @@ import type { Coord } from '../utils/geo';
 import {
   CATEGORY_CONFIGS,
   CATEGORY_ALIASES,
+  CATEGORY_TO_HANDLER,
   manualCategoryHandler,
 } from './questionCategories.config';
 
@@ -80,10 +81,9 @@ export function debugLog(message: string, data?: any): void {
  */
 export function getHandlerForCategory(categoryName: string): AutomationHandler | undefined {
   const canonical = getCanonicalCategory(categoryName);
-  if (canonical && CATEGORY_CONFIGS[canonical]) {
-    // Handler is now obtained from CATEGORY_TO_HANDLER which is built from handlerConfigs
-    const config = CATEGORY_CONFIGS[canonical];
-    return config.handler;
+  if (canonical) {
+    // Use CATEGORY_TO_HANDLER which is built from handlerConfigs
+    return CATEGORY_TO_HANDLER[canonical];
   }
   return undefined;
 }
@@ -131,6 +131,7 @@ export {
   GEO_CATEGORIES,
   CATEGORY_CONFIGS,
   CATEGORY_ALIASES,
+  CATEGORY_TO_HANDLER,
   CATEGORY_TO_TOOL_TYPE,
   CATEGORY_TO_DISPLAY_LABEL,
 } from './questionCategories.config';
