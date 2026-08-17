@@ -388,7 +388,7 @@ export function AskQuestionModule() {
     // Check if geo category requires target location using ASK phase config
     const askConfig = getAskConfig(categoryName || '');
     const askRequiredLocations = getAskRequiredLocations(categoryName || '');
-    const requiresTargetLocation = askRequiredLocations.target && categoryName !== 'Radar' && categoryName !== 'Matching';
+    const requiresTargetLocation = askRequiredLocations.target && categoryName !== 'Radar';
     
     console.log('[AskQuestion] DEBUG: categoryName =', categoryName, 'effectiveOperation =', effectiveOperation, 'requiresTargetLocation =', requiresTargetLocation, 'targetLocation =', targetLocation);
     if (requiresTargetLocation && !targetLocation) {
@@ -1077,8 +1077,7 @@ export function AskQuestionModule() {
 
                       {/* Map Picker for Geo Questions */}
                       {selectedCategory && GEO_CATEGORIES.has(selectedCategory.category_name) && 
-                        selectedCategory.category_name !== 'Radar' && 
-                        selectedCategory.category_name !== 'Matching' &&
+                        selectedCategory.category_name !== 'Radar' &&
                         getAskRequiredLocations(selectedCategory.category_name).target && (
                         <div className="pt-4 border-t border-gray-100">
                           <h3 className="font-medium text-gray-900 mb-2">

@@ -3,6 +3,8 @@
  * 
  * Configuration data, registry, and derived mappings.
  * This is the single source of truth for category definitions.
+ * 
+ * All handler logic is now config-driven via handlerConfig.
  */
 
 import type { FactMeta } from '../models/QuestionMeta';
@@ -13,7 +15,9 @@ import type {
   AutomationHandler,
   AutomationContext,
   AutoAnswer,
+  HandlerConfig,
 } from './questionCategories.types';
+import { createHandlerFromConfig } from './handlerFactory';
 
 // ============================================================================
 // DEFAULT FACT META
@@ -38,55 +42,203 @@ export const DEFAULT_FACT_META: FactMeta = {
 };
 
 // ============================================================================
-// CATEGORY REGISTRY (Single Source of Truth)
+// MANUAL CATEGORY HANDLER
 // ============================================================================
-
-/**
- * Forward declaration of handler functions (defined in questionCategoryHandlers.ts)
- * These are imported and assigned below to break circular dependencies
- */
-export type HandlerFunctions = {
-  measuringHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  polygonLocationHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  distanceHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  circleHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  headingHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  hotterColderHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  textFactHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  areaOperationsHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  closerToLineHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-  manualCategoryHandler: (ctx: AutomationContext) => AutoAnswer | null | Promise<AutoAnswer | null>;
-};
 
 /**
  * Handler for manual-only categories (returns null to indicate manual answering required)
  */
 export const manualCategoryHandler: AutomationHandler = () => null;
 
+// ============================================================================
+// HANDLER CONFIG DEFINITIONS
+// ============================================================================
+
+// Handler config for Matching category (async - loads polygon data)
+const MATCHING_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'feature_containment',
+  async: true,
+  inputs: [
+    { name: 'point', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
+    { name: 'featureName', extractor: { source: 'fact_meta', path: 'feature_name', type: 'string' } },
+  ],
+  output: {
+    resultField: 'result',
+    textTemplate: '{{result}} in {{featureName}}',
+    computationMethod: 'polygon_containment',
+  },
+};
+
+// Handler config for Measuring category
+const MEASURING_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'distance_comparison',
+  async: false,
+  inputs: [
+    { name: 'pointA', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
+    { name: 'pointB', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
+    { name: 'pointC', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
+    { name: 'pointD', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
+  ],
+  output: {
+    resultField: 'isCloser',
+    textTemplate: 'Hiding: {{distanceCD}}m, Seeking: {{distanceAB}}m to target',
+    computationMethod: 'relative_distance_comparison',
+  },
+};
+
+// Handler config for Polygon Location category
+const POLYGON_LOCATION_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'polygon_containment',
+  async: false,
+  inputs: [
+    { name: 'point', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
+    { name: 'polygon', extractor: { source: 'question_meta', path: 'polygon_vertices', type: 'coords' } },
+  ],
+  output: {
+    resultField: 'result',
+    textTemplate: '{{result}} - Point is {{isInside}} polygon',
+    computationMethod: 'point_in_polygon',
+  },
+};
+
+// Handler config for Distance category
+const DISTANCE_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'distance_threshold',
+  async: false,
+  inputs: [
+    { name: 'pointA', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
+    { name: 'pointB', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
+    { name: 'threshold', extractor: { source: 'question_meta', path: 'distance_threshold', type: 'number' } },
+  ],
+  output: {
+    resultField: 'isWithin',
+    textTemplate: 'Distance: {{distance}}m (threshold: {{threshold}}m)',
+    computationMethod: 'distance_threshold_check',
+  },
+};
+
+// Handler config for Circle/Radar category
+const CIRCLE_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'point_in_circle',
+  async: false,
+  inputs: [
+    { name: 'point', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
+    { name: 'center', extractor: { source: 'fact_meta', path: 'points[0]', type: 'coord' } },
+    { name: 'radius', extractor: { source: 'fact_meta', path: 'radius', type: 'number' } },
+  ],
+  output: {
+    resultField: 'isInside',
+    textTemplate: 'Distance from center: {{distance}}m (radius: {{radius}}m)',
+    computationMethod: 'point_in_circle',
+  },
+};
+
+// Handler config for Heading/Relative categories
+const HEADING_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'relative_heading',
+  async: false,
+  inputs: [
+    { name: 'from', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
+    { name: 'to', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
+    { name: 'splitDirection', extractor: { source: 'fact_meta', path: 'split_direction', type: 'string' } },
+  ],
+  output: {
+    resultField: 'result',
+    textTemplate: 'Seeker: ({{from.lat}}, {{from.lon}}), Hider: ({{to.lat}}, {{to.lon}}), Heading: {{heading.lat}}/{{heading.lon}}',
+    computationMethod: 'relative_heading_comparison',
+  },
+};
+
+// Handler config for Hotter/Colder category
+const HOTTER_COLDER_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'hotter_colder',
+  async: false,
+  inputs: [
+    { name: 'previousLoc', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
+    { name: 'targetLoc', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
+    { name: 'currentLoc', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
+  ],
+  output: {
+    resultField: 'isGettingCloser',
+    textTemplate: '{{isGettingCloser}}: {{distanceChange}}m',
+    computationMethod: 'distance_comparison',
+  },
+};
+
+// Handler config for Text Fact category
+const TEXT_FACT_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'text_match',
+  async: false,
+  inputs: [
+    { name: 'expected', extractor: { source: 'question_meta', path: 'expected_answer', type: 'string' } },
+    { name: 'text', extractor: { source: 'fact_meta', path: 'text', type: 'string' } },
+  ],
+  output: {
+    resultField: 'isMatch',
+    textTemplate: 'Answer: {{expected}}',
+    computationMethod: 'expected_answer_match',
+  },
+};
+
+// Handler config for Area Operations category
+const AREA_OPERATIONS_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'polygon_containment',
+  async: false,
+  inputs: [
+    { name: 'point', extractor: { source: 'question_meta', path: 'targetLocation', type: 'coord' } },
+    { name: 'polygon', extractor: { source: 'question_meta', path: 'polygon_vertices', type: 'coords' } },
+  ],
+  output: {
+    resultField: 'result',
+    textTemplate: '{{result}} - Point is {{isInside}} polygon',
+    computationMethod: 'point_in_polygon',
+  },
+};
+
+// Handler config for Closer to Line category
+const CLOSER_TO_LINE_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'closer_to_line',
+  async: false,
+  inputs: [
+    { name: 'linePoint1', extractor: { source: 'question_meta', path: 'line_points[0]', type: 'coord' } },
+    { name: 'linePoint2', extractor: { source: 'question_meta', path: 'line_points[1]', type: 'coord' } },
+    { name: 'targetLoc', extractor: { source: 'question_meta', path: 'targetLocation', type: 'coord' } },
+    { name: 'seekerLoc', extractor: { source: 'question_meta', path: 'seekerLocation', type: 'coord' } },
+  ],
+  output: {
+    resultField: 'isCloser',
+    textTemplate: 'Seeker to line: {{seekerToLine}}m, Target to line: {{targetToLine}}m',
+    computationMethod: 'closer_to_line_comparison',
+  },
+};
+
+// ============================================================================
+// CATEGORY REGISTRY (Single Source of Truth)
+// ============================================================================
+
 /**
  * All categories with their complete configuration.
  * Add new categories here and ONLY here.
  * 
- * NOTE: Handler functions must be assigned after importing from handlers module
- * to avoid circular dependencies. Use `assignHandlers()` function.
+ * Handler functions are now created from handlerConfig using createHandlerFromConfig.
+ * The handler field is populated automatically in the CATEGORY_TO_HANDLER mapping.
  */
 export const CATEGORY_REGISTRY: CategoryConfig[] = [
   // ========== Geo Categories ==========
   
   {
     name: 'Matching',
-    operation: 'Area Operations',
-    handler: null as any,
+    operation: 'Matching',
+    handlerConfig: MATCHING_HANDLER_CONFIG,
     isGeo: true,
-    aliases: ['Matching'],
+    aliases: [],
     ask: {
-      requiredLocations: { seeker: true, target: true },
+      requiredLocations: { seeker: true },
       requiredPlaceholders: [],
       placeholderMap: {
-        radius: 'radius',
-        areaOpType: 'area_op_type',
         feature_name: 'feature_name',
         metro_line: 'feature_name',
+        gba_corporation: 'feature_name',
       },
     },
     answer: {
@@ -94,17 +246,17 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
     },
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'radius', 'area_op_type', 'feature_name', 'polygon_geo_json'],
+      requiredFactMeta: ['points', 'feature_name'],
     },
     ui: {
       toolType: 'areas',
-      displayLabel: 'Area Operations',
+      displayLabel: 'Matching',
     },
   },
   {
     name: 'Measuring',
     operation: 'Measuring',
-    handler: null as any, // Assigned by assignHandlers()
+    handlerConfig: MEASURING_HANDLER_CONFIG,
     isGeo: true,
     ask: {
       requiredLocations: { seeker: true, target: true },
@@ -128,7 +280,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
   {
     name: 'Thermometer',
     operation: 'Hotter/Colder',
-    handler: null as any,
+    handlerConfig: HOTTER_COLDER_HANDLER_CONFIG,
     isGeo: true,
     aliases: ['Hotter / Colder'],
     ask: {
@@ -154,7 +306,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
   {
     name: 'Radar',
     operation: 'Circle',
-    handler: null as any,
+    handlerConfig: CIRCLE_HANDLER_CONFIG,
     isGeo: true,
     aliases: ['Radar'],
     ask: {
@@ -181,7 +333,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
   {
     name: 'Relative',
     operation: 'Heading',
-    handler: null as any,
+    handlerConfig: HEADING_HANDLER_CONFIG,
     isGeo: true,
     aliases: ['Relative Heading', 'Relative'],
     ask: {
@@ -210,7 +362,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
   {
     name: 'Text Fact',
     operation: 'Text Fact',
-    handler: null as any,
+    handlerConfig: TEXT_FACT_HANDLER_CONFIG,
     isGeo: false,
     ask: {
       requiredLocations: {},
@@ -258,51 +410,172 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
       displayLabel: 'Photo',
     },
   },
+  
+  // ========== Additional Categories ==========
+  
+  {
+    name: 'Polygon Location',
+    operation: 'Polygon Location',
+    handlerConfig: POLYGON_LOCATION_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: [],
+    ask: {
+      requiredLocations: { target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['polygon_geo_json'],
+    },
+    ui: {
+      toolType: 'polygon-location',
+      displayLabel: 'Polygon Location',
+    },
+  },
+  {
+    name: 'Distance',
+    operation: 'Distance',
+    handlerConfig: DISTANCE_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: [],
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      requiredPlaceholders: ['distance'],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'radius'],
+    },
+    ui: {
+      toolType: 'text',
+      displayLabel: 'Distance',
+    },
+  },
+  {
+    name: 'Circle',
+    operation: 'Circle',
+    handlerConfig: CIRCLE_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: [],
+    ask: {
+      requiredLocations: { center: true },
+      requiredPlaceholders: ['radius'],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'radius'],
+    },
+    ui: {
+      toolType: 'draw-circle',
+      displayLabel: 'Circle',
+    },
+  },
+  {
+    name: 'Heading',
+    operation: 'Heading',
+    handlerConfig: HEADING_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: [],
+    ask: {
+      requiredLocations: { seeker: true },
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'split_direction'],
+    },
+    ui: {
+      toolType: 'split-by-direction',
+      displayLabel: 'Heading',
+    },
+  },
+  {
+    name: 'Hotter/Colder',
+    operation: 'Hotter/Colder',
+    handlerConfig: HOTTER_COLDER_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: [],
+    ask: {
+      requiredLocations: { previousLocation: true, target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      requiredLocations: { currentLocation: true },
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'closer_further'],
+    },
+    ui: {
+      toolType: 'hotter-colder',
+      displayLabel: 'Hotter/Colder',
+    },
+  },
+  {
+    name: 'Area Operations',
+    operation: 'Area Operations',
+    handlerConfig: AREA_OPERATIONS_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: [],
+    ask: {
+      requiredLocations: { target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['polygon_geo_json'],
+    },
+    ui: {
+      toolType: 'areas',
+      displayLabel: 'Area Operations',
+    },
+  },
+  {
+    name: 'Closer to Line',
+    operation: 'Closer to Line',
+    handlerConfig: CLOSER_TO_LINE_HANDLER_CONFIG,
+    isGeo: true,
+    aliases: ['closer-to-line'],
+    ask: {
+      requiredLocations: { seeker: true, target: true },
+      requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      autoAddAnswererLocation: false,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['uploaded_area', 'selected_line_index'],
+    },
+    ui: {
+      toolType: 'closer-to-line',
+      displayLabel: 'Closer to Line',
+    },
+  },
 ];
-
-// ============================================================================
-// HANDLER ASSIGNMENT
-// ============================================================================
-
-/**
- * Assign handler functions to the registry.
- * This function should be called after importing handlers from the handlers module.
- */
-export function assignHandlers(handlers: HandlerFunctions): void {
-  for (const category of CATEGORY_REGISTRY) {
-    if (category.handler === null) continue;
-    
-    switch (category.name) {
-      case 'Measuring':
-        category.handler = handlers.measuringHandler;
-        break;
-      case 'Polygon Location':
-        category.handler = handlers.polygonLocationHandler;
-        break;
-      case 'Distance':
-        category.handler = handlers.distanceHandler;
-        break;
-      case 'Circle':
-        category.handler = handlers.circleHandler;
-        break;
-      case 'Heading':
-        category.handler = handlers.headingHandler;
-        break;
-      case 'Hotter/Colder':
-        category.handler = handlers.hotterColderHandler;
-        break;
-      case 'Text Fact':
-        category.handler = handlers.textFactHandler;
-        break;
-      case 'Area Operations':
-        category.handler = handlers.areaOperationsHandler;
-        break;
-      case 'closer-to-line':
-        category.handler = handlers.closerToLineHandler;
-        break;
-    }
-  }
-}
 
 // ============================================================================
 // DERIVED CONFIGURATION (Computed from registry - don't edit directly)
@@ -310,14 +583,16 @@ export function assignHandlers(handlers: HandlerFunctions): void {
 
 /**
  * Get all categories that should be handled manually (no automation handler).
- * A category is manual if it has no handler or its handler is the manualCategoryHandler.
+ * A category is manual if it has no handler and no handlerConfig, or its handler is the manualCategoryHandler.
  */
 export function getManualCategories(): Set<string> {
   const manual = new Set<string>();
   
   for (const category of CATEGORY_REGISTRY) {
-    // Check if the handler is manualCategoryHandler or undefined/null
-    if (!category.handler || category.handler === manualCategoryHandler) {
+    // Check if the category has no handlerConfig and (no handler or handler is manual)
+    const hasValidHandler = category.handlerConfig || (category.handler && category.handler !== manualCategoryHandler);
+    
+    if (!hasValidHandler) {
       // Add the main category name
       manual.add(category.name);
       
@@ -394,22 +669,6 @@ export const CATEGORY_CONFIGS: Record<string, CategoryConfig> =
   }, {} as Record<string, CategoryConfig>);
 
 /**
- * Maps category names (including aliases) to their handler.
- * Built from CATEGORY_REGISTRY.
- */
-export const CATEGORY_TO_HANDLER: Record<string, AutomationHandler> = 
-  CATEGORY_REGISTRY.reduce((acc, category) => {
-    acc[category.name] = category.handler;
-    // Also map aliases to the same handler
-    if (category.aliases) {
-      for (const alias of category.aliases) {
-        acc[alias] = category.handler;
-      }
-    }
-    return acc;
-  }, {} as Record<string, AutomationHandler>);
-
-/**
  * Maps category names to their canonical name (resolves aliases).
  * Built from CATEGORY_REGISTRY.
  */
@@ -422,6 +681,67 @@ export const CATEGORY_ALIASES: Record<string, string> =
     }
     return acc;
   }, {} as Record<string, string>);
+
+// ============================================================================
+// HANDLER REGISTRATION
+// ============================================================================
+
+/**
+ * Create and cache handlers from handlerConfigs
+ * This ensures handlers are created only once per category
+ */
+const handlerCache = new Map<string, AutomationHandler>();
+
+/**
+ * Get or create a handler for a category from its handlerConfig
+ */
+function getHandlerForCategoryConfig(category: CategoryConfig): AutomationHandler {
+  if (!category.handlerConfig) {
+    // Fall back to explicit handler if no config
+    if (category.handler) {
+      return category.handler;
+    }
+    return manualCategoryHandler;
+  }
+  
+  // Check cache
+  if (handlerCache.has(category.name)) {
+    return handlerCache.get(category.name)!;
+  }
+  
+  // Create handler from config
+  const handler = createHandlerFromConfig(category.handlerConfig);
+  
+  // Cache it
+  handlerCache.set(category.name, handler);
+  
+  // Also cache by aliases
+  if (category.aliases) {
+    for (const alias of category.aliases) {
+      handlerCache.set(alias, handler);
+    }
+  }
+  
+  return handler;
+}
+
+/**
+ * Maps category names (including aliases) to their handler.
+ * Built from CATEGORY_REGISTRY using handlerConfigs.
+ */
+export const CATEGORY_TO_HANDLER: Record<string, AutomationHandler> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    const handler = getHandlerForCategoryConfig(category);
+    
+    acc[category.name] = handler;
+    // Also map aliases to the same handler
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = handler;
+      }
+    }
+    return acc;
+  }, {} as Record<string, AutomationHandler>);
 
 // ============================================================================
 // UI CONFIGURATION (Computed from registry)
@@ -458,3 +778,15 @@ export const CATEGORY_TO_DISPLAY_LABEL: Record<string, string> =
     }
     return acc;
   }, {} as Record<string, string>);
+
+// ============================================================================
+// LEGACY EXPORTS (for backward compatibility)
+// ============================================================================
+
+/**
+ * Legacy assignHandlers function - now a no-op since handlers are created from configs
+ */
+export function assignHandlers(_handlers: any): void {
+  // No-op: handlers are now created from handlerConfig
+  console.log('[assignHandlers] Handler assignment is now config-driven. This function is a no-op.');
+}
