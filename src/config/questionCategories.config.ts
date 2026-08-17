@@ -74,158 +74,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
   // ========== Geo Categories ==========
   
   {
-    name: 'Measuring',
-    operation: 'Measuring',
-    handler: null as any, // Assigned by assignHandlers()
-    isGeo: true,
-    ask: {
-      requiredLocations: { seeker: true, target: true },
-      // hider location is NOT required when asking - seeker doesn't know it
-      requiredPlaceholders: [],
-      placeholderMap: {},
-    },
-    answer: {
-      requiredLocations: { hider: true },
-      autoAddAnswererLocation: true,  // Answerer (hider) provides their location
-    },
-    fact: {
-      factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points'],  // All 3 locations (seeker, target, hider)
-    },
-    ui: {
-      toolType: 'draw-circle',
-      displayLabel: 'Distance Measurement',
-    },
-  },
-  {
-    name: 'Polygon Location',
-    operation: 'Polygon Location',
-    handler: null as any,
-    isGeo: true,
-    ask: {
-      requiredLocations: { seeker: true, target: true },
-      requiredPlaceholders: [],
-      placeholderMap: {
-        polygon_vertices: 'polygon_geo_json',
-      },
-    },
-    answer: {
-      autoAddAnswererLocation: true,
-    },
-    fact: {
-      factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'polygon_geo_json'],
-    },
-    ui: {
-      toolType: 'polygon-location',
-      displayLabel: 'Polygon Location',
-    },
-  },
-  {
-    name: 'Distance',
-    operation: 'Distance',
-    handler: null as any,
-    isGeo: true,
-    ask: {
-      requiredLocations: { seeker: true, target: true },
-      requiredPlaceholders: [],
-      placeholderMap: {
-        distance_threshold: 'radius',
-      },
-    },
-    answer: {
-      autoAddAnswererLocation: false,
-    },
-    fact: {
-      factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'radius'],
-    },
-    ui: {
-      toolType: 'draw-circle',
-      displayLabel: 'Distance',
-    },
-  },
-  {
-    name: 'Circle',
-    operation: 'Circle',
-    handler: null as any,
-    isGeo: true,
-    aliases: ['Radar'],
-    ask: {
-      requiredLocations: { seeker: true },
-      requiredPlaceholders: ['distance'],
-      placeholderMap: {
-        distance: 'radius',
-        radius: 'radius',
-      },
-    },
-    answer: {
-      requiredLocations: { hider: true },
-      autoAddAnswererLocation: true,
-    },
-    fact: {
-      factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'radius'],
-    },
-    ui: {
-      toolType: 'draw-circle',
-      displayLabel: 'Draw Circle',
-    },
-  },
-  {
-    name: 'Heading',
-    operation: 'Heading',
-    handler: null as any,
-    isGeo: true,
-    aliases: ['Relative Heading', 'Relative'],
-    ask: {
-      requiredLocations: { seeker: true },
-      requiredPlaceholders: ['direction'],
-      placeholderMap: {
-        direction: 'split_direction',
-      },
-    },
-    answer: {
-      requiredLocations: { hider: true },
-      autoAddAnswererLocation: true,
-    },
-    fact: {
-      factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'split_direction'],
-    },
-    ui: {
-      toolType: 'split-by-direction',
-      displayLabel: 'Relative Heading',
-    },
-  },
-  {
-    name: 'Hotter/Colder',
-    operation: 'Hotter/Colder',
-    handler: null as any,
-    isGeo: true,
-    aliases: ['Hotter / Colder'],
-    ask: {
-      requiredLocations: { target: true },
-      requiredPlaceholders: ['closerFurther'],
-      placeholderMap: {
-        closerFurther: 'closer_further',
-      },
-    },
-    answer: {
-      requiredLocations: { previousLocation: true, currentLocation: true },
-      autoAddAnswererLocation: true,
-    },
-    fact: {
-      factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'closer_further'],
-    },
-    ui: {
-      toolType: 'hotter-colder',
-      displayLabel: 'Hotter / Colder',
-    },
-  },
-  {
-    name: 'Area Operations',
+    name: 'Matching',
     operation: 'Area Operations',
     handler: null as any,
     isGeo: true,
@@ -253,28 +102,106 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
     },
   },
   {
-    name: 'closer-to-line',
-    operation: 'Closer to Line',
-    handler: null as any,
+    name: 'Measuring',
+    operation: 'Measuring',
+    handler: null as any, // Assigned by assignHandlers()
     isGeo: true,
     ask: {
-      requiredLocations: { seeker: true, target: true, linePoints: true },
+      requiredLocations: { seeker: true, target: true },
+      // hider location is NOT required when asking - seeker doesn't know it
       requiredPlaceholders: [],
+      placeholderMap: {},
+    },
+    answer: {
+      requiredLocations: { hider: true },
+      autoAddAnswererLocation: true,  // Answerer (hider) provides their location
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points'],  // All 3 locations (seeker, target, hider)
+    },
+    ui: {
+      toolType: 'draw-circle',
+      displayLabel: 'Distance Measurement',
+    },
+  },
+  {
+    name: 'Thermometer',
+    operation: 'Hotter/Colder',
+    handler: null as any,
+    isGeo: true,
+    aliases: ['Hotter / Colder'],
+    ask: {
+      requiredLocations: { target: true },
+      requiredPlaceholders: ['closerFurther'],
       placeholderMap: {
-        selectedLineIndex: 'selected_line_index',
         closerFurther: 'closer_further',
       },
     },
     answer: {
-      autoAddAnswererLocation: false,
+      requiredLocations: { previousLocation: true, currentLocation: true },
+      autoAddAnswererLocation: true,
     },
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
-      requiredFactMeta: ['points', 'selected_line_index', 'closer_further'],
+      requiredFactMeta: ['points', 'closer_further'],
     },
     ui: {
-      toolType: 'closer-to-line',
-      displayLabel: 'Closer to Line',
+      toolType: 'hotter-colder',
+      displayLabel: 'Hotter / Colder',
+    },
+  },
+  {
+    name: 'Radar',
+    operation: 'Circle',
+    handler: null as any,
+    isGeo: true,
+    aliases: ['Radar'],
+    ask: {
+      requiredLocations: { seeker: true },
+      requiredPlaceholders: ['distance'],
+      placeholderMap: {
+        distance: 'radius',
+        radius: 'radius',
+      },
+    },
+    answer: {
+      requiredLocations: { hider: true },
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'radius'],
+    },
+    ui: {
+      toolType: 'draw-circle',
+      displayLabel: 'Draw Circle',
+    },
+  },
+  {
+    name: 'Relative',
+    operation: 'Heading',
+    handler: null as any,
+    isGeo: true,
+    aliases: ['Relative Heading', 'Relative'],
+    ask: {
+      requiredLocations: { seeker: true },
+      requiredPlaceholders: ['direction'],
+      placeholderMap: {
+        direction: 'split_direction',
+      },
+    },
+    answer: {
+      requiredLocations: { hider: true },
+      autoAddAnswererLocation: true,
+    },
+    fact: {
+      factMetaDefaults: DEFAULT_FACT_META,
+      requiredFactMeta: ['points', 'split_direction'],
+    },
+    ui: {
+      toolType: 'split-by-direction',
+      displayLabel: 'Relative Heading',
     },
   },
   
