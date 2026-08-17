@@ -30,6 +30,7 @@ import {
   getPlaceholderMap,
   getAskRequiredPlaceholders,
   DEFAULT_FACT_META,
+  getToolTypeForCategory,
 } from '../../config/questionCategories';
 import { getAreaConfigByName, getAreaConfigByIdentifier, ALL_AREAS } from '../../config/areaConfig';
 import { resolveAreaToFeatureName } from '../../utils/geoJsonLoader';
@@ -466,8 +467,9 @@ export function AskQuestionModule() {
           }
           
           // Handle special cases not covered by config (backward compatibility)
-          // For Circle/Radar: if category is Radar, ensure seeker is used as center
-          if (categoryName === 'Radar' && factMeta.points.length === 0) {
+          // For Circle/Radar: if category resolves to Circle, ensure seeker is used as center
+          const canonicalName = getCanonicalCategory(categoryName);
+          if (canonicalName === 'Circle' && factMeta.points.length === 0) {
             factMeta.points = [newSeekerLocation];
           }
           
@@ -680,22 +682,8 @@ export function AskQuestionModule() {
     
     setIsCreatingFact(true);
     try {
-      // Map question category names to operation types
-      const categoryToOpType: Record<string, string> = {
-        'Measuring': 'draw-circle',
-        'Polygon Location': 'polygon-location',
-        'Distance': 'draw-circle',
-        'Circle': 'draw-circle',
-        'Heading': 'split-by-direction',
-        'Relative Heading': 'split-by-direction',
-        'Relative': 'split-by-direction',
-        'Hotter/Colder': 'hotter-colder',
-        'Hotter / Colder': 'hotter-colder',
-        'Area Operations': 'areas',
-        'closer-to-line': 'closer-to-line',
-      };
-      
-      const opType = categoryToOpType[question.category.category_name] || question.category.category_name;
+      // Get tool type from config (resolves aliases automatically)
+      const opType = getToolTypeForCategory(question.category.category_name) || question.category.category_name;
       
       // Collect all location points from various meta fields
       const allPoints: LocationPoint[] = [];
