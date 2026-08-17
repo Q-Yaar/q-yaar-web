@@ -149,6 +149,7 @@ export function AskQuestionModule() {
   // Confirmation modal state for auto-creating facts from geo questions
   const [showFactCreationModal, setShowFactCreationModal] = useState(false);
   const [questionForFactCreation, setQuestionForFactCreation] = useState<AskedQuestion | null>(null);
+  const [targetTeamForFactCreation, setTargetTeamForFactCreation] = useState<string | null>(null);
   const [isCreatingFact, setIsCreatingFact] = useState(false);
 
   const [updateAskedQuestion, { isLoading: isUpdatingLocation }] =
@@ -636,14 +637,15 @@ export function AskQuestionModule() {
     if (isGeoQuestion) {
       // For geo questions, show confirmation modal first
       setQuestionForFactCreation(question);
+      setTargetTeamForFactCreation(selectedHistoryTeamId);
       setShowFactCreationModal(true);
     } else {
       // For non-geo questions, accept directly
-      await handleAcceptConfirmed(question);
+      await handleAcceptConfirmed(question, false, selectedHistoryTeamId);
     }
   };
 
-  const handleAcceptConfirmed = async (question: AskedQuestion, shouldCreateFact: boolean = false) => {
+  const handleAcceptConfirmed = async (question: AskedQuestion, shouldCreateFact: boolean = false, targetTeamId?: string | null) => {
     if (!gameId) return;
     setAcceptingId(question.question_id);
     
@@ -659,13 +661,14 @@ export function AskQuestionModule() {
       setAcceptingId(null);
       setShowFactCreationModal(false);
       setQuestionForFactCreation(null);
+      setTargetTeamForFactCreation(null);
       return;
     }
     
     // If this is a geo question and user wants to create a fact
     if (shouldCreateFact && questionForFactCreation) {
       try {
-        await createFactFromQuestion(questionForFactCreation);
+        await createFactFromQuestion(questionForFactCreation, targetTeamId || targetTeamForFactCreation);
       } catch (err) {
         console.error('Failed to create fact from question', err);
         alert('Answer accepted, but failed to create fact. The answer was still accepted.');
@@ -675,10 +678,11 @@ export function AskQuestionModule() {
     setAcceptingId(null);
     setShowFactCreationModal(false);
     setQuestionForFactCreation(null);
+    setTargetTeamForFactCreation(null);
   };
 
-  const createFactFromQuestion = async (question: AskedQuestion) => {
-    if (!gameId || !myTeam) return;
+  const createFactFromQuestion = async (question: AskedQuestion, targetTeamId: string | null | undefined) => {
+    if (!gameId || !targetTeamId) return;
     
     setIsCreatingFact(true);
     try {
@@ -722,7 +726,7 @@ export function AskQuestionModule() {
       // which match what the fact backend expects
       await createFact({
         game_id: gameId,
-        team_id: myTeam.team_id,
+        team_id: targetTeamId,
         fact_type: 'GEO',
         fact_info: {
           op_type: opType,
@@ -1265,12 +1269,13 @@ export function AskQuestionModule() {
         onClose={() => {
           setShowFactCreationModal(false);
           setQuestionForFactCreation(null);
+          setTargetTeamForFactCreation(null);
         }}
         title="Create Fact from Question"
       >
         <div className="space-y-4">
           <p className="text-gray-600 text-left">
-            This geographic question contains location data. Would you like to save it as a fact for your team?
+            This geographic question contains location data. Would you like to save it as a fact for the answering team?
           </p>
           
           {questionForFactCreation && (
@@ -1293,9 +1298,10 @@ export function AskQuestionModule() {
               onClick={() => {
                 setShowFactCreationModal(false);
                 setQuestionForFactCreation(null);
+                setTargetTeamForFactCreation(null);
                 // Accept without creating fact
                 if (questionForFactCreation) {
-                  handleAcceptConfirmed(questionForFactCreation, false);
+                  handleAcceptConfirmed(questionForFactCreation, false, targetTeamForFactCreation);
                 }
               }}
               disabled={isAccepting || isCreatingFact}
@@ -1305,7 +1311,7 @@ export function AskQuestionModule() {
             <Button
               onClick={() => {
                 if (questionForFactCreation) {
-                  handleAcceptConfirmed(questionForFactCreation, true);
+                  handleAcceptConfirmed(questionForFactCreation, true, targetTeamForFactCreation);
                 }
               }}
               disabled={isAccepting || isCreatingFact}
