@@ -31,6 +31,7 @@ import {
   getAutomationConfig,
   shouldAutoAddAnswererLocation,
   getAnswerRequiredLocations,
+  getAskRequiredLocations,
 } from '../../config/questionCategories';
 
 import { QuestionCard } from './QuestionCard';
@@ -42,6 +43,58 @@ import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
 import { formatDate } from 'utils/dateUtils';
 import type { Coord } from '../../utils/geo';
+
+/**
+ * Check if a question has all the required locations for auto-answering.
+ * Uses the config to determine which locations are required for the answer phase.
+ */
+function hasRequiredLocationsForAnswer(
+  question: AskedQuestion,
+  hiderLocation?: LocationPoint
+): boolean {
+  const categoryName = question.category.category_name;
+  const answerRequiredLocations = getAnswerRequiredLocations(categoryName);
+  
+  // Count how many distinct location types are required
+  const requiredCount = Object.values(answerRequiredLocations)
+    .filter(Boolean).length;
+  
+  // If no locations are required, we're good
+  if (requiredCount === 0) {
+    return true;
+  }
+  
+  // Get locations from question_meta
+  const questionLocations = question.question_meta?.location_points || [];
+  const questionLocationCount = questionLocations.length;
+  
+  // Get hider location if needed
+  const hasHiderLocation = !!(hiderLocation || 
+    question.question_meta?.hiderLocation);
+  
+  // For most geo categories, we need:
+  // - At least 2 locations from question (seeker + target, or similar)
+  // - Plus hider location if autoAddAnswererLocation is true
+  const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
+  
+  // Minimum locations needed in question_meta
+  // This depends on the category's ASK phase requirements
+  const askRequiredLocations = getAskRequiredLocations(categoryName);
+  const minQuestionLocations = Object.values(askRequiredLocations)
+    .filter(Boolean).length;
+  
+  // Check if we have enough
+  if (questionLocationCount < minQuestionLocations) {
+    return false;
+  }
+  
+  // If answer phase needs answerer's location, we need it
+  if (needsAnswererLocation && !hasHiderLocation) {
+    return false;
+  }
+  
+  return true;
+}
 
 export function AnswerQuestionModule() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -157,74 +210,62 @@ export function AnswerQuestionModule() {
     // Skip if already checked or answered
     if (checkedQuestions.has(question.question_id) || question.answered) return;
 
-    // For geo questions, we may need to get the user's current location
-    // Convention: location_points[0] = seekerLocation, [1] = targetLocation, [2] = hiderLocation (answerer)
     const categoryName = question.category.category_name;
     const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
     
-    // Use phase-based config to determine if we need answerer's location
-    const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
-    
-    // Check if we need hider's current location for automation
-    const locationCount = question.question_meta?.location_points?.length || 0;
-    
-    // Categories that need hider's current location: same as those that auto-add answerer location
-    const requiresHiderLocation = needsAnswererLocation;
-    
-    const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
-      ? locationCount >= 2
-      : locationCount >= 2;
-    
-    // Need user location if category requires hider location and we have geolocation
-    const needsUserLocation = isGeoQuestion && needsAnswererLocation && requiresHiderLocation && navigator.geolocation;
-    
-    if (needsUserLocation) {
-      // Get current location and check auto-answer with it
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const userLocation: LocationPoint = {
-            lat: position.coords.latitude.toString(),
-            lon: position.coords.longitude.toString(),
-          };
-          
-          // Pass hider location as separate parameter - do NOT mutate the question
-          const autoAnswer = await tryAutoAnswer(question, userLocation);
-          if (autoAnswer) {
-            // Mark as checked so we don't show modal repeatedly
-            setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+    // For geo questions, we need to check if we have all required locations
+    if (isGeoQuestion) {
+      // First, check if we have the required locations in the question
+      if (!hasRequiredLocationsForAnswer(question)) {
+        // Don't have enough locations - can't auto-answer
+        return;
+      }
+      
+      // For categories that need hider's location, try to get it
+      const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
+      
+      if (needsAnswererLocation && navigator.geolocation) {
+        // Get current location and check auto-answer with it
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const userLocation: LocationPoint = {
+              lat: position.coords.latitude.toString(),
+              lon: position.coords.longitude.toString(),
+            };
             
-            // Store the original question and computed answer for the modal
-            setQuestionForAutoAnswer(question);
-            setComputedAutoAnswer(autoAnswer);
-            setAutoAnswerModalOpen(true);
-          }
-        },
-        async (err) => {
-          console.error('Failed to get location for auto-answer:', err);
-          // If we can't get location, try without it (might work if not needed)
-          const autoAnswer = await tryAutoAnswer(question);
-          if (autoAnswer) {
-            setCheckedQuestions(prev => new Set(prev).add(question.question_id));
-            setQuestionForAutoAnswer(question);
-            setComputedAutoAnswer(autoAnswer);
-            setAutoAnswerModalOpen(true);
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        },
-      );
-      return;
+            const autoAnswer = await tryAutoAnswer(question, userLocation);
+            if (autoAnswer) {
+              setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+              setQuestionForAutoAnswer(question);
+              setComputedAutoAnswer(autoAnswer);
+              setAutoAnswerModalOpen(true);
+            }
+          },
+          async (err) => {
+            console.error('Failed to get location for auto-answer:', err);
+            // If we can't get location, try without it
+            const autoAnswer = await tryAutoAnswer(question);
+            if (autoAnswer) {
+              setCheckedQuestions(prev => new Set(prev).add(question.question_id));
+              setQuestionForAutoAnswer(question);
+              setComputedAutoAnswer(autoAnswer);
+              setAutoAnswerModalOpen(true);
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          },
+        );
+        return;
+      }
     }
 
+    // Non-geo or already has all locations - try auto-answer directly
     const autoAnswer = await tryAutoAnswer(question);
     if (autoAnswer) {
-      // Mark as checked so we don't show modal repeatedly
       setCheckedQuestions(prev => new Set(prev).add(question.question_id));
-      
-      // Store the question and computed answer for the modal
       setQuestionForAutoAnswer(question);
       setComputedAutoAnswer(autoAnswer);
       setAutoAnswerModalOpen(true);
@@ -292,22 +333,18 @@ export function AnswerQuestionModule() {
 
     const categoryName = question.category.category_name;
     const isGeoQuestion = GEO_CATEGORIES.has(categoryName);
+    
+    // First check if we have required locations
+    if (isGeoQuestion && !hasRequiredLocationsForAnswer(question)) {
+      setCannotAutoAnswerReason('Question is missing required location data');
+      setCannotAutoAnswerModalOpen(true);
+      return;
+    }
+    
     const needsAnswererLocation = shouldAutoAddAnswererLocation(categoryName);
     
-    // Check if we need to get user's location for this category
-    const locationCount = question.question_meta?.location_points?.length || 0;
-    
-    // Categories that need hider's current location: same as those that auto-add answerer location
-    const requiresHiderLocation = needsAnswererLocation;
-    
-    const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
-      ? locationCount >= 2
-      : locationCount >= 2;
-    
-    const needsUserLocation = isGeoQuestion && needsAnswererLocation && requiresHiderLocation && navigator.geolocation;
-
-    if (needsUserLocation) {
-      // Get current location and check auto-answer with it
+    // For geo questions that need answerer location
+    if (isGeoQuestion && needsAnswererLocation && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const userLocation: LocationPoint = {
@@ -315,7 +352,6 @@ export function AnswerQuestionModule() {
             lon: position.coords.longitude.toString(),
           };
           
-          // Pass hider location as separate parameter - do NOT mutate the question
           const result: AutoAnswerResult = await tryAutoAnswerWithReason(question, userLocation);
           if (result.canAutoAnswer && result.answer) {
             setCheckedQuestions(prev => new Set(prev).add(question.question_id));
@@ -350,19 +386,15 @@ export function AnswerQuestionModule() {
       return;
     }
 
-    // Check if we can auto-answer this question with a reason (no location needed)
+    // Non-geo or doesn't need location - check directly
     const result: AutoAnswerResult = await tryAutoAnswerWithReason(question);
     
     if (result.canAutoAnswer && result.answer) {
-      // Mark as checked so we don't show modal repeatedly
       setCheckedQuestions(prev => new Set(prev).add(question.question_id));
-      
-      // Store the question and computed answer for the modal
       setQuestionForAutoAnswer(question);
       setComputedAutoAnswer(result.answer);
       setAutoAnswerModalOpen(true);
     } else {
-      // Show the reason why it can't be auto-answered
       setCannotAutoAnswerReason(result.reason || 'Unknown reason');
       setCannotAutoAnswerModalOpen(true);
     }
