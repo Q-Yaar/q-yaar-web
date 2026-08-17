@@ -299,10 +299,8 @@ export function AnswerQuestionModule() {
           answer_meta: {
             result: computedAutoAnswer.result,
             metadata: {
-              text: computedAutoAnswer.metadata.text || '',
               auto_answered: true,
               computation_method: computedAutoAnswer.metadata.computationMethod,
-              confidence: computedAutoAnswer.metadata.confidence,
             },
           },
         },
