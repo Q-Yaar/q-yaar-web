@@ -168,18 +168,8 @@ export function AnswerQuestionModule() {
     // Check if we need hider's current location for automation
     const locationCount = question.question_meta?.location_points?.length || 0;
     
-    // Categories that need hider's current location passed separately
-    const requiresHiderLocation = categoryName === 'Measuring' || 
-      categoryName === 'Heading' || 
-      categoryName === 'Relative Heading' ||
-      categoryName === 'Relative' ||
-      categoryName === 'Hotter/Colder' ||
-      categoryName === 'Hotter / Colder' ||
-      categoryName === 'Area Operations' ||
-      categoryName === 'Matching' ||
-      categoryName === 'Polygon Location' ||
-      categoryName === 'Circle' ||
-      categoryName === 'Radar';
+    // Categories that need hider's current location: same as those that auto-add answerer location
+    const requiresHiderLocation = needsAnswererLocation;
     
     const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
       ? locationCount >= 2
@@ -307,18 +297,8 @@ export function AnswerQuestionModule() {
     // Check if we need to get user's location for this category
     const locationCount = question.question_meta?.location_points?.length || 0;
     
-    // Categories that need hider's current location passed separately
-    const requiresHiderLocation = categoryName === 'Measuring' || 
-      categoryName === 'Heading' || 
-      categoryName === 'Relative Heading' ||
-      categoryName === 'Relative' ||
-      categoryName === 'Hotter/Colder' ||
-      categoryName === 'Hotter / Colder' ||
-      categoryName === 'Area Operations' ||
-      categoryName === 'Matching' ||
-      categoryName === 'Polygon Location' ||
-      categoryName === 'Circle' ||
-      categoryName === 'Radar';
+    // Categories that need hider's current location: same as those that auto-add answerer location
+    const requiresHiderLocation = needsAnswererLocation;
     
     const hasAllRequiredLocations = !requiresHiderLocation || !needsAnswererLocation
       ? locationCount >= 2

@@ -137,6 +137,18 @@ export interface FactPhaseConfig {
 // ============================================================================
 
 /**
+ * UI tool types that map to specific UI components
+ */
+export type UIToolType = 
+  | 'text'
+  | 'draw-circle'
+  | 'polygon-location'
+  | 'split-by-direction'
+  | 'hotter-colder'
+  | 'areas'
+  | 'closer-to-line';
+
+/**
  * Configuration for a single category.
  * Each category is defined here exactly once.
  * 
@@ -144,6 +156,7 @@ export interface FactPhaseConfig {
  * - ask: What the seeker provides when asking a question
  * - answer: What the answerer provides when responding
  * - fact: What's needed for fact creation/automation
+ * - ui: UI-related configuration
  */
 export interface CategoryConfig {
   /** The display name of the category */
@@ -178,6 +191,16 @@ export interface CategoryConfig {
    * Configuration for the FACT phase (fact creation)
    */
   fact: FactPhaseConfig;
+  
+  /**
+   * UI-related configuration for this category
+   */
+  ui: {
+    /** The UI tool type that should be used for this category */
+    toolType: UIToolType;
+    /** The display label for this category in UI dropdowns */
+    displayLabel: string;
+  };
 }
 
 /**
@@ -269,6 +292,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points'],  // All 3 locations (seeker, target, hider)
     },
+    ui: {
+      toolType: 'draw-circle',
+      displayLabel: 'Distance Measurement',
+    },
   },
   {
     name: 'Polygon Location',
@@ -289,6 +316,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'polygon_geo_json'],
     },
+    ui: {
+      toolType: 'polygon-location',
+      displayLabel: 'Polygon Location',
+    },
   },
   {
     name: 'Distance',
@@ -308,6 +339,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'radius'],
+    },
+    ui: {
+      toolType: 'draw-circle',
+      displayLabel: 'Distance',
     },
   },
   {
@@ -332,6 +367,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'radius'],
     },
+    ui: {
+      toolType: 'draw-circle',
+      displayLabel: 'Draw Circle',
+    },
   },
   {
     name: 'Heading',
@@ -354,6 +393,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'split_direction'],
     },
+    ui: {
+      toolType: 'split-by-direction',
+      displayLabel: 'Relative Heading',
+    },
   },
   {
     name: 'Hotter/Colder',
@@ -375,6 +418,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'closer_further'],
+    },
+    ui: {
+      toolType: 'hotter-colder',
+      displayLabel: 'Hotter / Colder',
     },
   },
   {
@@ -400,6 +447,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'radius', 'area_op_type', 'feature_name', 'polygon_geo_json'],
     },
+    ui: {
+      toolType: 'areas',
+      displayLabel: 'Area Operations',
+    },
   },
   {
     name: 'closer-to-line',
@@ -420,6 +471,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['points', 'selected_line_index', 'closer_further'],
+    },
+    ui: {
+      toolType: 'closer-to-line',
+      displayLabel: 'Closer to Line',
     },
   },
   
@@ -444,6 +499,10 @@ const CATEGORY_REGISTRY: CategoryConfig[] = [
     fact: {
       factMetaDefaults: DEFAULT_FACT_META,
       requiredFactMeta: ['text'],
+    },
+    ui: {
+      toolType: 'text',
+      displayLabel: 'Text Fact',
     },
   },
 ];
@@ -638,8 +697,88 @@ export const CATEGORY_ALIASES: Record<string, string> =
   }, {} as Record<string, string>);
 
 // ============================================================================
+// UI CONFIGURATION (Computed from registry)
+// ============================================================================
+
+/**
+ * Maps category names (including aliases) to their UI tool type.
+ * Built from CATEGORY_REGISTRY.
+ */
+export const CATEGORY_TO_TOOL_TYPE: Record<string, UIToolType> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    acc[category.name] = category.ui.toolType;
+    // Also add aliases
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = category.ui.toolType;
+      }
+    }
+    return acc;
+  }, {} as Record<string, UIToolType>);
+
+/**
+ * Maps category names (including aliases) to their display label.
+ * Built from CATEGORY_REGISTRY.
+ */
+export const CATEGORY_TO_DISPLAY_LABEL: Record<string, string> = 
+  CATEGORY_REGISTRY.reduce((acc, category) => {
+    acc[category.name] = category.ui.displayLabel;
+    // Also add aliases
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        acc[alias] = category.ui.displayLabel;
+      }
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
+/**
+ * Get the UI tool type for a category (resolves aliases).
+ */
+export function getToolTypeForCategory(categoryName: string): UIToolType | undefined {
+  return CATEGORY_TO_TOOL_TYPE[categoryName];
+}
+
+/**
+ * Get the display label for a category (resolves aliases).
+ */
+export function getDisplayLabelForCategory(categoryName: string): string | undefined {
+  return CATEGORY_TO_DISPLAY_LABEL[categoryName];
+}
+
+/**
+ * Get all category names including aliases that should be shown in UI dropdowns.
+ * Returns a list of { value: category_name, label: display_label } pairs.
+ */
+export function getCategoryOptionsForUI(): Array<{ value: string; label: string }> {
+  const seen = new Set<string>();
+  const options: Array<{ value: string; label: string }> = [];
+  
+  for (const category of CATEGORY_REGISTRY) {
+    // Add the main category name
+    if (!seen.has(category.name)) {
+      options.push({ value: category.name, label: category.ui.displayLabel });
+      seen.add(category.name);
+    }
+    
+    // Add aliases
+    if (category.aliases) {
+      for (const alias of category.aliases) {
+        if (!seen.has(alias)) {
+          options.push({ value: alias, label: category.ui.displayLabel });
+          seen.add(alias);
+        }
+      }
+    }
+  }
+  
+  return options;
+}
+
+// ============================================================================
 // HANDLER FUNCTIONS
 // ============================================================================
+
 
 /**
  * Helper to extract coordinates from question metadata
@@ -680,8 +819,10 @@ function debugLog(message: string, data?: any): void {
  */
 function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (!isCategory(q, 'Measuring')) {
+  if (canonicalName !== 'Measuring') {
     debugLog('Measuring: Invalid metadata type');
     return null;
   }
@@ -733,8 +874,10 @@ function measuringHandler(ctx: AutomationContext): AutoAnswer | null {
  */
 function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (!isCategory(q, 'Polygon Location')) {
+  if (canonicalName !== 'Polygon Location') {
     debugLog('Polygon Location: Invalid metadata type');
     return null;
   }
@@ -780,8 +923,10 @@ function polygonLocationHandler(ctx: AutomationContext): AutoAnswer | null {
  */
 function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (!isCategory(q, 'Distance')) {
+  if (canonicalName !== 'Distance') {
     debugLog('Distance: Invalid metadata type');
     return null;
   }
@@ -834,6 +979,12 @@ function distanceHandler(ctx: AutomationContext): AutoAnswer | null {
 function circleHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
+  
+  if (canonicalName !== 'Circle') {
+    debugLog('Circle: Invalid category for this handler');
+    return null;
+  }
   
   const factMeta = q.fact_meta;
   if (!factMeta) {
@@ -897,8 +1048,9 @@ function circleHandler(ctx: AutomationContext): AutoAnswer | null {
 function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (categoryName !== 'Heading' && categoryName !== 'Relative Heading' && categoryName !== 'Relative') {
+  if (canonicalName !== 'Heading') {
     debugLog('Heading: Invalid category for this handler');
     return null;
   }
@@ -923,9 +1075,9 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
   
   const splitDirection = q.fact_meta?.split_direction || '';
   
-  // For Relative questions: use getRelativeHeading which returns separate lat/lon directions
+  // For Relative category: use getRelativeHeading which returns separate lat/lon directions
   // This allows for simultaneously being North AND East (northeast), etc.
-  if (categoryName === 'Relative' && splitDirection) {
+  if (canonicalName === 'Heading' && categoryName === 'Relative' && splitDirection) {
     // Convert Coord {lat, lon} to [lon, lat] array format expected by getRelativeHeading
     const p1 = [referenceLoc.lon, referenceLoc.lat];
     const p2 = [hidingLoc.lon, hidingLoc.lat];
@@ -980,14 +1132,15 @@ function headingHandler(ctx: AutomationContext): AutoAnswer | null {
 }
 
 /**
- * Handler for "Hotter/Colder" category
+ * Handler for "Hotter/Colder" category (including Hotter / Colder alias)
  * Compares current distance to previous distance
  */
 function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
   const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (categoryName !== 'Hotter/Colder' && categoryName !== 'Hotter / Colder') {
+  if (canonicalName !== 'Hotter/Colder') {
     debugLog('Hotter/Colder: Invalid category for this handler');
     return null;
   }
@@ -1030,8 +1183,10 @@ function hotterColderHandler(ctx: AutomationContext): AutoAnswer | null {
  */
 function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (!isCategory(q, 'Text Fact')) {
+  if (canonicalName !== 'Text Fact') {
     debugLog('Text Fact: Invalid metadata type');
     return null;
   }
@@ -1073,14 +1228,15 @@ function textFactHandler(ctx: AutomationContext): AutoAnswer | null {
 }
 
 /**
- * Handler for "Area Operations" category
+ * Handler for "Area Operations" category (including Matching alias)
  * Handles area-based geometric questions
  */
 async function areaOperationsHandler(ctx: AutomationContext): Promise<AutoAnswer | null> {
   const q = ctx.question;
   const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (!isCategory(q, 'Area Operations') && categoryName !== 'Matching') {
+  if (canonicalName !== 'Area Operations') {
     debugLog('Area Operations: Invalid metadata type');
     return null;
   }
@@ -1088,7 +1244,7 @@ async function areaOperationsHandler(ctx: AutomationContext): Promise<AutoAnswer
   const meta = q.question_meta as AreaOperationsQuestionMeta;
   const factMeta = q.fact_meta;
 
-  // For "Matching" category
+  // For "Matching" alias category
   if (categoryName === 'Matching') {
     // Get the feature name from fact_meta (where placeholder values are mapped)
     const questionFeatureName = factMeta?.feature_name;
@@ -1175,8 +1331,10 @@ async function areaOperationsHandler(ctx: AutomationContext): Promise<AutoAnswer
  */
 function closerToLineHandler(ctx: AutomationContext): AutoAnswer | null {
   const q = ctx.question;
+  const categoryName = q.category.category_name;
+  const canonicalName = getCanonicalCategory(categoryName);
   
-  if (!isCategory(q, 'closer-to-line')) {
+  if (canonicalName !== 'Closer to Line') {
     debugLog('Closer to Line: Invalid metadata type');
     return null;
   }
@@ -1483,7 +1641,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       const factMeta = question.fact_meta;
 
       // For Measuring: need 2 location points from question (seeker, target) + hiderLocation from context
-      if (categoryName === 'Measuring' || config.operation === 'Measuring') {
+      if (config.operation === 'Measuring') {
         const locationCount = meta.location_points?.length || 0;
         if (locationCount < 2) {
           return {
@@ -1502,7 +1660,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Distance: need at least 2 location points and radius
-      if (categoryName === 'Distance' || config.operation === 'Distance') {
+      if (config.operation === 'Distance') {
         const locationCount = meta.location_points?.length || 0;
         const hasRadius = factMeta?.radius || meta.distance_threshold !== undefined;
         if (locationCount < 2) {
@@ -1522,7 +1680,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Circle/Radar: need 1 point (center) + radius + hiderLocation
-      if (categoryName === 'Circle' || categoryName === 'Radar' || config.operation === 'Circle') {
+      if (config.operation === 'Circle') {
         const points = factMeta?.points || meta.location_points || [];
         const hasRadius = factMeta?.radius !== undefined;
         if (points.length < 1) {
@@ -1549,7 +1707,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Heading/Relative Heading/Relative: need 1 location point from question (seeker) + hiderLocation from context
-      if (categoryName === 'Heading' || categoryName === 'Relative Heading' || categoryName === 'Relative' || config.operation === 'Heading') {
+      if (config.operation === 'Heading') {
         const locationCount = meta.location_points?.length || 0;
         if (locationCount < 1) {
           return {
@@ -1568,7 +1726,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Hotter/Colder: need previous and target from question + current (hiderLocation) from context
-      if (categoryName === 'Hotter/Colder' || categoryName === 'Hotter / Colder' || config.operation === 'Hotter/Colder') {
+      if (config.operation === 'Hotter/Colder') {
         const locationCount = meta.location_points?.length || 0;
         if (locationCount < 2) {
           return {
@@ -1587,7 +1745,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Polygon Location: need polygon vertices and target
-      if (categoryName === 'Polygon Location' || config.operation === 'Polygon Location') {
+      if (config.operation === 'Polygon Location') {
         const hasPolygon = factMeta?.polygon_geo_json || meta.polygon_vertices;
         const locationCount = meta.location_points?.length || 0;
         if (!hasPolygon) {
@@ -1607,7 +1765,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Area Operations / Matching: need feature name and answerer location
-      if (categoryName === 'Area Operations' || categoryName === 'Matching' || config.operation === 'Area Operations') {
+      if (config.operation === 'Area Operations') {
         const featureName = factMeta?.feature_name || meta.feature_name;
         if (!featureName) {
           return {
@@ -1626,7 +1784,7 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
       }
 
       // For Closer to Line: need line points, seeker, and target locations
-      if (categoryName === 'closer-to-line' || config.operation === 'Closer to Line') {
+      if (config.operation === 'Closer to Line') {
         const linePoints = meta.line_points || [];
         const locationCount = meta.location_points?.length || 0;
         if (linePoints.length < 2) {
