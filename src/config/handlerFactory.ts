@@ -170,10 +170,11 @@ function extractValue(ctx: AutomationContext, extractor: ValueExtractor): any {
 
 /**
  * Simple template rendering with {{variable}} syntax
+ * Supports nested properties via dot notation (e.g., {{from.lat}})
  */
 function renderTemplate(template: string, values: Record<string, any>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-    const value = values[varName];
+  return template.replace(/\{\{([^}]+)\}\}/g, (match, varPath) => {
+    const value = getNestedValue(values, varPath.trim());
     return value !== undefined ? String(value) : match;
   });
 }
@@ -366,6 +367,7 @@ function executePolygonContainment(inputs: Record<string, any>): Record<string, 
 
 /**
  * Execute relative heading check (for Relative category)
+ * Checks if 'to' (hider) is in the 'splitDirection' relative to 'from' (seeker).
  */
 function executeRelativeHeading(inputs: Record<string, any>): Record<string, any> {
   const from = inputs.from as Coord;
@@ -377,12 +379,14 @@ function executeRelativeHeading(inputs: Record<string, any>): Record<string, any
   }
   
   // Convert Coord {lat, lon} to [lon, lat] array format expected by getRelativeHeading
-  const p1 = [from.lon, from.lat] as [number, number];
-  const p2 = [to.lon, to.lat] as [number, number];
+  // Note: We pass (to, from) to get the direction of hider relative to seeker
+  const p1 = [to.lon, to.lat] as [number, number];    // hider
+  const p2 = [from.lon, from.lat] as [number, number]; // seeker
   const relativeHeading = getRelativeHeading(p1, p2);
   const normalizedPlaceholder = (splitDirection || '').toLowerCase();
   
   // Check the appropriate axis
+  // relativeHeading describes where 'to' (hider) is relative to 'from' (seeker)
   let isMatch = false;
   if (normalizedPlaceholder === 'north' || normalizedPlaceholder === 'south') {
     isMatch = relativeHeading.lat.toLowerCase() === normalizedPlaceholder;

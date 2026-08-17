@@ -144,7 +144,7 @@ const HEADING_HANDLER_CONFIG: HandlerConfig = {
   ],
   output: {
     resultField: 'result',
-    textTemplate: 'Seeker: ({{from.lat}}, {{from.lon}}), Hider: ({{to.lat}}, {{to.lon}}), Heading: {{heading.lat}}/{{heading.lon}}',
+    textTemplate: 'Seeker: ({{from.lat}}, {{from.lon}}), Hider: ({{to.lat}}, {{to.lon}}), Hider is {{heading.lat}} and {{heading.lon}} of seeker',
     computationMethod: 'relative_heading_comparison',
   },
 };
