@@ -401,14 +401,15 @@ export function AnswerQuestionModule() {
   }, []);
 
   // Check all pending questions for auto-answers when they load
-  useEffect(() => {
-    if (!displayData?.results) return;
-    
-    const pending = displayData.results.filter(q => !q.answered);
-    pending.forEach(question => {
-      checkAndShowAutoAnswer(question);
-    });
-  }, [displayData, checkAndShowAutoAnswer]);
+  // Temporarily disabled - use the Auto-Answer button instead
+  // useEffect(() => {
+  //   if (!displayData?.results) return;
+  //   
+  //   const pending = displayData.results.filter(q => !q.answered);
+  //   pending.forEach(question => {
+  //     checkAndShowAutoAnswer(question);
+  //   });
+  // }, [displayData, checkAndShowAutoAnswer]);
 
   if (isLoading && !displayData) {
     return (
