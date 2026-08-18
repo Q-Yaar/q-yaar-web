@@ -12,7 +12,7 @@ import {
   pointInPolygon,
   pointInCircle,
 } from '../utils/geo';
-import { getRelativeHeading } from '../utils/geoUtils';
+import { getRelativeHeading, calculateDistance } from '../utils/geoUtils';
 import { getPolygonForFeature } from '../utils/featureUtils';
 import type { Coord } from '../utils/geo';
 import type { 
@@ -409,15 +409,17 @@ function executeHotterColder(inputs: Record<string, any>): Record<string, any> {
   const previousLoc = inputs.previousLoc as Coord;
   const targetLoc = inputs.targetLoc as Coord;
   const currentLoc = inputs.currentLoc as Coord;
-  
+
   if (!previousLoc || !targetLoc || !currentLoc) {
     return { result: false, error: 'Missing locations for hotter/colder' };
   }
-  
-  const previousDistance = haversine(previousLoc, targetLoc);
-  const currentDistance = haversine(currentLoc, targetLoc);
+
+  // calculateDistance takes [lng, lat] and returns kilometers; convert to meters.
+  const toLngLat = (c: Coord): [number, number] => [c.lon, c.lat];
+  const previousDistance = calculateDistance(toLngLat(previousLoc), toLngLat(targetLoc)) * 1000;
+  const currentDistance = calculateDistance(toLngLat(currentLoc), toLngLat(targetLoc)) * 1000;
   const distanceChange = previousDistance - currentDistance;
-  
+
   return {
     result: currentDistance < previousDistance,
     isGettingCloser: currentDistance < previousDistance,

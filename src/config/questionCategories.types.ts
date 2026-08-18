@@ -132,6 +132,13 @@ export interface AskPhaseConfig {
    * e.g., { distance: 'radius' } means placeholder {{distance}} -> fact_meta.radius
    */
   placeholderMap?: Record<string, string>;
+
+  /**
+   * Locations expected to be added after the initial ask (e.g. via the
+   * "Add Current Location" button). Total locations required to answer =
+   * count(requiredLocations) + deferredLocations.
+   */
+  deferredLocations?: number;
 }
 
 /**

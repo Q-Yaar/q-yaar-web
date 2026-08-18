@@ -165,6 +165,24 @@ const HOTTER_COLDER_HANDLER_CONFIG: HandlerConfig = {
   },
 };
 
+// Handler config for Thermometer category (reuses hotter_colder operation with a
+// different input mapping: previous/current come from the question's location_points
+// and the target is the hider's auto-added location).
+const THERMOMETER_HANDLER_CONFIG: HandlerConfig = {
+  operation: 'hotter_colder',
+  async: false,
+  inputs: [
+    { name: 'previousLoc', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
+    { name: 'currentLoc', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
+    { name: 'targetLoc', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
+  ],
+  output: {
+    resultField: 'isGettingCloser',
+    textTemplate: '{{isGettingCloser}}: {{distanceChange}}m',
+    computationMethod: 'distance_comparison',
+  },
+};
+
 // Handler config for Text Fact category
 const TEXT_FACT_HANDLER_CONFIG: HandlerConfig = {
   operation: 'text_match',
@@ -280,18 +298,16 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
   {
     name: 'Thermometer',
     operation: 'Hotter/Colder',
-    handlerConfig: HOTTER_COLDER_HANDLER_CONFIG,
+    handlerConfig: THERMOMETER_HANDLER_CONFIG,
     isGeo: true,
     aliases: ['Hotter / Colder'],
     ask: {
-      requiredLocations: { target: true },
-      requiredPlaceholders: ['closerFurther'],
-      placeholderMap: {
-        closerFurther: 'closer_further',
-      },
+      requiredLocations: { seeker: true },
+      deferredLocations: 1,
+      requiredPlaceholders: [],
+      placeholderMap: {},
     },
     answer: {
-      requiredLocations: { previousLocation: true, currentLocation: true },
       autoAddAnswererLocation: true,
     },
     fact: {
@@ -300,7 +316,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
     },
     ui: {
       toolType: 'hotter-colder',
-      displayLabel: 'Hotter / Colder',
+      displayLabel: 'Thermometer',
     },
   },
   {

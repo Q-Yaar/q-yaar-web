@@ -137,6 +137,16 @@ export function getAskRequiredLocations(categoryName: string): Partial<Record<Lo
 }
 
 /**
+ * Total number of location_points required for a question to be answerable:
+ * ask required count + deferred locations (added after the initial ask).
+ */
+export function getAskRequiredLocationCount(categoryName: string): number {
+  const askConfig = getAskConfig(categoryName);
+  const requiredCount = Object.values(askConfig?.requiredLocations || {}).filter(Boolean).length;
+  return requiredCount + (askConfig?.deferredLocations || 0);
+}
+
+/**
  * Get required locations for ANSWER phase from a category.
  * This is what the answerer must provide when answering.
  */
@@ -581,13 +591,13 @@ export async function tryAutoAnswerWithReason(question: AskedQuestion, hiderLoca
         }
       }
 
-      // For Hotter/Colder: need previous and target from question + current (hiderLocation) from context
+      // For Hotter/Colder: need 2 location points from question + current (hiderLocation) from context
       if (config.operation === 'Hotter/Colder') {
         const locationCount = meta.location_points?.length || 0;
         if (locationCount < 2) {
           return {
             answer: null,
-            reason: `Hotter/Colder questions require previous and target locations from question, but only ${locationCount} provided`,
+            reason: `Hotter/Colder questions require 2 location points from the question, but only ${locationCount} provided`,
             canAutoAnswer: false,
           };
         }
