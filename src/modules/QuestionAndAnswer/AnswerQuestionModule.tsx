@@ -31,7 +31,7 @@ import {
   getAutomationConfig,
   shouldAutoAddAnswererLocation,
   getAnswerRequiredLocations,
-  getAskRequiredLocations,
+  getAskRequiredLocationCount,
   getAnswerConfig,
 } from '../../config/questionCategories';
 import type { LocationType } from '../../config/questionCategories.types';
@@ -76,10 +76,8 @@ function hasRequiredLocationsForAnswer(
     question.question_meta?.hiderLocation);
   
   // Minimum locations needed in question_meta
-  // This depends on the category's ASK phase requirements
-  const askRequiredLocations = getAskRequiredLocations(categoryName);
-  const minQuestionLocations = Object.values(askRequiredLocations)
-    .filter(Boolean).length;
+  // This depends on the category's ASK phase requirements (including deferred locations)
+  const minQuestionLocations = getAskRequiredLocationCount(categoryName);
   
   // Check if we have enough
   if (questionLocationCount < minQuestionLocations) {
