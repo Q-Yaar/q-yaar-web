@@ -1,3 +1,8 @@
+export interface Coord {
+    lat: number;
+    lon: number;
+}
+
 export interface Heading {
     lat: string;
     lon: string;

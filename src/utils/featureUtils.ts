@@ -4,7 +4,8 @@
  */
 
 import type { FeatureCollection, Feature, Polygon, MultiPolygon, GeoJsonProperties } from 'geojson';
-import { Coord, pointInPolygon } from './geo';
+import type { Coord } from './geoTypes';
+import { pointInPolygon } from './geoUtils';
 import { getGeoJson } from './geoJsonLoader';
 import { ALL_AREAS, AreaConfig } from '../config/areaConfig';
 

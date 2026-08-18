@@ -5,16 +5,10 @@
  * This replaces the individual handler functions with a single factory approach.
  */
 
-import {
-  parseCoord,
-  haversine,
-  bearing,
-  pointInPolygon,
-  pointInCircle,
-} from '../utils/geo';
-import { getRelativeHeading, calculateDistance } from '../utils/geoUtils';
+import { parseCoord } from './coordParsing';
+import { getRelativeHeading, calculateDistance, pointInPolygon } from '../utils/geoUtils';
 import { getPolygonForFeature } from '../utils/featureUtils';
-import type { Coord } from '../utils/geo';
+import type { Coord } from '../utils/geoTypes';
 import type { 
   AutomationContext, 
   AutoAnswer, 
@@ -54,6 +48,13 @@ export type {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+/**
+ * Great-circle distance between two Coords in meters (delegates to geoUtils km calc).
+ */
+function distanceMeters(a: Coord, b: Coord): number {
+  return calculateDistance([a.lon, a.lat], [b.lon, b.lat]) * 1000;
+}
 
 /**
  * Get a nested value from an object using a path string
@@ -196,8 +197,8 @@ function executeDistanceComparison(inputs: Record<string, any>): Record<string, 
     return { result: false, error: 'Missing points for distance comparison' };
   }
   
-  const distanceAB = haversine(pointA, pointB);
-  const distanceCD = haversine(pointC, pointD);
+  const distanceAB = distanceMeters(pointA, pointB);
+  const distanceCD = distanceMeters(pointC, pointD);
   
   return {
     result: distanceCD < distanceAB,  // C->D is closer than A->B
@@ -236,40 +237,12 @@ function executePointInCircle(inputs: Record<string, any>): Record<string, any> 
     return { result: false, error: 'Missing point, center, or radius' };
   }
   
-  const distance = haversine(point, center);
+  const distance = distanceMeters(point, center);
+  const isInside = distance <= radius;
   return {
-    result: pointInCircle(point, center, radius),
-    isInside: pointInCircle(point, center, radius),
+    result: isInside,
+    isInside,
     distance,
-  };
-}
-
-/**
- * Execute bearing calculation
- */
-function executeBearingCalculation(inputs: Record<string, any>): Record<string, any> {
-  const from = inputs.from as Coord;
-  const to = inputs.to as Coord;
-  
-  if (!from || !to) {
-    return { result: '', error: 'Missing from/to points' };
-  }
-  
-  const bearingValue = bearing(from, to);
-  
-  // Map bearing to cardinal direction
-  const getCardinalDirection = (b: number): string => {
-    const normalized = ((b + 360) % 360);
-    if (normalized >= 315 || normalized < 45) return 'North';
-    if (normalized >= 45 && normalized < 135) return 'East';
-    if (normalized >= 135 && normalized < 225) return 'South';
-    return 'West';
-  };
-  
-  return {
-    result: getCardinalDirection(bearingValue),
-    direction: getCardinalDirection(bearingValue),
-    bearing: bearingValue,
   };
 }
 
@@ -285,7 +258,7 @@ function executeDistanceThreshold(inputs: Record<string, any>): Record<string, a
     return { result: false, error: 'Missing points or threshold' };
   }
   
-  const distance = haversine(pointA, pointB);
+  const distance = distanceMeters(pointA, pointB);
   return {
     result: distance <= threshold,
     isWithin: distance <= threshold,
@@ -444,18 +417,18 @@ function executeCloserToLine(inputs: Record<string, any>): Record<string, any> {
   
   // Calculate distance from a point to a line segment
   const distanceToLine = (point: Coord, lineStart: Coord, lineEnd: Coord): number => {
-    const l2 = haversine(lineStart, lineEnd);
-    if (l2 === 0) return haversine(point, lineStart);
-    
-    const t = ((point.lat - lineStart.lat) * (lineEnd.lat - lineStart.lat) + 
+    const l2 = distanceMeters(lineStart, lineEnd);
+    if (l2 === 0) return distanceMeters(point, lineStart);
+
+    const t = ((point.lat - lineStart.lat) * (lineEnd.lat - lineStart.lat) +
               (point.lon - lineStart.lon) * (lineEnd.lon - lineStart.lon)) / l2;
-    
+
     const projection = t < 0 ? lineStart : t > 1 ? lineEnd : {
       lat: lineStart.lat + t * (lineEnd.lat - lineStart.lat),
       lon: lineStart.lon + t * (lineEnd.lon - lineStart.lon),
     };
-    
-    return haversine(point, projection);
+
+    return distanceMeters(point, projection);
   };
   
   const targetToLine = distanceToLine(targetLoc, linePoint1, linePoint2);
@@ -483,8 +456,6 @@ async function executeOperation(
       return executePointInPolygon(inputs);
     case 'point_in_circle':
       return executePointInCircle(inputs);
-    case 'bearing_calculation':
-      return executeBearingCalculation(inputs);
     case 'distance_threshold':
       return executeDistanceThreshold(inputs);
     case 'text_match':
