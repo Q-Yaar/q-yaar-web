@@ -4,7 +4,7 @@
  * Type definitions for question category configuration and automation.
  */
 
-import type { Coord } from '../utils/geo';
+import type { Coord } from '../utils/geoTypes';
 import type { LocationPoint, FactMeta } from '../models/QuestionMeta';
 import type { AskedQuestion } from '../models/QnA';
 
@@ -15,11 +15,10 @@ import type { AskedQuestion } from '../models/QnA';
 /**
  * Supported operation types (matching geoUtils.ts and geo.ts capabilities)
  */
-export type ConfigurableOperation = 
+export type ConfigurableOperation =
   | 'distance_comparison'
   | 'point_in_polygon'
   | 'point_in_circle'
-  | 'bearing_calculation'
   | 'distance_threshold'
   | 'text_match'
   | 'feature_containment'

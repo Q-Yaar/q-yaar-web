@@ -1,5 +1,5 @@
 import { circle, distance, difference, point, featureCollection, polygon, intersect, voronoi, bbox, buffer, pointToLineDistance, union, along, length, booleanPointInPolygon } from '@turf/turf';
-import { Heading, Operation } from './geoTypes';
+import { Heading, Operation, Coord } from './geoTypes';
 import { Feature, Point, Polygon, MultiPolygon, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 
 /**
@@ -19,6 +19,31 @@ export const calculateDistance = (p1: Feature<Point> | number[], p2: Feature<Poi
     const from = Array.isArray(p1) ? point(p1) : p1;
     const to = Array.isArray(p2) ? point(p2) : p2;
     return distance(from, to, { units: 'kilometers' });
+};
+
+/**
+ * Check if a point is inside a polygon. Coordinates use { lat, lon } (decimal degrees);
+ * internally converted to Turf's [lng, lat] ordering. Boundary is inclusive.
+ * @param pt point to test
+ * @param coords polygon vertices in { lat, lon } form (auto-closed if open)
+ */
+export const pointInPolygon = (pt: Coord, coords: Coord[]): boolean => {
+    if (!coords || coords.length < 3) return false;
+
+    const ring = coords.map(c => [c.lon, c.lat] as [number, number]);
+    // Turf requires a closed ring (first vertex === last vertex)
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+        ring.push(first);
+    }
+
+    try {
+        return booleanPointInPolygon(point([pt.lon, pt.lat]), polygon([ring]));
+    } catch (e) {
+        console.error("pointInPolygon failed", e);
+        return false;
+    }
 };
 
 /**

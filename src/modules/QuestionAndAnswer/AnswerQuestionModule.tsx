@@ -44,7 +44,7 @@ import { Button } from 'components/ui/button';
 import { Card, CardContent } from 'components/ui/card';
 import { cn } from 'utils/utils';
 import { formatDate } from 'utils/dateUtils';
-import type { Coord } from '../../utils/geo';
+import type { Coord } from '../../utils/geoTypes';
 
 /**
  * Check if a question has all the required locations for auto-answering.

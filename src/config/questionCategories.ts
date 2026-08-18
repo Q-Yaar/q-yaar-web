@@ -19,7 +19,7 @@
 // ============================================================================
 
 // TypeScript types
-import type { Coord } from '../utils/geo';
+import type { Coord } from '../utils/geoTypes';
 import type { LocationPoint, FactMeta } from '../models/QuestionMeta';
 import type { AskedQuestion } from '../models/QnA';
 

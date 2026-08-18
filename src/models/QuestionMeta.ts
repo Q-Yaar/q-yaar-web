@@ -11,7 +11,7 @@
  * in the handlers. The comments indicate which fields are required for each category.
  */
 
-import { Coord } from '../utils/geo';
+import type { Coord } from '../utils/geoTypes';
 
 // ============================================================================
 // BASE TYPES
@@ -94,7 +94,7 @@ export interface CircleQuestionMeta extends BaseQuestionMeta {
  * Requires: reference location (seeker), hider location, and split_direction
  */
 export interface HeadingQuestionMeta extends BaseQuestionMeta {
-  seekerLocation?: LocationPoint;  // Reference point for bearing calculation
+  seekerLocation?: LocationPoint;  // Reference point for relative-heading comparison
   targetLocation?: LocationPoint; // Target point
   hiderLocation?: LocationPoint;  // Optional: for comparing against hider's direction
   split_direction?: string;      // Cardinal direction (North, South, East, West)

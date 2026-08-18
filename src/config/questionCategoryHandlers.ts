@@ -6,11 +6,6 @@
  * See handlerFactory.ts for the new config-driven approach.
  */
 
-import {
-  parseCoord,
-  parseLocationPoint,
-  extractAllCoordsFromQuestion
-} from '../utils/geo';
 import type { AskedQuestion } from '../models/QnA';
 import type {
   AutomationContext,
@@ -18,13 +13,97 @@ import type {
   AutoAnswer,
   GeoOperationType,
 } from './questionCategories.types';
-import type { Coord } from '../utils/geo';
+import type { Coord } from '../utils/geoTypes';
 import {
   CATEGORY_CONFIGS,
   CATEGORY_ALIASES,
   CATEGORY_TO_HANDLER,
   manualCategoryHandler,
 } from './questionCategories.config';
+
+// Coordinate parsing helpers live in a leaf module to avoid a circular import
+// (see coordParsing.ts). Re-exported here to preserve the public API.
+export { parseCoord, parseLocationPoint } from './coordParsing';
+import { parseCoord, parseLocationPoint } from './coordParsing';
+
+// ============================================================================
+// COORDINATE PARSING
+// ============================================================================
+
+/**
+ * Extract all coordinates from a question's metadata and rendered question
+ * Supports both legacy field names (myLocation, hidingLocation) and new
+ * explicit field names (seekerLocation, hiderLocation, targetLocation, etc.)
+ */
+export function extractAllCoordsFromQuestion(question: any): Coord[] {
+  const coords: Coord[] = [];
+
+  // Extract from rendered question text
+  const textCoordPattern = /(-?\d+\.?\d+)\s*,\s*(-?\d+\.?\d+)/g;
+  let match;
+  const text = question.rendered_question || '';
+  while ((match = textCoordPattern.exec(text)) !== null) {
+    const lat = parseFloat(match[1]);
+    const lon = parseFloat(match[2]);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      coords.push({ lat, lon });
+    }
+  }
+
+  const meta = question.question_meta || {};
+
+  // Extract from question_meta.location_points
+  if (meta.location_points) {
+    for (const point of meta.location_points) {
+      const parsed = parseLocationPoint(point);
+      if (parsed) coords.push(parsed);
+    }
+  }
+
+  // Extract from line_points (array of points)
+  if (meta.line_points) {
+    for (const point of meta.line_points) {
+      const parsed = parseLocationPoint(point);
+      if (parsed) coords.push(parsed);
+    }
+  }
+
+  // Extract from polygon vertices
+  if (meta.polygon_vertices) {
+    for (const vertex of meta.polygon_vertices) {
+      const parsed = parseCoord(vertex);
+      if (parsed) coords.push(parsed);
+    }
+  }
+
+  // Extract from named location fields - NEW explicit names
+  const namedFields = [
+    'seekerLocation',
+    'hiderLocation',
+    'targetLocation',
+    'center',
+    'previousLocation',
+    'currentLocation',
+  ] as const;
+
+  for (const field of namedFields) {
+    if (meta[field]) {
+      const parsed = parseCoord(meta[field]);
+      if (parsed) coords.push(parsed);
+    }
+  }
+
+  // Extract from legacy field names (for backward compatibility)
+  const legacyFields = ['myLocation', 'hidingLocation', 'target'] as const;
+  for (const field of legacyFields) {
+    if (meta[field]) {
+      const parsed = parseCoord(meta[field]);
+      if (parsed) coords.push(parsed);
+    }
+  }
+
+  return coords;
+}
 
 // ============================================================================
 // HELPER FUNCTIONS
