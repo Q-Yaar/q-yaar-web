@@ -54,7 +54,7 @@ export const METRO_LINES: AreaConfig[] = [];
  */
 export const METRO_REGIONS: AreaConfig[] = [
   { displayName: 'Green', featureProperty: 'name', geoJsonPath: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson', featureIdentifier: 'Green Line' },
-  { displayName: 'Yellow Line (Silk Board Line)', featureProperty: 'name', geoJsonPath: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson' },
+  { displayName: 'Yellow Line', featureProperty: 'name', geoJsonPath: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson', featureIdentifier: 'Yellow Line' },
   { displayName: 'Purple Line', featureProperty: 'name', geoJsonPath: '/assets/geojsons/bengaluru/metro_nearest_regions.geojson', featureIdentifier: 'Purple Line' },
 ];
 
