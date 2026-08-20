@@ -2,6 +2,40 @@ import { Operation, OperationType } from './geoTypes';
 import { Fact, FactInfo } from '../models/Fact';
 
 /**
+ * Normalize a fact's points into the [lng, lat] number[][] format the geo
+ * worker expects. Facts created manually via the map already store [lng, lat]
+ * arrays, but facts created from asked questions store {lat, lon} objects
+ * (with string values), so we coerce both shapes here.
+ */
+const normalizePoints = (raw: any): number[][] => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .map((p: any) => {
+            if (Array.isArray(p)) {
+                return [Number(p[0]), Number(p[1])];
+            }
+            if (p && typeof p === 'object' && 'lat' in p && 'lon' in p) {
+                return [Number(p.lon), Number(p.lat)];
+            }
+            return null;
+        })
+        .filter((p: number[] | null): p is number[] => p !== null && !Number.isNaN(p[0]) && !Number.isNaN(p[1]));
+};
+
+/**
+ * Normalize a splitDirection value to the capitalized form ('North'/'South'/
+ * 'East'/'West') that getSplitByDirectionPolygon switches on. Facts created
+ * from asked questions store the lowercase placeholder value (e.g. 'north'),
+ * which would otherwise fall through to the default branch and return the
+ * whole world instead of splitting.
+ */
+const normalizeDirection = (d: string): 'North' | 'South' | 'East' | 'West' | undefined => {
+    if (!d) return undefined;
+    const cap = d.charAt(0).toUpperCase() + d.slice(1).toLowerCase();
+    return cap === 'North' || cap === 'South' || cap === 'East' || cap === 'West' ? cap : undefined;
+};
+
+/**
  * Converts a backend Fact (GEO type) to an Operation used by the Map UI.
  */
 export const convertBackendFactToOperation = (fact: Fact): Operation | null => {
@@ -29,10 +63,10 @@ export const convertBackendFactToOperation = (fact: Fact): Operation | null => {
     const op: Operation = {
         id: fact.fact_id,
         type: operationType,
-        points: opMeta.points || [],
+        points: normalizePoints(opMeta.points),
         radius: opMeta.radius,
         hiderLocation: opMeta.hiderLocation,
-        splitDirection: opMeta.splitDirection,
+        splitDirection: normalizeDirection(opMeta.splitDirection),
         preferredPoint: opMeta.preferredPoint,
         areaOpType: opMeta.areaOpType,
         uploadedArea: opMeta.uploadedArea,
