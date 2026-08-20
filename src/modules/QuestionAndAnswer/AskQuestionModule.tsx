@@ -151,6 +151,7 @@ export function AskQuestionModule() {
   const [questionForFactCreation, setQuestionForFactCreation] = useState<AskedQuestion | null>(null);
   const [targetTeamForFactCreation, setTargetTeamForFactCreation] = useState<string | null>(null);
   const [isCreatingFact, setIsCreatingFact] = useState(false);
+  const [creatingFactId, setCreatingFactId] = useState<string | null>(null);
 
   const [updateAskedQuestion, { isLoading: isUpdatingLocation }] =
     useUpdateAskedQuestionMutation();
@@ -691,9 +692,11 @@ export function AskQuestionModule() {
       
       // Collect all location points from various meta fields
       const allPoints: LocationPoint[] = [];
-      const qMeta = question.question_meta || {};
+      const qMeta: Record<string, any> = question.question_meta || {};
+      const fMeta: Record<string, any> = question.fact_meta || {};
       
-      // Add location_points
+      // Add location_points. (fact_meta.points mirrors question_meta.location_points,
+      // so we only read from one to avoid duplicating points.)
       if (qMeta.location_points) {
         allPoints.push(...qMeta.location_points);
       }
@@ -720,52 +723,79 @@ export function AskQuestionModule() {
       // For areas: needs areaOpType, selectedLineIndex, uploadedArea
       // For closer-to-line: needs closerFurther, selectedLineIndex, multiLineString
       // For polygon-location: needs polygonGeoJSON
-      
-      // Extract values from question_meta, preserving the backend's expected structure
-      // The question_meta uses camelCase field names (seekerLocation, targetLocation, etc.)
-      // which match what the fact backend expects
+      //
+      // Category-specific fields are stored in fact_meta (snake_case) at ask time.
+      // question_meta only carries location_points and feature_name, but we keep
+      // the qMeta fallbacks for any legacy questions that stored values there.
+      // Build operation metadata. Only the fields relevant to the resolved
+      // operation type are written, so the fact matches the shape of a
+      // manually-created one (no empty-string/empty-object defaults for
+      // unrelated operations). Points are stored as [lng, lat] number arrays
+      // (see Map.tsx click handler) and splitDirection is capitalized to
+      // match the switch in getSplitByDirectionPolygon.
+      const capitalizeDirection = (d: string): 'North' | 'South' | 'East' | 'West' | undefined => {
+        if (!d) return undefined;
+        const cap = d.charAt(0).toUpperCase() + d.slice(1).toLowerCase();
+        return cap === 'North' || cap === 'South' || cap === 'East' || cap === 'West' ? cap : undefined;
+      };
+
+      const rawRadius = fMeta.radius || qMeta.radius;
+      const opCandidates: Record<string, any> = {
+        points: allPoints.map((p) => [Number(p.lon), Number(p.lat)]),
+        radius: rawRadius ? Number(rawRadius) : undefined,
+        hiderLocation: fMeta.hider_location || qMeta.hiderLocation || undefined,
+        splitDirection: capitalizeDirection(
+          fMeta.split_direction || qMeta.split_direction || qMeta.splitDirection || ''
+        ),
+        preferredPoint: fMeta.preferred_point || qMeta.preferred_point || qMeta.preferredPoint || undefined,
+        areaOpType: fMeta.area_op_type || qMeta.area_op_type || qMeta.areaOpType || undefined,
+        uploadedArea: fMeta.uploaded_area || qMeta.uploaded_area || qMeta.uploadedArea || undefined,
+        closerFurther: fMeta.closer_further || qMeta.closer_further || qMeta.closerFurther || undefined,
+        multiLineString: qMeta.multi_line_string || qMeta.multiLineString || undefined,
+        selectedLineIndex:
+          fMeta.selected_line_index !== undefined ? fMeta.selected_line_index :
+          (qMeta.selected_line_index !== undefined ? qMeta.selected_line_index :
+          (qMeta.selectedLineIndex !== undefined ? qMeta.selectedLineIndex : 0)),
+        polygonGeoJSON: fMeta.polygon_geo_json || qMeta.polygon_geo_json || qMeta.polygonGeoJSON || undefined,
+        featureName: fMeta.feature_name || qMeta.feature_name || qMeta.featureName || undefined,
+      };
+
+      // Fields each operation type consumes (see applySingleOperation).
+      const RELEVANT_OP_FIELDS: Record<string, string[]> = {
+        'draw-circle':        ['points', 'radius', 'hiderLocation'],
+        'split-by-direction': ['points', 'splitDirection'],
+        'hotter-colder':      ['points', 'preferredPoint'],
+        'areas':              ['points', 'areaOpType', 'uploadedArea', 'selectedLineIndex', 'featureName'],
+        'closer-to-line':     ['points', 'multiLineString', 'closerFurther', 'selectedLineIndex', 'featureName'],
+        'polygon-location':   ['points', 'polygonGeoJSON', 'selectedLineIndex', 'featureName'],
+      };
+
+      const relevantFields = RELEVANT_OP_FIELDS[opType] || Object.keys(opCandidates);
+      const opMeta: Record<string, any> = {};
+      for (const key of relevantFields) {
+        const value = opCandidates[key];
+        if (value === undefined || value === null) continue;
+        if (typeof value === 'number' && Number.isNaN(value)) continue;
+        if (typeof value === 'string' && value === '') continue;
+        if (Array.isArray(value) && value.length === 0) continue;
+        if (typeof value === 'object' && Object.keys(value).length === 0) continue;
+        opMeta[key] = value;
+      }
+
+      // Provenance metadata for tracing the fact back to its source question.
+      opMeta.sourceQuestionId = question.question_id;
+      opMeta.sourceQuestion = question.rendered_question;
+      opMeta.createdFrom = 'accepted_question';
+      opMeta.acceptedAnswer = question.answer_meta?.result;
+      opMeta.answerText = question.answer_meta?.metadata?.text;
+
       await createFact({
         game_id: gameId,
         team_id: targetTeamId,
         fact_type: 'GEO',
         fact_info: {
           op_type: opType,
-          op_meta: {
-            // Core location data - all points collected
-            points: allPoints,
-            
-            // Circle/Draw operations
-            radius: qMeta.radius || '',
-            
-            // Direction operations
-            splitDirection: qMeta.split_direction || qMeta.splitDirection || '',
-            
-            // Hotter/Colder operations
-            preferredPoint: qMeta.preferred_point || qMeta.preferredPoint || '',
-            
-            // Area operations
-            areaOpType: qMeta.area_op_type || qMeta.areaOpType || '',
-            uploadedArea: qMeta.uploaded_area || qMeta.uploadedArea || '',
-            
-            // Line operations
-            closerFurther: qMeta.closer_further || qMeta.closerFurther || '',
-            multiLineString: qMeta.multi_line_string || qMeta.multiLineString || null,
-            selectedLineIndex: qMeta.selected_line_index !== undefined ? qMeta.selected_line_index : 
-                               (qMeta.selectedLineIndex !== undefined ? qMeta.selectedLineIndex : 0),
-            
-            // Polygon operations
-            polygonGeoJSON: qMeta.polygon_geo_json || qMeta.polygonGeoJSON || {},
-            
-            // Feature naming
-            featureName: qMeta.feature_name || qMeta.featureName || '',
-            
-            // Additional metadata for tracking
-            sourceQuestionId: question.question_id,
-            sourceQuestion: question.rendered_question,
-            acceptedAnswer: question.answer_meta?.result,
-            answerText: question.answer_meta?.metadata?.text,
-            createdFrom: 'accepted_question',
-          },
+          op_meta: opMeta,
         },
       }).unwrap();
     } catch (err) {
@@ -773,6 +803,23 @@ export function AskQuestionModule() {
       throw err; // Re-throw so caller can handle it
     } finally {
       setIsCreatingFact(false);
+    }
+  };
+
+  const handleCreateFact = async (question: AskedQuestion) => {
+    if (!gameId) return;
+    if (!selectedHistoryTeamId) {
+      alert('Select a team in the Question History filter first.');
+      return;
+    }
+    setCreatingFactId(question.question_id);
+    try {
+      await createFactFromQuestion(question, selectedHistoryTeamId);
+    } catch (err) {
+      console.error('Failed to create fact from question', err);
+      alert('Failed to create fact.');
+    } finally {
+      setCreatingFactId(null);
     }
   };
 
@@ -912,6 +959,8 @@ export function AskQuestionModule() {
                       onAddLocation={handleAddLocation}
                       isUpdatingLocation={isUpdatingLocation}
                       updatingLocationId={updatingLocationId}
+                      onCreateFact={handleCreateFact}
+                      creatingFactId={creatingFactId}
                     />
                   ))}
                 </div>

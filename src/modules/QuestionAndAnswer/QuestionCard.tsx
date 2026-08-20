@@ -3,7 +3,7 @@ import { LocationPoint } from '../../models/QuestionMeta';
 import { Card, CardContent } from 'components/ui/card';
 import { Button } from 'components/ui/button';
 import { formatDate } from 'utils/dateUtils';
-import { Gift, Map, MapPin, Loader, CheckCircle } from 'lucide-react';
+import { Gift, Map, MapPin, Loader, CheckCircle, Sparkles } from 'lucide-react';
 
 interface QuestionCardProps {
   question: AskedQuestion;
@@ -14,6 +14,8 @@ interface QuestionCardProps {
   onAddLocation?: (question: AskedQuestion) => void;
   isUpdatingLocation?: boolean;
   updatingLocationId?: string | null;
+  onCreateFact?: (question: AskedQuestion) => void;
+  creatingFactId?: string | null;
 }
 
 export function QuestionCard({
@@ -25,6 +27,8 @@ export function QuestionCard({
   onAddLocation,
   isUpdatingLocation = false,
   updatingLocationId = null,
+  onCreateFact,
+  creatingFactId = null,
 }: QuestionCardProps) {
   return (
     <Card className="relative overflow-hidden">
@@ -168,19 +172,40 @@ export function QuestionCard({
                 )}
               </div>
 
-              {!question.accepted && onAccept && (
-                <Button
-                  onClick={() => onAccept(question)}
-                  disabled={isAccepting}
-                  variant="outline"
-                  size="sm"
-                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                >
-                  {isAccepting && acceptingId === question.question_id
-                    ? 'Accepting...'
-                    : 'Accept Answer'}
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {!question.accepted && onAccept && (
+                  <Button
+                    onClick={() => onAccept(question)}
+                    disabled={isAccepting}
+                    variant="outline"
+                    size="sm"
+                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                  >
+                    {isAccepting && acceptingId === question.question_id
+                      ? 'Accepting...'
+                      : 'Accept Answer'}
+                  </Button>
+                )}
+
+                {onCreateFact && (
+                  <Button
+                    onClick={() => onCreateFact(question)}
+                    disabled={creatingFactId === question.question_id}
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    {creatingFactId === question.question_id ? (
+                      <Loader className="w-3.5 h-3.5 animate-spin mr-2" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5 mr-2" />
+                    )}
+                    {creatingFactId === question.question_id
+                      ? 'Creating...'
+                      : 'Create Fact'}
+                  </Button>
+                )}
+              </div>
             </div>
             {question?.answer_meta?.metadata?.text && (
               <p className="text-sm text-gray-600 text-left border-l-2 border-indigo-500 pl-2 mt-2">

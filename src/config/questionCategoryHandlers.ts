@@ -20,11 +20,11 @@ import {
   CATEGORY_TO_HANDLER,
   manualCategoryHandler,
 } from './questionCategories.config';
+import { parseCoord, parseLocationPoint } from './coordParsing';
 
 // Coordinate parsing helpers live in a leaf module to avoid a circular import
 // (see coordParsing.ts). Re-exported here to preserve the public API.
 export { parseCoord, parseLocationPoint } from './coordParsing';
-import { parseCoord, parseLocationPoint } from './coordParsing';
 
 // ============================================================================
 // COORDINATE PARSING
