@@ -701,7 +701,7 @@ export function AskQuestionModule() {
       let finalOpType: string = opType;
       const factBuilder = getFactBuilder(question.category.category_name);
       if (factBuilder) {
-        const resolved = resolveFactBuilder(factBuilder, question);
+        const resolved = await resolveFactBuilder(factBuilder, question);
         opMeta = resolved.opMeta;
         finalOpType = resolved.opType;
       } else {

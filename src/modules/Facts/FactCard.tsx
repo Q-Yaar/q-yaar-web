@@ -34,8 +34,10 @@ const renderOperationDetails = (opType: string, opMeta: any) => {
       return `Hider is ${opMeta.splitDirection}`;
     case 'hotter-colder':
       return `Closer to ${opMeta.preferredPoint}`;
-    case 'areas':
-      return `${opMeta.areaOpType}${opMeta.selectedLineIndex !== undefined ? ` (Area ${opMeta.selectedLineIndex + 1})` : ''}`;
+    case 'areas': {
+      const prefix = opMeta.areaOpType ? `${opMeta.areaOpType} ` : '';
+      return `${prefix}${opMeta.selectedLineIndex !== undefined ? `(Area ${opMeta.selectedLineIndex + 1})` : ''}`.trim() || 'Area';
+    }
     case 'closer-to-line':
       return `${opMeta.closerFurther} than Seeker ${opMeta.selectedLineIndex !== undefined ? `(Line ${opMeta.selectedLineIndex + 1})` : ''}`;
     case 'polygon-location':

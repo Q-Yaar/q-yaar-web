@@ -115,6 +115,43 @@ const MEASURING_FACT_BUILDER: FactBuilderConfig = {
   },
 };
 
+// Fact builder for Matching category.
+//
+// "My nearest metro line is Green Line. Is your nearest metro line the same?"
+// The answerer's nearest feature (e.g. "Green Line") is stored in fact_meta as
+// feature_name, and the accepted answer (point-in-polygon result) tells whether
+// the hider is inside that feature's polygon. The fact shades the feature's
+// polygon: inside when the accepted answer is true, outside (difference) when
+// false.
+//
+// Matching questions never persist the polygon to fact_meta (the auto-answer
+// handler loads it async via getPolygonForFeature and discards it), so the
+// factBuilder reuses that same lookup to populate the `areas` op's
+// uploadedArea. The polygon is wrapped as a GeoJSON Polygon Feature, the shape
+// applySingleOperation's `areas` branch expects.
+const MATCHING_FACT_BUILDER: FactBuilderConfig = {
+  opType: 'areas',
+  fields: {
+    // The feature polygon, loaded by name (reuses getPolygonForFeature).
+    uploadedArea: {
+      kind: 'featureArea',
+      featureName: { source: 'fact_meta', path: 'feature_name', type: 'string' },
+    },
+    // Shade inside the feature if the hider is inside (accepted true), else
+    // difference the feature out (outside).
+    areaOpType: { kind: 'fromAcceptedResult', true: 'inside', false: 'outside' },
+    // Provenance: which feature and (for FeatureCollection sources) which index.
+    featureName: {
+      kind: 'raw',
+      extract: { source: 'fact_meta', path: 'feature_name', type: 'string' },
+    },
+    selectedLineIndex: {
+      kind: 'raw',
+      extract: { source: 'fact_meta', path: 'selected_line_index', type: 'number' },
+    },
+  },
+};
+
 // Handler config for Polygon Location category
 const POLYGON_LOCATION_HANDLER_CONFIG: HandlerConfig = {
   operation: 'polygon_containment',
@@ -277,6 +314,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
     name: 'Matching',
     operation: 'Matching',
     handlerConfig: MATCHING_HANDLER_CONFIG,
+    factBuilder: MATCHING_FACT_BUILDER,
     isGeo: true,
     aliases: [],
     ask: {

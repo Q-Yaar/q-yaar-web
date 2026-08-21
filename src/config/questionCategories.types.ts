@@ -96,6 +96,10 @@ export type FactBuilderValue =
   | { kind: 'distance_km'; a: ValueExtractor; b: ValueExtractor }
   /** Map the accepted answer result (true/false) to a literal -> string */
   | { kind: 'fromAcceptedResult'; true: string; false: string }
+  /** Pass-through of a raw extracted value (string/number/etc.) */
+  | { kind: 'raw'; extract: ValueExtractor }
+  /** A named feature's polygon, loaded async via getPolygonForFeature, wrapped as a GeoJSON Polygon Feature */
+  | { kind: 'featureArea'; featureName: ValueExtractor }
   /** A literal value (passthrough, with empty-value filtering applied) */
   | { kind: 'literal'; value: unknown };
 
