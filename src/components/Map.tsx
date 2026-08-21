@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { Protocol as PMTilesProtocol } from 'pmtiles';
 import { Heading, Operation } from '../utils/geoTypes';
 import { LocationPing } from '../models/Location';
 import { formatLastSeen } from '../utils/formatTime';
@@ -50,6 +51,16 @@ interface MapProps {
 const getOperationIds = (ops: Operation[]): string[] => {
   return ops.map(op => op.id);
 };
+
+// Register the PMTiles protocol once so MapLibre can resolve pmtiles:// sources.
+// Done at module scope (runs once per page load) rather than per-mount to avoid
+// duplicate-handler errors under React StrictMode / hot reload.
+let pmtilesRegistered = false;
+if (!pmtilesRegistered) {
+  const protocol = new PMTilesProtocol();
+  maplibregl.addProtocol('pmtiles', protocol.tile);
+  pmtilesRegistered = true;
+}
 
 const Map: React.FC<MapProps> = ({
   action,
@@ -513,6 +524,38 @@ const Map: React.FC<MapProps> = ({
 
     m.on('load', () => {
       console.log(`[Map ${instanceId}] Map Loaded`);
+
+      // --- Transit overlay (PMTiles) ---
+      // Source points at the local PMTiles archive. The pmtiles protocol reads
+      // the archive header to derive min/max zoom, so we use `url:` (not `tiles:`).
+      const publicUrl = process.env.PUBLIC_URL || '';
+      const transitTilesUrl = `${window.location.origin}${publicUrl}/assets/transit.pmtiles`;
+      m.addSource('transit-pmtiles', {
+        type: 'vector',
+        url: `pmtiles://${transitTilesUrl}`,
+      });
+
+      // Layers are defined in public/transit-style.json (all reference the
+      // 'transit-pmtiles' source, 'subway' source-layer). Fetch and add them so
+      // the style lives in a data file rather than inline in the component.
+      fetch(`${publicUrl}/transit-style.json`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`Failed to load transit-style.json: ${res.status}`);
+          return res.json();
+        })
+        .then((layers: any[]) => {
+          layers.forEach((layer) => {
+            // Only add layers backed by the transit source; skip anything else.
+            // Insert before 'shading-fill' so the fact overlays render above the
+            // transit lines and shade them away.
+            if (layer.source === 'transit-pmtiles' && !m.getLayer(layer.id)) {
+              m.addLayer(layer, 'shading-fill');
+            }
+          });
+        })
+        .catch((err) => {
+          console.warn(`[Map ${instanceId}] Could not load transit overlay:`, err);
+        });
 
       m.addSource('measurement-source', {
         type: 'geojson',
