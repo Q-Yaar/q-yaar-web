@@ -76,6 +76,43 @@ export interface HandlerConfig {
 }
 
 // ============================================================================
+// FACT BUILDER CONFIG TYPES
+// ============================================================================
+
+/**
+ * Describes how to derive a single op_meta field for a fact created from an
+ * accepted question. Used by categories whose fact fields don't map 1:1 from
+ * question fields (e.g. Measuring derives a radius from two points).
+ *
+ * Coordinates are extracted as { lat, lon } and emitted as [lng, lat] arrays
+ * (the ordering used by op_meta / geoWorker).
+ */
+export type FactBuilderValue =
+  /** A single coordinate -> [lng, lat] */
+  | { kind: 'point'; extract: ValueExtractor }
+  /** One or more coordinates -> [[lng, lat], ...] */
+  | { kind: 'points'; extracts: ValueExtractor[] }
+  /** Great-circle distance (km) between two extracted points -> number */
+  | { kind: 'distance_km'; a: ValueExtractor; b: ValueExtractor }
+  /** Map the accepted answer result (true/false) to a literal -> string */
+  | { kind: 'fromAcceptedResult'; true: string; false: string }
+  /** A literal value (passthrough, with empty-value filtering applied) */
+  | { kind: 'literal'; value: unknown };
+
+/**
+ * Config-driven fact builder. Describes how to construct the geometry op_meta
+ * for a fact created from an accepted question, for categories that need
+ * derived fields. Categories without a factBuilder fall back to the generic
+ * field-mapping path in createFactFromQuestion.
+ */
+export interface FactBuilderConfig {
+  /** The op_type (UI tool type) for the created fact. */
+  opType: UIToolType;
+  /** op_meta fields consumed by applySingleOperation. */
+  fields: Record<string, FactBuilderValue>;
+}
+
+// ============================================================================
 // OPERATION TYPES
 // ============================================================================
 
@@ -213,7 +250,15 @@ export interface CategoryConfig {
   
   /** Config-driven handler definition for this category */
   handlerConfig?: HandlerConfig;
-  
+
+  /**
+   * Config-driven fact builder for this category. When present,
+   * createFactFromQuestion uses this to derive the fact's op_meta instead of
+   * the generic field-mapping path. Used by categories whose fact fields are
+   * derived from the accepted question (e.g. Measuring derives a radius).
+   */
+  factBuilder?: FactBuilderConfig;
+
   /** The handler function for this category (can be derived from handlerConfig) */
   handler?: AutomationHandler;
   

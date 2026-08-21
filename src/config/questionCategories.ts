@@ -36,6 +36,7 @@ import type {
   AutoAnswerResult,
   AutomationHandler,
   AutomationConfig,
+  FactBuilderConfig,
 } from './questionCategories.types';
 
 // Import everything from config module
@@ -55,9 +56,10 @@ export type {
   CategoryConfig,
   AutoAnswer,
   AutoAnswerResult,
-  AutomationContext,
   AutomationHandler,
   AutomationConfig,
+  FactBuilderConfig,
+  FactBuilderValue,
 } from './questionCategories.types';
 
 // Re-export from config
@@ -87,6 +89,10 @@ export {
 
 // Re-export debug functions from handlerFactory
 export { setHandlerDebug, debugHandler } from './handlerFactory';
+
+// Re-export fact builder resolver
+export { resolveFactBuilder } from './factBuilder';
+export type { ResolvedFactBuilder } from './factBuilder';
 
 // ============================================================================
 // HANDLER REGISTRATION
@@ -185,6 +191,15 @@ export function getAskRequiredPlaceholders(categoryName: string): string[] {
 export function getFactMetaDefaults(categoryName: string): FactMeta {
   const factConfig = getFactConfig(categoryName);
   return factConfig?.factMetaDefaults || Config.DEFAULT_FACT_META;
+}
+
+/**
+ * Get the config-driven fact builder for a category (resolves aliases).
+ * Returns undefined for categories that use the generic fact-creation path.
+ */
+export function getFactBuilder(categoryName: string): FactBuilderConfig | undefined {
+  const config = getCategoryConfig(categoryName);
+  return config?.factBuilder;
 }
 
 /**
