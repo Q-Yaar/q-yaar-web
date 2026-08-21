@@ -740,10 +740,25 @@ export function AskQuestionModule() {
       };
 
       const rawRadius = fMeta.radius || qMeta.radius;
+      // fact_meta.radius is in meters (the point-in-circle handler compares
+      // against distanceMeters), but op_meta.radius is consumed by
+      // getCirclePolygon as kilometers (the manual sidebar input is labeled
+      // "Radius (km)"). Convert m -> km so the drawn circle is the right size;
+      // the handler reads fact_meta (meters) separately and is unaffected.
+      // Circle/Radar questions never persist hider_location to fact_meta (it's a
+      // context-only handler input), so derive the shading side from the
+      // accepted answer instead: the handler's result is `isInside`, so true
+      // means the hider is within the circle (shade inside) and false means
+      // outside. applySingleOperation intersects for 'inside' and differences
+      // otherwise, so without this the fact shades the wrong region.
+      const acceptedResult = String(question.answer_meta?.result ?? '').toLowerCase();
+      const derivedHiderLocation =
+        acceptedResult === 'true' ? 'inside' :
+        acceptedResult === 'false' ? 'outside' : undefined;
       const opCandidates: Record<string, any> = {
         points: allPoints.map((p) => [Number(p.lon), Number(p.lat)]),
-        radius: rawRadius ? Number(rawRadius) : undefined,
-        hiderLocation: fMeta.hider_location || qMeta.hiderLocation || undefined,
+        radius: rawRadius ? Number(rawRadius) / 1000 : undefined,
+        hiderLocation: fMeta.hider_location || qMeta.hiderLocation || derivedHiderLocation,
         splitDirection: capitalizeDirection(
           fMeta.split_direction || qMeta.split_direction || qMeta.splitDirection || ''
         ),
