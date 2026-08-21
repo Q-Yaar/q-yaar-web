@@ -12,6 +12,7 @@
 import type { Coord } from '../utils/geoTypes';
 import type { AskedQuestion } from '../models/QnA';
 import { calculateDistance } from '../utils/geoUtils';
+import { getPolygonForFeature } from '../utils/featureUtils';
 import { parseCoord, parseLocationPoint } from './coordParsing';
 import type {
   FactBuilderConfig,
@@ -136,7 +137,7 @@ function isEmptyValue(value: unknown): boolean {
  * Resolve a single FactBuilderValue to its concrete value, or undefined if
  * the required inputs are missing.
  */
-function resolveValue(question: AskedQuestion, value: FactBuilderValue): unknown {
+async function resolveValue(question: AskedQuestion, value: FactBuilderValue): Promise<unknown> {
   switch (value.kind) {
     case 'point': {
       return extractCoordLngLat(question, value.extract);
@@ -166,6 +167,29 @@ function resolveValue(question: AskedQuestion, value: FactBuilderValue): unknown
       return undefined;
     }
 
+    case 'raw': {
+      return extractRawValue(question, value.extract);
+    }
+
+    case 'featureArea': {
+      // Reuses the same feature-lookup the answer-automation handler uses
+      // (getPolygonForFeature). Matching questions only persist `feature_name`
+      // at ask time; the polygon is loaded async here and wrapped as a GeoJSON
+      // Polygon Feature for the `areas` op's `uploadedArea` field.
+      const name = extractRawValue(question, value.featureName);
+      if (!name) return undefined;
+      const polygon = await getPolygonForFeature(String(name));
+      if (!polygon || polygon.length < 3) return undefined;
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [polygon.map((c) => [Number(c.lon), Number(c.lat)])],
+        },
+        properties: {},
+      };
+    }
+
     case 'literal':
       return value.value;
 
@@ -178,13 +202,13 @@ function resolveValue(question: AskedQuestion, value: FactBuilderValue): unknown
  * Resolve a FactBuilderConfig into the op_type and geometry op_meta for a fact
  * created from an accepted question. Empty/missing fields are filtered out.
  */
-export function resolveFactBuilder(
+export async function resolveFactBuilder(
   config: FactBuilderConfig,
   question: AskedQuestion,
-): ResolvedFactBuilder {
+): Promise<ResolvedFactBuilder> {
   const opMeta: Record<string, any> = {};
   for (const [key, valueConfig] of Object.entries(config.fields)) {
-    const resolved = resolveValue(question, valueConfig);
+    const resolved = await resolveValue(question, valueConfig);
     if (isEmptyValue(resolved)) continue;
     opMeta[key] = resolved;
   }

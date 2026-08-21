@@ -41,8 +41,10 @@ export const OperationCard: React.FC<OperationCardProps> = ({ op, index, onSave,
         return `Hider is ${op.splitDirection}`;
       case 'hotter-colder':
         return `Closer to ${op.preferredPoint}`;
-      case 'areas':
-        return `${op.areaOpType}${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? ` (Area ${op.selectedLineIndex + 1})` : ''}`;
+      case 'areas': {
+        const prefix = op.areaOpType ? `${op.areaOpType} ` : '';
+        return `${prefix}${op.featureName ? `(${op.featureName})` : op.selectedLineIndex !== undefined ? `(Area ${op.selectedLineIndex + 1})` : ''}`.trim();
+      }
       case 'closer-to-line':
         return `${op.closerFurther} than Seeker ${op.featureName ? ` (${op.featureName})` : op.selectedLineIndex !== undefined ? `(Line ${op.selectedLineIndex + 1})` : ''}`;
       case 'polygon-location':

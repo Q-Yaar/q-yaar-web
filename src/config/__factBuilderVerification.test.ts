@@ -7,6 +7,7 @@
 import { resolveFactBuilder } from '../config/factBuilder';
 import { getFactBuilder } from '../config/questionCategories';
 import type { AskedQuestion } from '../models/QnA';
+import { getPolygonForFeature } from '../utils/featureUtils';
 
 // @turf/turf pulls in ESM-only deps that CRA's jest can't transform, so mock
 // geoUtils with a haversine calculateDistance (same great-circle math turf
@@ -27,6 +28,12 @@ jest.mock('../utils/geoUtils', () => {
   };
   return { calculateDistance };
 });
+
+// Matching's factBuilder reuses getPolygonForFeature (the same async lookup the
+// answer-automation handler uses). Mock it so the test doesn't fetch GeoJSON.
+jest.mock('../utils/featureUtils', () => ({
+  getPolygonForFeature: jest.fn(),
+}));
 
 describe('Measuring fact builder (verification)', () => {
   // Reconstructed from the user's fact + the source question.
@@ -50,9 +57,9 @@ describe('Measuring fact builder (verification)', () => {
     expect(getFactBuilder('Measuring')).toBeDefined();
   });
 
-  it('emits a target-centered draw-circle with the seeker<->target distance as radius', () => {
+  it('emits a target-centered draw-circle with the seeker<->target distance as radius', async () => {
     const builder = getFactBuilder('Measuring')!;
-    const { opType, opMeta } = resolveFactBuilder(builder, question);
+    const { opType, opMeta } = await resolveFactBuilder(builder, question);
 
     expect(opType).toBe('draw-circle');
 
@@ -69,18 +76,101 @@ describe('Measuring fact builder (verification)', () => {
     expect(opMeta.hiderLocation).toBe('outside');
   });
 
-  it('shades inside when the accepted answer is "closer" (true)', () => {
+  it('shades inside when the accepted answer is "closer" (true)', async () => {
     const closer = {
       ...question,
       answer_meta: { result: true, metadata: { text: 'closer' } },
     } as unknown as AskedQuestion;
     const builder = getFactBuilder('Measuring')!;
-    const { opMeta } = resolveFactBuilder(builder, closer);
+    const { opMeta } = await resolveFactBuilder(builder, closer);
     expect(opMeta.hiderLocation).toBe('inside');
   });
 
   it('falls back to generic path (no factBuilder) for a category without one', () => {
     // Photo has no factBuilder.
     expect(getFactBuilder('Photo')).toBeUndefined();
+  });
+});
+
+describe('Matching fact builder (verification)', () => {
+  // Reconstructed from the user's fact. The answerer's nearest feature is
+  // "Green Line" (stored in fact_meta.feature_name), selected_line_index 0,
+  // and the accepted answer is false (hider NOT inside the Green Line region).
+  const question = {
+    question_id: '710efb0f-62d0-45cd-bc6d-9f6f0965f72b',
+    rendered_question: 'My nearest metro line is Green Line. Is your nearest metro line the same?',
+    category: { category_name: 'Matching' },
+    question_meta: {
+      location_points: [{ lat: '12.961618640136894', lon: '77.73080285247158' }],
+    },
+    fact_meta: {
+      feature_name: 'Green Line',
+      selected_line_index: 0,
+    },
+    answer_meta: { result: false, metadata: { text: 'false in Green Line' } },
+  } as unknown as AskedQuestion;
+
+  // A simple triangle polygon (Coord[] = {lat, lon}[]), as getPolygonForFeature
+  // returns. The factBuilder must wrap it as a GeoJSON Polygon Feature with
+  // [lng, lat] rings.
+  const triangle = [
+    { lat: 13, lon: 77.7 },
+    { lat: 13.1, lon: 77.8 },
+    { lat: 12.9, lon: 77.8 },
+  ];
+
+  beforeEach(() => {
+    (getPolygonForFeature as jest.Mock).mockReset();
+  });
+
+  it('has a factBuilder registered for Matching', () => {
+    expect(getFactBuilder('Matching')).toBeDefined();
+  });
+
+  it('loads the feature polygon and shades outside when the accepted answer is false', async () => {
+    (getPolygonForFeature as jest.Mock).mockResolvedValue(triangle);
+
+    const builder = getFactBuilder('Matching')!;
+    const { opType, opMeta } = await resolveFactBuilder(builder, question);
+
+    expect(opType).toBe('areas');
+
+    // Reuses the same feature lookup the handler uses.
+    expect(getPolygonForFeature).toHaveBeenCalledWith('Green Line');
+
+    // uploadedArea is a GeoJSON Polygon Feature with [lng, lat] ring.
+    expect(opMeta.uploadedArea).toEqual({
+      type: 'Feature',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[77.7, 13], [77.8, 13.1], [77.8, 12.9]]],
+      },
+      properties: {},
+    });
+
+    // Accepted false -> hider outside the feature -> difference (outside).
+    expect(opMeta.areaOpType).toBe('outside');
+
+    // Provenance fields pass through.
+    expect(opMeta.featureName).toBe('Green Line');
+    expect(opMeta.selectedLineIndex).toBe(0);
+  });
+
+  it('shades inside when the accepted answer is true', async () => {
+    (getPolygonForFeature as jest.Mock).mockResolvedValue(triangle);
+    const inside = {
+      ...question,
+      answer_meta: { result: true, metadata: { text: 'true in Green Line' } },
+    } as unknown as AskedQuestion;
+    const builder = getFactBuilder('Matching')!;
+    const { opMeta } = await resolveFactBuilder(builder, inside);
+    expect(opMeta.areaOpType).toBe('inside');
+  });
+
+  it('omits uploadedArea when the feature polygon cannot be loaded', async () => {
+    (getPolygonForFeature as jest.Mock).mockResolvedValue(null);
+    const builder = getFactBuilder('Matching')!;
+    const { opMeta } = await resolveFactBuilder(builder, question);
+    expect(opMeta.uploadedArea).toBeUndefined();
   });
 });
