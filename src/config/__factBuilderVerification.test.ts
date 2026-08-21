@@ -174,3 +174,58 @@ describe('Matching fact builder (verification)', () => {
     expect(opMeta.uploadedArea).toBeUndefined();
   });
 });
+
+describe('Thermometer fact builder (verification)', () => {
+  // The seeker moved from location_points[0] (previous) to location_points[1]
+  // (current). The hider is the target (a live answer-time input, not persisted
+  // in question_meta). The fact is a hotter-colder op over the two seeker
+  // points, with preferredPoint derived from the accepted isGettingCloser
+  // answer. location_points are { lat, lon } strings, as stored at ask time.
+  const question = {
+    question_id: 'thermo-1',
+    rendered_question: 'Am I getting closer to or further from the target?',
+    category: { category_name: 'Thermometer' },
+    question_meta: {
+      location_points: [
+        { lat: '12.96', lon: '77.73' }, // previous seeker pos (p1)
+        { lat: '12.97', lon: '77.74' }, // current seeker pos (p2)
+      ],
+    },
+    fact_meta: {},
+    answer_meta: { result: true, metadata: { text: 'true: 50m' } },
+  } as unknown as AskedQuestion;
+
+  it('has a factBuilder registered for Thermometer', () => {
+    expect(getFactBuilder('Thermometer')).toBeDefined();
+  });
+
+  it('emits a hotter-colder op over the two seeker points as [lng, lat]', async () => {
+    const builder = getFactBuilder('Thermometer')!;
+    const { opType, opMeta } = await resolveFactBuilder(builder, question);
+
+    expect(opType).toBe('hotter-colder');
+    expect(opMeta.points).toEqual([
+      [77.73, 12.96],
+      [77.74, 12.97],
+    ]);
+  });
+
+  it('sets preferredPoint to p2 (current) when the seeker got closer (true)', async () => {
+    const builder = getFactBuilder('Thermometer')!;
+    const { opMeta } = await resolveFactBuilder(builder, question);
+    // isGettingCloser true -> hider closer to current (p2). preferredPoint names
+    // the kept half (applySingleOperation differences out the other point's cell).
+    expect(opMeta.preferredPoint).toBe('p2');
+    expect(opMeta.preferredPoint).not.toBeUndefined();
+  });
+
+  it('sets preferredPoint to p1 (previous) when the seeker got further (false)', async () => {
+    const further = {
+      ...question,
+      answer_meta: { result: false, metadata: { text: 'false: -50m' } },
+    } as unknown as AskedQuestion;
+    const builder = getFactBuilder('Thermometer')!;
+    const { opMeta } = await resolveFactBuilder(builder, further);
+    expect(opMeta.preferredPoint).toBe('p1');
+  });
+});
