@@ -31,6 +31,8 @@ import {
   getAskRequiredPlaceholders,
   DEFAULT_FACT_META,
   getToolTypeForCategory,
+  getFactBuilder,
+  resolveFactBuilder,
 } from '../../config/questionCategories';
 import { getAreaConfigByName, getAreaConfigByIdentifier, ALL_AREAS } from '../../config/areaConfig';
 import { resolveAreaToFeatureName } from '../../utils/geoJsonLoader';
@@ -689,7 +691,20 @@ export function AskQuestionModule() {
     try {
       // Get tool type from config (resolves aliases automatically)
       const opType = getToolTypeForCategory(question.category.category_name) || question.category.category_name;
-      
+
+      // op_type and geometry op_meta for the fact. A category may override the
+      // generic field-mapping path with a config-driven factBuilder (e.g.
+      // Measuring derives a target-centered circle whose radius is the
+      // seeker<->target distance, and shades inside/outside based on the
+      // accepted "closer/further" answer).
+      let opMeta: Record<string, any>;
+      let finalOpType: string = opType;
+      const factBuilder = getFactBuilder(question.category.category_name);
+      if (factBuilder) {
+        const resolved = resolveFactBuilder(factBuilder, question);
+        opMeta = resolved.opMeta;
+        finalOpType = resolved.opType;
+      } else {
       // Collect all location points from various meta fields
       const allPoints: LocationPoint[] = [];
       const qMeta: Record<string, any> = question.question_meta || {};
@@ -786,7 +801,7 @@ export function AskQuestionModule() {
       };
 
       const relevantFields = RELEVANT_OP_FIELDS[opType] || Object.keys(opCandidates);
-      const opMeta: Record<string, any> = {};
+      opMeta = {};
       for (const key of relevantFields) {
         const value = opCandidates[key];
         if (value === undefined || value === null) continue;
@@ -796,6 +811,7 @@ export function AskQuestionModule() {
         if (typeof value === 'object' && Object.keys(value).length === 0) continue;
         opMeta[key] = value;
       }
+      } // end generic field-mapping path
 
       // Provenance metadata for tracing the fact back to its source question.
       opMeta.sourceQuestionId = question.question_id;
@@ -809,7 +825,7 @@ export function AskQuestionModule() {
         team_id: targetTeamId,
         fact_type: 'GEO',
         fact_info: {
-          op_type: opType,
+          op_type: finalOpType,
           op_meta: opMeta,
         },
       }).unwrap();

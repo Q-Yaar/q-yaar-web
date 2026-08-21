@@ -16,6 +16,7 @@ import type {
   AutomationContext,
   AutoAnswer,
   HandlerConfig,
+  FactBuilderConfig,
 } from './questionCategories.types';
 import { createHandlerFromConfig } from './handlerFactory';
 
@@ -83,6 +84,34 @@ const MEASURING_HANDLER_CONFIG: HandlerConfig = {
     resultField: 'isCloser',
     textTemplate: 'Hiding: {{distanceCD}}m, Seeking: {{distanceAB}}m to target',
     computationMethod: 'relative_distance_comparison',
+  },
+};
+
+// Fact builder for Measuring category.
+//
+// "Compared to me, are you closer to / further from [target]?" The boundary
+// between closer-than-seeker and further-than-seeker is a circle centered on
+// the TARGET with radius = distance(seeker, target). The accepted answer
+// (isCloser) selects which side to shade: true -> inside, false -> outside.
+//
+// The fact is stored as a draw-circle op (consumed by applySingleOperation in
+// geoWorker), with the target as the center and the seeker<->target distance
+// (km, as required by getCirclePolygon) as the radius.
+const MEASURING_FACT_BUILDER: FactBuilderConfig = {
+  opType: 'draw-circle',
+  fields: {
+    // Center = target (location_points[1]).
+    points: { kind: 'points', extracts: [
+      { source: 'question_meta', path: 'location_points[1]', type: 'coord' },
+    ] },
+    // Radius = distance(seeker, target) in kilometers.
+    radius: {
+      kind: 'distance_km',
+      a: { source: 'question_meta', path: 'location_points[0]', type: 'coord' },
+      b: { source: 'question_meta', path: 'location_points[1]', type: 'coord' },
+    },
+    // Shade inside if the hider is closer (accepted result true), else outside.
+    hiderLocation: { kind: 'fromAcceptedResult', true: 'inside', false: 'outside' },
   },
 };
 
@@ -275,6 +304,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
     name: 'Measuring',
     operation: 'Measuring',
     handlerConfig: MEASURING_HANDLER_CONFIG,
+    factBuilder: MEASURING_FACT_BUILDER,
     isGeo: true,
     ask: {
       requiredLocations: { seeker: true, target: true },
