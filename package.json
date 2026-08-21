@@ -24,6 +24,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.553.0",
     "maplibre-gl": "^5.9.0",
+    "pmtiles": "^4.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.1",
