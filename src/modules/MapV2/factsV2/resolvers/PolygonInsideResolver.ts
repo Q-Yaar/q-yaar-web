@@ -10,6 +10,7 @@ export class PolygonInsideResolver extends SubOpResolver<PolygonInsideMeta> {
   }
 
   private polygon(): Feature<Polygon | MultiPolygon> {
+    if (this.meta.geometry) return { type: 'Feature', geometry: this.meta.geometry, properties: {} };
     const entry = this.polygons[this.meta.polygon];
     if (!entry) throw new Error(`Unknown polygon registry key: ${this.meta.polygon}`);
     return { type: 'Feature', geometry: entry.geometry, properties: {} };

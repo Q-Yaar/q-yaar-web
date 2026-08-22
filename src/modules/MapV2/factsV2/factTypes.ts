@@ -60,9 +60,18 @@ export interface ResolvedLatLon {
   picked_at?: string;
 }
 
-export interface LineBufferInsideMeta { line: string; distance: number }
-export interface LinePointBufferInsideMeta { line: string; point: ResolvedLatLon }
-export interface PolygonInsideMeta { polygon: string }
+/**
+ * `geometry` is a FactDto-only escape hatch — a fact can carry the line's
+ * actual geometry inline instead of a registry key, and the resolver skips
+ * the registry lookup entirely when it's present. Named to match
+ * RegistryEntry.geometry, which is the same "here's the real geometry"
+ * value in the normal (registry-backed) case. AskedQuestionDto/
+ * buildDraftQuestion.ts never set this — the wizard only ever resolves
+ * slots through a registry key, never an inline geometry.
+ */
+export interface LineBufferInsideMeta { line: string; distance: number; geometry?: LineString }
+export interface LinePointBufferInsideMeta { line: string; point: ResolvedLatLon; geometry?: LineString }
+export interface PolygonInsideMeta { polygon: string; geometry?: Polygon | MultiPolygon }
 export interface PointBufferInsideMeta { point: ResolvedLatLon; radius: number }
 export interface PointPointBufferInsideMeta { anchor: ResolvedLatLon; point: ResolvedLatLon }
 export interface PointSplitMeta { point: ResolvedLatLon }

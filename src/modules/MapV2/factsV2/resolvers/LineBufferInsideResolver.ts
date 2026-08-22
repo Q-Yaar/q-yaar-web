@@ -10,6 +10,7 @@ export class LineBufferInsideResolver extends SubOpResolver<LineBufferInsideMeta
   }
 
   private line(): Feature<LineString> {
+    if (this.meta.geometry) return { type: 'Feature', geometry: this.meta.geometry, properties: {} };
     const entry = this.lines[this.meta.line];
     if (!entry) throw new Error(`Unknown line registry key: ${this.meta.line}`);
     return { type: 'Feature', geometry: entry.geometry, properties: {} };
