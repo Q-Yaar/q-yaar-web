@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { MapLayerRegistry } from './layers/MapLayerRegistry';
-import { MapLayerRegistryProvider, useMapLayerModule } from './layers/hooks';
+import { MapLayerRegistryProvider, useLayerTree, useMapLayerModule } from './layers/hooks';
 import { useMapInstance } from './hooks/useMapInstance';
 import { useGeometryRegistries } from './factsV2/registries';
+import { computeFactsArea } from './factsV2/resolveClue';
 import { MOCK_DRAFT_QUESTIONS, MOCK_FACTS, draftQuestionToFact } from './factsV2/mockData';
 import { AskedQuestionDto, FactDto, POINT_SOURCE, ResolvedLatLon } from './factsV2/factTypes';
 import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND } from './factsV2/buildDraftQuestion';
@@ -25,6 +26,15 @@ const DRAFT_FACTS_MODULE_ID = 'draft-facts';
 const FACTS_FILL_LAYER = `${FACTS_MODULE_ID}-fill`;
 const DRAFT_FACTS_FILL_LAYER = `${DRAFT_FACTS_MODULE_ID}-fill`;
 const FACT_HIT_LAYERS = [FACTS_FILL_LAYER, DRAFT_FACTS_FILL_LAYER];
+
+/** A stable "no items yet" reference — passing a fresh `[]` literal as
+ * useMapLayerModule's items argument re-triggers its setItems effect on
+ * every render (new array => changed dependency), which calls
+ * notifyTreeChange() => registry.invalidate(), which re-renders any
+ * useLayerTree() subscriber (including this component itself) => another
+ * render => another fresh `[]` => infinite loop. One shared empty array
+ * (TS accepts `never[]` for any element type here) breaks that cycle. */
+const EMPTY_ITEMS: never[] = [];
 
 interface SelectedFact {
   fact: FactDto;
@@ -64,6 +74,36 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
   playAreaRef.current = geometry.playArea;
   const universe = useMemo(() => () => playAreaRef.current, []);
 
+  // Draft Facts fold on top of whatever the Facts layer currently leaves
+  // possible — but only whatever it's *effectively showing*: a fact hidden
+  // via the Facts group toggle, the Facts module toggle, or that one fact's
+  // own item checkbox must not still shrink the drafts' starting area.
+  const { tree } = useLayerTree();
+  const visibleConfirmedFacts = useMemo(() => {
+    const factsGroup = tree.groups.find((g) => g.id === GROUP_ID.FACTS);
+    const factsModuleNode = factsGroup?.modules.find((m) => m.id === FACTS_MODULE_ID);
+    if (!factsGroup?.visible || !factsModuleNode?.visible) return [];
+    const visibleIds = new Set(factsModuleNode.items.filter((i) => i.visible).map((i) => i.id));
+    return MOCK_FACTS.filter((fact) => visibleIds.has(fact.fact_id));
+  }, [tree]);
+
+  // Facts start from the game zone and fold each confirmed fact in,
+  // shrinking the "possible" area; Draft Facts start from wherever that
+  // leaves off and shrink it further — the cumulative-reduction chain the
+  // shading represents. Recomputed every render (cheap for a handful of
+  // mock facts) rather than memoized on `geometry`, since
+  // `geometry.registries` is populated in place and wouldn't be seen as
+  // "changed" by a dependency array anyway.
+  const confirmedAreaRef = useRef(geometry.playArea);
+  if (!geometry.loading) {
+    try {
+      confirmedAreaRef.current = computeFactsArea(geometry.playArea, visibleConfirmedFacts, geometry.registries);
+    } catch (err) {
+      console.warn('[MapV2] Failed to fold confirmed facts into an area', err);
+    }
+  }
+  const draftsUniverse = useMemo(() => () => confirmedAreaRef.current, []);
+
   // Stable module instances — created once, kept for the canvas's lifetime.
   const [pointsModule] = useState(() => new PointsDistanceModule());
   const [polygonModule] = useState(() => new PolygonOverlayModule());
@@ -77,8 +117,18 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
   const [draftFactsModule] = useState(() => new FactsLayerModule(
     { id: DRAFT_FACTS_MODULE_ID, groupId: GROUP_ID.FACTS, label: 'Draft Facts', fillColor: '#9c27b0', fillOpacity: 0.28, dashed: true },
     geometry.registries,
-    universe,
+    draftsUniverse,
   ));
+
+  // Toggling a confirmed fact's visibility changes confirmedAreaRef (via
+  // draftsUniverse) without changing draftFactsModule's own item list, so
+  // nothing would otherwise tell it to redraw. render() just re-reads
+  // toFeatures/extraFeatures against the current universe and calls
+  // setData — it doesn't call notifyTreeChange, so this can't feed back
+  // into another registry invalidation.
+  useEffect(() => {
+    draftFactsModule.render();
+  }, [visibleConfirmedFacts, draftFactsModule]);
 
   const [points, setPoints] = useState<PointDistanceItem[]>([]);
   const [previewEnabled, setPreviewEnabled] = useState(false);
@@ -107,11 +157,11 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
   );
 
   useMapLayerModule(pointsModule, points);
-  useMapLayerModule(polygonModule, geometry.loading ? [] : geometry.polygonItems);
-  useMapLayerModule(metroModule, geometry.loading ? [] : geometry.lineItems);
-  useMapLayerModule(previewModule, []);
-  useMapLayerModule(factsModule, geometry.loading ? [] : factItems);
-  useMapLayerModule(draftFactsModule, geometry.loading ? [] : draftFactItems);
+  useMapLayerModule(polygonModule, geometry.loading ? EMPTY_ITEMS : geometry.polygonItems);
+  useMapLayerModule(metroModule, geometry.loading ? EMPTY_ITEMS : geometry.lineItems);
+  useMapLayerModule(previewModule, EMPTY_ITEMS);
+  useMapLayerModule(factsModule, geometry.loading ? EMPTY_ITEMS : factItems);
+  useMapLayerModule(draftFactsModule, geometry.loading ? EMPTY_ITEMS : draftFactItems);
 
   // --- Draft-fact wizard state -------------------------------------------
   const [wizardOpen, setWizardOpen] = useState(false);

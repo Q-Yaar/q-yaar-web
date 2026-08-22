@@ -3,6 +3,7 @@ import { Feature, LineString, MultiPolygon, Polygon } from 'geojson';
 import { GeometryRegistries } from './factTypes';
 import { globalWorld } from '../../../utils/geoUtils';
 import { CORPORATION_ASSET_URLS, MAP_ASSETS, METRO_LINE_ASSET_URLS, METRO_LINE_REGION_ASSET_URLS } from '../assets';
+import { normalizePlayArea } from '../utils/geo';
 
 export const REGION_KIND = {
   CORPORATION: 'corporation',
@@ -75,7 +76,7 @@ async function loadGeometry(): Promise<LoadedGeometry> {
     registries,
     polygonItems,
     lineItems,
-    playArea: playAreaGeoJson.type === 'Feature' ? playAreaGeoJson : { type: 'Feature', geometry: playAreaGeoJson, properties: {} },
+    playArea: normalizePlayArea(playAreaGeoJson),
   };
 }
 

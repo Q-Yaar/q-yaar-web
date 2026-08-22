@@ -2,7 +2,8 @@ import { Feature, MultiPolygon, Polygon } from 'geojson';
 import maplibregl from 'maplibre-gl';
 import { GeoJsonLayerModule } from '../GeoJsonLayerModule';
 import { FactDto, GeometryRegistries } from '../../factsV2/factTypes';
-import { factToRegion } from '../../factsV2/resolveClue';
+import { computeFactsArea } from '../../factsV2/resolveClue';
+import { differencePolygons } from '../../../../utils/geoUtils';
 
 export interface FactItem {
   id: string;
@@ -19,12 +20,18 @@ export interface FactsLayerConfig {
 }
 
 /**
- * Capabilities #5 and #6 — Draft Facts and Facts. Both consume factToRegion
- * from the SubOp resolver work — the resolver classes don't change at all,
- * they just become this module's per-item renderer. DraftFactsLayerModule
- * is this same class constructed with a different id/groupId/label and
- * dashed/lower-opacity styling to distinguish unconfirmed constraints; the
- * geometry resolution is identical either way.
+ * Capabilities #5 and #6 — Draft Facts and Facts. Not one tinted polygon per
+ * fact: every currently-visible fact is folded, in order, from this
+ * module's starting universe down to whatever "possible area" remains
+ * (computeFactsArea — the same reduce "Ask to Fact" describes for testing
+ * candidate hider locations), and the shading drawn is everything that
+ * *isn't* in that remaining area. Add a fact, the possible area shrinks and
+ * the dark region grows; hide one via its item checkbox and the area grows
+ * back. DraftFactsLayerModule is this same class constructed with a
+ * different id/groupId/label, dashed/lower-opacity styling, and — set up in
+ * MapCanvas — a `universe` that starts from the Facts module's remaining
+ * area rather than the raw game zone, so drafts reduce further on top of
+ * whatever's already confirmed.
  */
 export class FactsLayerModule extends GeoJsonLayerModule<FactItem> {
   readonly id: string;
@@ -56,6 +63,7 @@ export class FactsLayerModule extends GeoJsonLayerModule<FactItem> {
       type: 'fill',
       source: this.sourceId(),
       paint: { 'fill-color': this.config.fillColor, 'fill-opacity': this.config.fillOpacity },
+      filter: ['==', ['get', 'kind'], 'shading'],
     });
 
     map.addLayer({
@@ -67,6 +75,7 @@ export class FactsLayerModule extends GeoJsonLayerModule<FactItem> {
         'line-width': this.config.dashed ? 2 : 1.5,
         ...(this.config.dashed ? { 'line-dasharray': [2, 2] } : {}),
       },
+      filter: ['==', ['get', 'kind'], 'shading'],
     });
   }
 
@@ -83,21 +92,30 @@ export class FactsLayerModule extends GeoJsonLayerModule<FactItem> {
     return this.factIndex.get(factId);
   }
 
-  toFeatures({ fact }: FactItem): Feature[] {
-    let polygon: Feature<Polygon | MultiPolygon>;
+  /** No per-item feature — the whole rendered shape is a single
+   * whole-set fold, built in extraFeatures(). */
+  toFeatures(): Feature[] {
+    return [];
+  }
+
+  extraFeatures(visibleItems: FactItem[]): Feature[] {
+    if (visibleItems.length === 0) return [];
+
+    const universe = this.universe();
+    let remaining: Feature<Polygon | MultiPolygon>;
     try {
-      polygon = factToRegion(fact, this.registries).toPolygon(this.universe());
+      remaining = computeFactsArea(universe, visibleItems.map((item) => item.fact), this.registries);
     } catch (err) {
-      console.warn(`[${this.config.id}] could not resolve region for fact ${fact.fact_id}`, err);
+      console.warn(`[${this.config.id}] could not fold visible facts into an area`, err);
       return [];
     }
+
+    const shaded = differencePolygons(universe, remaining);
+    if (shaded.geometry.coordinates.length === 0) return [];
+
     return [{
-      ...polygon,
-      properties: {
-        ...polygon.properties,
-        factId: fact.fact_id,
-        opType: fact.fact_info.op_type,
-      },
+      ...shaded,
+      properties: { ...shaded.properties, kind: 'shading' },
     }];
   }
 }

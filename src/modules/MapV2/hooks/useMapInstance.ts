@@ -5,6 +5,8 @@ import { Protocol as PMTilesProtocol } from 'pmtiles';
 import { MapLayerRegistry } from '../layers/MapLayerRegistry';
 import { MAP_STYLE_URL } from '../theme';
 import { MAP_ASSETS } from '../assets';
+import { normalizePlayArea } from '../utils/geo';
+import { differencePolygons, globalWorld } from '../../../utils/geoUtils';
 
 // Registered once per page load (module scope), mirroring the guard in the
 // existing components/Map.tsx — calling addProtocol twice for the same
@@ -74,14 +76,28 @@ export function useMapInstance({
     m.on('load', () => {
       // Game area boundary — added directly to the map, not through a
       // GeoJsonLayerModule, so it never appears in the layer tree and has
-      // no group/module/item visibility path that could hide it.
+      // no group/module/item visibility path that could hide it. Everything
+      // outside it is excluded from the start (shaded unconditionally,
+      // before any fact is ever applied) — Facts/Draft Facts shading only
+      // ever has to account for reductions *within* this zone.
       fetch(MAP_ASSETS.bengaluruUrbanDistrict)
         .then((res) => {
           if (!res.ok) throw new Error(`Failed to load game area: ${res.status}`);
           return res.json();
         })
         .then((geojson) => {
-          m.addSource('game-area-source', { type: 'geojson', data: geojson });
+          const gameZone = normalizePlayArea(geojson);
+          const outsideGameZone = differencePolygons(globalWorld, gameZone);
+
+          m.addSource('game-area-exterior-source', { type: 'geojson', data: outsideGameZone });
+          m.addLayer({
+            id: 'game-area-exterior-fill',
+            type: 'fill',
+            source: 'game-area-exterior-source',
+            paint: { 'fill-color': '#000000', 'fill-opacity': 0.4 },
+          });
+
+          m.addSource('game-area-source', { type: 'geojson', data: gameZone });
           m.addLayer({
             id: 'game-area-outline',
             type: 'line',
