@@ -3,10 +3,13 @@ import maplibregl from 'maplibre-gl';
 import { MapLayerRegistry } from './layers/MapLayerRegistry';
 import { MapLayerRegistryProvider, useLayerTree, useMapLayerModule } from './layers/hooks';
 import { useMapInstance } from './hooks/useMapInstance';
+import { useTeamFilter } from './hooks/useTeamFilter';
 import { useGeometryRegistries } from './factsV2/registries';
 import { computeFactsArea } from './factsV2/resolveClue';
-import { MOCK_DRAFT_QUESTIONS, MOCK_FACTS, draftQuestionToFact } from './factsV2/mockData';
+import { draftQuestionToFact } from './factsV2/mockData';
+import { convertLegacyFacts } from './factsV2/legacyFactConverter';
 import { AskedQuestionDto, FactDto, POINT_SOURCE, ResolvedLatLon } from './factsV2/factTypes';
+import { useGetFactsQuery } from '../../apis/api';
 import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND } from './factsV2/buildDraftQuestion';
 import { resolveCurrentLocation } from './utils/geolocation';
 import { PointDistanceItem, PointsDistanceModule } from './layers/modules/PointsDistanceModule';
@@ -16,6 +19,7 @@ import { PointPreviewModule } from './layers/modules/PointPreviewModule';
 import { FactItem, FactsLayerModule } from './layers/modules/FactsLayerModule';
 import { GROUP_ID } from './layers/groupIds';
 import { LayerControlPanel } from './components/LayerControlPanel';
+import { TeamFilterDropdown } from './components/TeamFilterDropdown';
 import { FactPopup } from './components/FactPopup';
 import { CreateDraftFactWizard, WIZARD_STEP, WizardKind, WizardStep } from './components/CreateDraftFactWizard';
 import { DraftQuestionsList } from './components/DraftQuestionsList';
@@ -59,7 +63,7 @@ const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
  * component) so the wizard modal can be hidden mid-flow — while the user
  * taps the map to place a point — without losing anything already filled in.
  */
-const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) => {
+const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> = ({ registry, gameId }) => {
   useEffect(() => {
     registry.registerGroup(GROUP_ID.MEASUREMENT, 'Measurement');
     registry.registerGroup(GROUP_ID.OVERLAYS, 'Overlays', false);
@@ -69,6 +73,21 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
 
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
   const geometry = useGeometryRegistries();
+
+  // Manual team filter, defaulted to an opposite (non-own) player team —
+  // spectator teams never appear as an option. See hooks/useTeamFilter.ts.
+  const teamFilter = useTeamFilter(gameId);
+
+  // Real facts for the selected team. See factsV2/legacyFactConverter.ts:
+  // TEMPORARY until the backend serves FactsV2-shaped facts directly.
+  const { data: factsResponse } = useGetFactsQuery(
+    { game_id: gameId ?? '', team_id: teamFilter.selectedTeamId ?? undefined },
+    { skip: !gameId || !teamFilter.selectedTeamId },
+  );
+  const realFacts = useMemo(
+    () => convertLegacyFacts(factsResponse?.results ?? []),
+    [factsResponse],
+  );
 
   const playAreaRef = useRef(geometry.playArea);
   playAreaRef.current = geometry.playArea;
@@ -84,8 +103,8 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
     const factsModuleNode = factsGroup?.modules.find((m) => m.id === FACTS_MODULE_ID);
     if (!factsGroup?.visible || !factsModuleNode?.visible) return [];
     const visibleIds = new Set(factsModuleNode.items.filter((i) => i.visible).map((i) => i.id));
-    return MOCK_FACTS.filter((fact) => visibleIds.has(fact.fact_id));
-  }, [tree]);
+    return realFacts.filter((fact) => visibleIds.has(fact.fact_id));
+  }, [tree, realFacts]);
 
   // Facts start from the game zone and fold each confirmed fact in,
   // shrinking the "possible" area; Draft Facts start from wherever that
@@ -134,10 +153,10 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [selectedFact, setSelectedFact] = useState<SelectedFact | null>(null);
 
-  // Draft questions created via the wizard, seeded with the mock pending
-  // questions — backend can't persist these yet, so they live in component
-  // state for the session.
-  const [draftQuestions, setDraftQuestions] = useState<AskedQuestionDto[]>(MOCK_DRAFT_QUESTIONS);
+  // Draft questions created via the wizard — the legacy API has no concept
+  // of an unanswered draft, so these only ever come from this session's own
+  // wizard use and start empty.
+  const [draftQuestions, setDraftQuestions] = useState<AskedQuestionDto[]>([]);
   const addDraftQuestion = useCallback((q: AskedQuestionDto) => setDraftQuestions((prev) => [...prev, q]), []);
   const removeDraftQuestion = useCallback(
     (questionId: string) => setDraftQuestions((prev) => prev.filter((q) => q.question_id !== questionId)),
@@ -145,8 +164,8 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
   );
 
   const factItems = useMemo<FactItem[]>(
-    () => MOCK_FACTS.map((fact) => ({ id: fact.fact_id, fact })),
-    [],
+    () => realFacts.map((fact) => ({ id: fact.fact_id, fact })),
+    [realFacts],
   );
   const draftFactItems = useMemo<FactItem[]>(
     () => draftQuestions.map((q) => {
@@ -334,6 +353,12 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
       <div style={{ position: 'absolute', top: '68px', left: '16px', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <TeamFilterDropdown
+          playerTeams={teamFilter.playerTeams}
+          selectedTeamId={teamFilter.selectedTeamId}
+          onChange={teamFilter.setSelectedTeamId}
+          isLoading={teamFilter.isLoading}
+        />
         <LayerControlPanel />
         <button
           onClick={openWizard}
@@ -446,12 +471,12 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry }> = ({ registry }) 
   );
 };
 
-export const MapCanvas: React.FC = () => {
+export const MapCanvas: React.FC<{ gameId?: string }> = ({ gameId }) => {
   const [registry] = useState(() => new MapLayerRegistry());
 
   return (
     <MapLayerRegistryProvider value={registry}>
-      <MapCanvasInner registry={registry} />
+      <MapCanvasInner registry={registry} gameId={gameId} />
     </MapLayerRegistryProvider>
   );
 };

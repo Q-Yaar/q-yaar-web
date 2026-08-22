@@ -1,17 +1,20 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { MapCanvas } from './MapCanvas';
 import { uberDark } from './theme';
 
 /**
  * Entry point for the revamped map — the group/module/item layer
- * architecture, with mock FactsV2 data standing in until the backend
- * serves real Facts. Lives entirely under src/modules/MapV2 so the
- * existing Map page (src/modules/Map) is untouched.
+ * architecture, loading real Facts for this game (converted from the
+ * legacy op_type shape by factsV2/legacyFactConverter.ts until the backend
+ * serves FactsV2-shaped facts directly). Lives entirely under
+ * src/modules/MapV2 so the existing Map page (src/modules/Map) is
+ * untouched.
  */
 const MapV2Page: React.FC = () => {
   const navigate = useNavigate();
+  const { gameId } = useParams<{ gameId: string }>();
 
   return (
     <div
@@ -47,7 +50,7 @@ const MapV2Page: React.FC = () => {
         <ChevronLeft size={24} color={uberDark.textPrimary} />
       </button>
 
-      <MapCanvas />
+      <MapCanvas gameId={gameId} />
     </div>
   );
 };
