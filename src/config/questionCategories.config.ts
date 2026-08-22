@@ -152,37 +152,6 @@ const MATCHING_FACT_BUILDER: FactBuilderConfig = {
   },
 };
 
-// Handler config for Polygon Location category
-const POLYGON_LOCATION_HANDLER_CONFIG: HandlerConfig = {
-  operation: 'polygon_containment',
-  async: false,
-  inputs: [
-    { name: 'point', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
-    { name: 'polygon', extractor: { source: 'question_meta', path: 'polygon_vertices', type: 'coords' } },
-  ],
-  output: {
-    resultField: 'result',
-    textTemplate: '{{result}} - Point is {{isInside}} polygon',
-    computationMethod: 'point_in_polygon',
-  },
-};
-
-// Handler config for Distance category
-const DISTANCE_HANDLER_CONFIG: HandlerConfig = {
-  operation: 'distance_threshold',
-  async: false,
-  inputs: [
-    { name: 'pointA', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
-    { name: 'pointB', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
-    { name: 'threshold', extractor: { source: 'question_meta', path: 'distance_threshold', type: 'number' } },
-  ],
-  output: {
-    resultField: 'isWithin',
-    textTemplate: 'Distance: {{distance}}m (threshold: {{threshold}}m)',
-    computationMethod: 'distance_threshold_check',
-  },
-};
-
 // Handler config for Circle/Radar category
 const CIRCLE_HANDLER_CONFIG: HandlerConfig = {
   operation: 'point_in_circle',
@@ -215,22 +184,6 @@ const HEADING_HANDLER_CONFIG: HandlerConfig = {
   },
 };
 
-// Handler config for Hotter/Colder category
-const HOTTER_COLDER_HANDLER_CONFIG: HandlerConfig = {
-  operation: 'hotter_colder',
-  async: false,
-  inputs: [
-    { name: 'previousLoc', extractor: { source: 'question_meta', path: 'location_points[0]', type: 'coord' } },
-    { name: 'targetLoc', extractor: { source: 'question_meta', path: 'location_points[1]', type: 'coord' } },
-    { name: 'currentLoc', extractor: { source: 'context', path: 'hiderLocation', type: 'coord' } },
-  ],
-  output: {
-    resultField: 'isGettingCloser',
-    textTemplate: '{{isGettingCloser}}: {{distanceChange}}m',
-    computationMethod: 'distance_comparison',
-  },
-};
-
 // Handler config for Thermometer category (reuses hotter_colder operation with a
 // different input mapping: previous/current come from the question's location_points
 // and the target is the hider's auto-added location).
@@ -249,6 +202,29 @@ const THERMOMETER_HANDLER_CONFIG: HandlerConfig = {
   },
 };
 
+// Fact builder for Thermometer category.
+//
+// "Am I getting closer to or further from the target?" The seeker moved from
+// location_points[0] (previous) to location_points[1] (current); the hider is
+// the target (a live answer-time context input, not persisted). The accepted
+// answer (isGettingCloser) tells which side of the previous<->current
+// perpendicular bisector the hider lies on, so the fact is stored as a
+// hotter-colder op over those two points with preferredPoint derived from the
+// answer. applySingleOperation differences out the OTHER point's Voronoi cell,
+// so preferredPoint = the point the hider is closer to (the kept half):
+// isGettingCloser true  -> hider closer to current (p2)
+// isGettingCloser false -> hider closer to previous (p1)
+const THERMOMETER_FACT_BUILDER: FactBuilderConfig = {
+  opType: 'hotter-colder',
+  fields: {
+    points: { kind: 'points', extracts: [
+      { source: 'question_meta', path: 'location_points[0]', type: 'coord' },
+      { source: 'question_meta', path: 'location_points[1]', type: 'coord' },
+    ] },
+    preferredPoint: { kind: 'fromAcceptedResult', true: 'p2', false: 'p1' },
+  },
+};
+
 // Handler config for Text Fact category
 const TEXT_FACT_HANDLER_CONFIG: HandlerConfig = {
   operation: 'text_match',
@@ -261,38 +237,6 @@ const TEXT_FACT_HANDLER_CONFIG: HandlerConfig = {
     resultField: 'isMatch',
     textTemplate: 'Answer: {{expected}}',
     computationMethod: 'expected_answer_match',
-  },
-};
-
-// Handler config for Area Operations category
-const AREA_OPERATIONS_HANDLER_CONFIG: HandlerConfig = {
-  operation: 'polygon_containment',
-  async: false,
-  inputs: [
-    { name: 'point', extractor: { source: 'question_meta', path: 'targetLocation', type: 'coord' } },
-    { name: 'polygon', extractor: { source: 'question_meta', path: 'polygon_vertices', type: 'coords' } },
-  ],
-  output: {
-    resultField: 'result',
-    textTemplate: '{{result}} - Point is {{isInside}} polygon',
-    computationMethod: 'point_in_polygon',
-  },
-};
-
-// Handler config for Closer to Line category
-const CLOSER_TO_LINE_HANDLER_CONFIG: HandlerConfig = {
-  operation: 'closer_to_line',
-  async: false,
-  inputs: [
-    { name: 'linePoint1', extractor: { source: 'question_meta', path: 'line_points[0]', type: 'coord' } },
-    { name: 'linePoint2', extractor: { source: 'question_meta', path: 'line_points[1]', type: 'coord' } },
-    { name: 'targetLoc', extractor: { source: 'question_meta', path: 'targetLocation', type: 'coord' } },
-    { name: 'seekerLoc', extractor: { source: 'question_meta', path: 'seekerLocation', type: 'coord' } },
-  ],
-  output: {
-    resultField: 'isCloser',
-    textTemplate: 'Seeker to line: {{seekerToLine}}m, Target to line: {{targetToLine}}m',
-    computationMethod: 'closer_to_line_comparison',
   },
 };
 
@@ -367,6 +311,7 @@ export const CATEGORY_REGISTRY: CategoryConfig[] = [
     name: 'Thermometer',
     operation: 'Hotter/Colder',
     handlerConfig: THERMOMETER_HANDLER_CONFIG,
+    factBuilder: THERMOMETER_FACT_BUILDER,
     isGeo: true,
     aliases: ['Hotter / Colder'],
     ask: {

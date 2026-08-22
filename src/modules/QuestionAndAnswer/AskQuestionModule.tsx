@@ -753,6 +753,22 @@ export function AskQuestionModule() {
         const cap = d.charAt(0).toUpperCase() + d.slice(1).toLowerCase();
         return cap === 'North' || cap === 'South' || cap === 'East' || cap === 'West' ? cap : undefined;
       };
+      // split-by-direction asks "Are you <direction> of me?"; a "Yes" confirms
+      // the asked direction while a "No" means the hider is in the opposite
+      // half. The fact shades where the hider actually is (see
+      // getSplitByDirectionPolygon), so invert the asked direction on "No".
+      const invertDirection = (d: string): string => {
+        const cap = d.charAt(0).toUpperCase() + d.slice(1).toLowerCase();
+        switch (cap) {
+          case 'North': return 'South';
+          case 'South': return 'North';
+          case 'East': return 'West';
+          case 'West': return 'East';
+          default: return d;
+        }
+      };
+      const askedSplitDirection =
+        fMeta.split_direction || qMeta.split_direction || qMeta.splitDirection || '';
 
       const rawRadius = fMeta.radius || qMeta.radius;
       // fact_meta.radius is in meters (the point-in-circle handler compares
@@ -775,7 +791,7 @@ export function AskQuestionModule() {
         radius: rawRadius ? Number(rawRadius) / 1000 : undefined,
         hiderLocation: fMeta.hider_location || qMeta.hiderLocation || derivedHiderLocation,
         splitDirection: capitalizeDirection(
-          fMeta.split_direction || qMeta.split_direction || qMeta.splitDirection || ''
+          acceptedResult === 'false' ? invertDirection(askedSplitDirection) : askedSplitDirection
         ),
         preferredPoint: fMeta.preferred_point || qMeta.preferred_point || qMeta.preferredPoint || undefined,
         areaOpType: fMeta.area_op_type || qMeta.area_op_type || qMeta.areaOpType || undefined,
