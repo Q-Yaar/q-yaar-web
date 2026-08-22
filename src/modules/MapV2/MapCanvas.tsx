@@ -14,7 +14,6 @@ import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND 
 import { resolveCurrentLocation } from './utils/geolocation';
 import { PointDistanceItem, PointsDistanceModule } from './layers/modules/PointsDistanceModule';
 import { PolygonOverlayModule } from './layers/modules/PolygonOverlayModule';
-import { MetroLinesModule } from './layers/modules/MetroLinesModule';
 import { PointPreviewModule } from './layers/modules/PointPreviewModule';
 import { FactItem, FactsLayerModule } from './layers/modules/FactsLayerModule';
 import { GROUP_ID } from './layers/groupIds';
@@ -126,7 +125,6 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
   // Stable module instances — created once, kept for the canvas's lifetime.
   const [pointsModule] = useState(() => new PointsDistanceModule());
   const [polygonModule] = useState(() => new PolygonOverlayModule());
-  const [metroModule] = useState(() => new MetroLinesModule());
   const [previewModule] = useState(() => new PointPreviewModule());
   const [factsModule] = useState(() => new FactsLayerModule(
     { id: FACTS_MODULE_ID, groupId: GROUP_ID.FACTS, label: 'Facts', fillColor: '#d32f2f', fillOpacity: 0.35 },
@@ -177,7 +175,6 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
 
   useMapLayerModule(pointsModule, points);
   useMapLayerModule(polygonModule, geometry.loading ? EMPTY_ITEMS : geometry.polygonItems);
-  useMapLayerModule(metroModule, geometry.loading ? EMPTY_ITEMS : geometry.lineItems);
   useMapLayerModule(previewModule, EMPTY_ITEMS);
   useMapLayerModule(factsModule, geometry.loading ? EMPTY_ITEMS : factItems);
   useMapLayerModule(draftFactsModule, geometry.loading ? EMPTY_ITEMS : draftFactItems);

@@ -20,18 +20,9 @@ export interface PolygonOverlayItemData {
   geometry: Polygon | MultiPolygon;
 }
 
-export interface MetroLineItemData {
-  id: string;
-  lineKey: string;
-  displayName: string;
-  color?: string;
-  geometry: LineString;
-}
-
 interface LoadedGeometry {
   registries: GeometryRegistries;
   polygonItems: PolygonOverlayItemData[];
-  lineItems: MetroLineItemData[];
   playArea: Feature<Polygon | MultiPolygon>;
 }
 
@@ -43,11 +34,16 @@ interface LoadedGeometry {
  * boundaries, metro-line regions (the "catchments are the trick" collapse —
  * same POLYGON_INSIDE op as corporations), and the metro route lines
  * themselves. Each map's key *is* its registry key.
+ *
+ * Metro lines are only ever resolved through registries.lines (for
+ * LINE_BUFFER_INSIDE / LINE_POINT_BUFFER_INSIDE facts) — there's no visual
+ * overlay module for them anymore; the always-on transit PMTiles layer in
+ * hooks/useMapInstance.ts shows metro lines directly, the same way the old
+ * Map does.
  */
 async function loadGeometry(): Promise<LoadedGeometry> {
   const registries: GeometryRegistries = { polygons: {}, lines: {} };
   const polygonItems: PolygonOverlayItemData[] = [];
-  const lineItems: MetroLineItemData[] = [];
 
   for (const [key, url] of Object.entries(CORPORATION_ASSET_URLS)) {
     const feature = (await fetch(url).then((r) => r.json())) as Feature<Polygon | MultiPolygon>;
@@ -60,7 +56,6 @@ async function loadGeometry(): Promise<LoadedGeometry> {
     const feature = (await fetch(url).then((r) => r.json())) as Feature<LineString>;
     const displayName = `${feature.properties?.ref ?? key} Line`;
     registries.lines[key] = { display_name: displayName, geometry: feature.geometry };
-    lineItems.push({ id: key, lineKey: key, displayName, color: feature.properties?.colour, geometry: feature.geometry });
   }
 
   for (const [key, url] of Object.entries(METRO_LINE_REGION_ASSET_URLS)) {
@@ -75,7 +70,6 @@ async function loadGeometry(): Promise<LoadedGeometry> {
   return {
     registries,
     polygonItems,
-    lineItems,
     playArea: normalizePlayArea(playAreaGeoJson),
   };
 }
@@ -90,20 +84,18 @@ export interface GeometryRegistriesResult {
    * MapCanvas does by withholding real items while loading is true). */
   registries: GeometryRegistries;
   polygonItems: PolygonOverlayItemData[];
-  lineItems: MetroLineItemData[];
   playArea: Feature<Polygon | MultiPolygon>;
   loading: boolean;
 }
 
 /**
  * Loads the mock registries once per page load (module-level cache) and
- * exposes them to whichever component builds PolygonOverlayModule,
- * MetroLinesModule, and FactsLayerModule items.
+ * exposes them to whichever component builds PolygonOverlayModule and
+ * FactsLayerModule items.
  */
 export function useGeometryRegistries(): GeometryRegistriesResult {
   const registriesRef = useRef<GeometryRegistries>({ polygons: {}, lines: {} });
   const [polygonItems, setPolygonItems] = useState<PolygonOverlayItemData[]>([]);
-  const [lineItems, setLineItems] = useState<MetroLineItemData[]>([]);
   const [playArea, setPlayArea] = useState<Feature<Polygon | MultiPolygon>>(globalWorld);
   const [loading, setLoading] = useState(true);
 
@@ -116,7 +108,6 @@ export function useGeometryRegistries(): GeometryRegistriesResult {
         Object.assign(registriesRef.current.polygons, loaded.registries.polygons);
         Object.assign(registriesRef.current.lines, loaded.registries.lines);
         setPolygonItems(loaded.polygonItems);
-        setLineItems(loaded.lineItems);
         setPlayArea(loaded.playArea);
         setLoading(false);
       })
@@ -129,5 +120,5 @@ export function useGeometryRegistries(): GeometryRegistriesResult {
     };
   }, []);
 
-  return { registries: registriesRef.current, polygonItems, lineItems, playArea, loading };
+  return { registries: registriesRef.current, polygonItems, playArea, loading };
 }

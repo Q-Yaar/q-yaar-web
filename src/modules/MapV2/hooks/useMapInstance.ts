@@ -109,25 +109,40 @@ export function useMapInstance({
         .catch((err) => console.warn('[MapV2] Could not load game area boundary:', err));
 
       // Transit overlay (PMTiles) — same asset and style file the old Map
-      // uses, loaded the same way.
-      m.addSource('transit-pmtiles', { type: 'vector', url: `pmtiles://${MAP_ASSETS.transitPmtiles()}` });
-
-      fetch(MAP_ASSETS.transitStyle)
-        .then((res) => {
+      // uses, loaded the same way. Source points at the local PMTiles
+      // archive; the pmtiles protocol reads the archive header to derive
+      // min/max zoom, so we use `url:` (not `tiles:`). Layers are defined
+      // in public/transit-style.json (all reference the 'transit-pmtiles'
+      // source) so the style lives in a data file rather than inline here.
+      //
+      // The old Map explicitly inserts these layers *before* its
+      // shading-fill layer so facts render over the transit lines, not
+      // under them. Every module here adds its own layers synchronously
+      // inside registry.setMap() below, so the only way to keep transit
+      // beneath all of them — without hardcoding some other module's layer
+      // id as an anchor — is to finish loading transit first: awaited
+      // (not fire-and-forget), so whether it succeeds or fails, it's
+      // fully settled before any module layer exists to race against.
+      const loadTransitOverlay = async (): Promise<void> => {
+        try {
+          m.addSource('transit-pmtiles', { type: 'vector', url: `pmtiles://${MAP_ASSETS.transitPmtiles()}` });
+          const res = await fetch(MAP_ASSETS.transitStyle);
           if (!res.ok) throw new Error(`Failed to load transit-style.json: ${res.status}`);
-          return res.json();
-        })
-        .then((layers: maplibregl.LayerSpecification[]) => {
+          const layers = (await res.json()) as maplibregl.LayerSpecification[];
           layers.forEach((layer) => {
             if ((layer as { source?: string }).source === 'transit-pmtiles' && !m.getLayer(layer.id)) {
               m.addLayer(layer);
             }
           });
-        })
-        .catch((err) => console.warn('[MapV2] Could not load transit overlay:', err));
+        } catch (err) {
+          console.warn('[MapV2] Could not load transit overlay:', err);
+        }
+      };
 
-      registry.setMap(m);
-      setIsMapReady(true);
+      loadTransitOverlay().finally(() => {
+        registry.setMap(m);
+        setIsMapReady(true);
+      });
     });
 
     m.on('error', (e) => console.error('[MapV2] Map error:', e));
