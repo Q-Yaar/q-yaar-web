@@ -14,6 +14,7 @@ import {
   LOCATION_SETTINGS_ROUTE,
   LOGIN_ROUTE,
   MAP_ROUTE,
+  MAP_V2_ROUTE,
   ROOT_ROUTE,
   SIGNUP_ROUTE,
 } from './constants/routes';
@@ -23,6 +24,7 @@ import BaseLayout from './Layouts/BaseLayout';
 import NotFound from './components/NotFound';
 import Login from './modules/Auth/Login';
 import MapPage from './modules/Map';
+import MapV2Page from './modules/MapV2';
 import GameDetail from './modules/Games/GameDetail';
 import ExploreGameDetail from './modules/Games/ExploreGameDetail';
 import JoinGameByCode from './modules/Games/JoinGameByCode';
@@ -47,6 +49,7 @@ function ProtectedRoutes(): JSX.Element {
           <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
           <Route path={DECK_ROUTE} element={<DeckPage />} />
           <Route path={MAP_ROUTE} element={<MapPage />} />
+          <Route path={MAP_V2_ROUTE} element={<MapV2Page />} />
           <Route path={ASK_QUESTION_ROUTE} element={<AskQuestionModule />} />
           <Route
             path={ANSWER_QUESTION_ROUTE}
