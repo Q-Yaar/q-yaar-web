@@ -120,6 +120,10 @@ const Map: React.FC<MapProps> = ({
   const [currentHiderArea, setCurrentHiderArea] = useState<any>(null);
   const [isComputing, setIsComputing] = useState<boolean>(false);
   const calculationIdRef = useRef<number>(0);
+  // Serialized key of the last shading data written to 'shading-source', used to
+  // skip redundant setData calls (and the re-tessellation they trigger) when the
+  // computed hider area hasn't actually changed.
+  const lastShadingDataRef = useRef<string>('');
 
   // Queue operations that arrive before the map is ready
   const pendingOperationsRef = useRef<Operation[] | null>(null);
@@ -373,56 +377,36 @@ const Map: React.FC<MapProps> = ({
               cachedHiderArea: hiderArea
             };
 
-            // Final Shading based on PREVIEW area
-            if (previewHiderArea) {
-              const shadingFeature = await worker.differencePolygons(globalWorld, previewHiderArea);
-              geojson.features.push({
-                ...shadingFeature,
-                type: 'Feature',
-                properties: { ...shadingFeature.properties, 'is-shading': true },
-              } as GeoJSON.Feature);
+            // Shading lives on its own source, so it is never blanked while the
+            // worker recomputes. Skip the setData entirely when the computed
+            // shading is identical to the last write to avoid re-tessellating
+            // the viewport-spanning fill on every GPS tick / poll.
+            const shadingSource = map.current?.getSource('shading-source') as
+              | maplibregl.GeoJSONSource
+              | undefined;
+            if (shadingSource) {
+              const shadingData: GeoJSON.FeatureCollection = {
+                type: 'FeatureCollection',
+                features: [],
+              };
+              if (previewHiderArea) {
+                const shadingFeature = await worker.differencePolygons(globalWorld, previewHiderArea);
+                shadingData.features.push({
+                  ...shadingFeature,
+                  type: 'Feature',
+                  properties: { ...shadingFeature.properties, 'is-shading': true },
+                } as GeoJSON.Feature);
+              }
+              const shadingKey = JSON.stringify(shadingData);
+              if (shadingKey !== lastShadingDataRef.current) {
+                lastShadingDataRef.current = shadingKey;
+                shadingSource.setData(shadingData);
+              }
             }
 
-            // Reference Points etc. (these are fast, but we need to add them after async part)
-            if (currentLocation) {
-              geojson.features.push({
-                type: 'Feature', geometry: { type: 'Point', coordinates: currentLocation },
-                properties: { 'is-current-location': true }
-              });
-            }
-            if (referencePoints?.length > 0) {
-              referencePoints.forEach((p, index) => {
-                geojson.features.push({
-                  type: 'Feature', geometry: { type: 'Point', coordinates: p },
-                  properties: { 'is-reference-point': true, label: String.fromCharCode(65 + index) }
-                });
-              });
-            }
-            // Re-add player location markers after async computation
-            if (playerLocations && playerLocations.length > 0) {
-              playerLocations.forEach((loc) => {
-                const { lat, lng } = loc.location_pnt;
-                if (!isNaN(lat) && !isNaN(lng)) {
-                  geojson.features.push({
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [lng, lat] },
-                    properties: {
-                      'is-player-location': true,
-                      'player-name': loc.player.profile_name || 'Unknown',
-                      'last-seen': formatLastSeen(loc.modified),
-                    },
-                  });
-                }
-              });
-            }
-            if (poiSelectionRef.current?.point) {
-              geojson.features.push({
-                type: 'Feature', geometry: { type: 'Point', coordinates: poiSelectionRef.current.point },
-                properties: { 'is-poi-selection': true, ...poiSelectionRef.current.info }
-              });
-            }
-
-            // Heavy results update
+            // measurement-source: points/lines/POIs (already in geojson from the
+            // initial fast write) plus any async-added features such as the
+            // hotter-colder bisector and distance labels.
             source.setData(geojson);
             setIsComputing(false);
           }
@@ -565,6 +549,20 @@ const Map: React.FC<MapProps> = ({
         },
       });
 
+      // Shading lives on its own source so that updates to points/lines/POIs
+      // (GPS ticks, location polls, clicks) never blank the overlay while the
+      // geo worker recomputes the hider area. Previously both shared
+      // 'measurement-source', and every recompute wrote an intermediate
+      // FeatureCollection with no shading feature, causing the overlay to
+      // flicker off then on.
+      m.addSource('shading-source', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: [],
+        },
+      });
+
       // Mark the map as ready, which will trigger the useEffect to process any queued operations
       console.log(`[Map ${instanceId}] Setting map ready flag`);
       setIsMapReady(true);
@@ -578,7 +576,7 @@ const Map: React.FC<MapProps> = ({
       m.addLayer({
         id: 'shading-fill',
         type: 'fill',
-        source: 'measurement-source',
+        source: 'shading-source',
         paint: {
           'fill-color': '#000000',
           'fill-opacity': 0.4,
@@ -694,7 +692,7 @@ const Map: React.FC<MapProps> = ({
       m.addLayer({
         id: 'draft-geo-facts',
         type: 'fill',
-        source: 'measurement-source',
+        source: 'shading-source',
         paint: {
           'fill-color': '#000000',
           'fill-opacity': 0.4,
