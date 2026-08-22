@@ -13,6 +13,15 @@ export function useMapLayerRegistry(): MapLayerRegistry {
   return registry;
 }
 
+/** A stable "no items yet" reference for useMapLayerModule callers. Passing
+ * a fresh `[]` literal instead re-triggers the setItems effect below on
+ * every render (new array => changed dependency), which calls
+ * notifyTreeChange() => registry.invalidate(), which re-renders any
+ * useLayerTree() subscriber => another render => another fresh `[]` =>
+ * infinite loop. One shared empty array (TS accepts `never[]` for any
+ * element type here) breaks that cycle. */
+export const EMPTY_ITEMS: never[] = [];
+
 /**
  * Register one module instance for the lifetime of the owning component, and
  * keep its item list in sync with `items`. Call once per capability — in
