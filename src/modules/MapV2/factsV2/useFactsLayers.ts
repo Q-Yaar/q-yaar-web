@@ -3,9 +3,9 @@ import { useGetFactsQuery } from '../../../apis/api';
 import { useLayerTree, useMapLayerModule, EMPTY_ITEMS } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
 import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
-import { GeometryRegistriesResult } from './registries';
+import { PlayAreaResult } from './geometryAssets';
 import { AskedQuestionDto } from './factTypes';
-import { computeFactsArea } from './resolveClue';
+import { foldFactsAreaInWorker } from './geoWorkerClient';
 import { draftQuestionToFact } from './mockData';
 import { convertLegacyFacts } from './legacyFactConverter';
 import { FACTS_MODULE_ID, DRAFT_FACTS_MODULE_ID } from './factsLayerIds';
@@ -13,7 +13,7 @@ import { FACTS_MODULE_ID, DRAFT_FACTS_MODULE_ID } from './factsLayerIds';
 export interface UseFactsLayersOptions {
   gameId?: string;
   teamId: string | null;
-  geometry: GeometryRegistriesResult;
+  playAreaState: PlayAreaResult;
 }
 
 export interface UseFactsLayersResult {
@@ -28,20 +28,20 @@ export interface UseFactsLayersResult {
  * Owns the whole "Facts" and "Draft Facts" capability: fetching this
  * team's real facts (through the TEMPORARY legacyFactConverter — see that
  * file), the cumulative-reduction fold each starts from (game zone ->
- * confirmed facts -> drafts), and the two FactsLayerModule instances
- * themselves. Nothing outside this hook needs to know any of that; it just
- * needs the two module instances (for map click hit-testing) and the
- * draft-question list (for the wizard/UI).
+ * confirmed facts -> drafts, run in geoWorker.ts off the main thread), and
+ * the two FactsLayerModule instances themselves. Nothing outside this hook
+ * needs to know any of that; it just needs the two module instances (for
+ * map click hit-testing) and the draft-question list (for the wizard/UI).
  */
-export function useFactsLayers({ gameId, teamId, geometry }: UseFactsLayersOptions): UseFactsLayersResult {
+export function useFactsLayers({ gameId, teamId, playAreaState }: UseFactsLayersOptions): UseFactsLayersResult {
   const { data: factsResponse } = useGetFactsQuery(
     { game_id: gameId ?? '', team_id: teamId ?? undefined },
     { skip: !gameId || !teamId },
   );
   const realFacts = useMemo(() => convertLegacyFacts(factsResponse?.results ?? []), [factsResponse]);
 
-  const playAreaRef = useRef(geometry.playArea);
-  playAreaRef.current = geometry.playArea;
+  const playAreaRef = useRef(playAreaState.playArea);
+  playAreaRef.current = playAreaState.playArea;
   const universe = useMemo(() => () => playAreaRef.current, []);
 
   // Draft Facts fold on top of whatever the Facts layer currently leaves
@@ -60,40 +60,43 @@ export function useFactsLayers({ gameId, teamId, geometry }: UseFactsLayersOptio
   // Facts start from the game zone and fold each confirmed fact in,
   // shrinking the "possible" area; Draft Facts start from wherever that
   // leaves off and shrink it further — the cumulative-reduction chain the
-  // shading represents. Recomputed every render (cheap for a handful of
-  // facts) rather than memoized on `geometry`, since `geometry.registries`
-  // is populated in place and wouldn't be seen as "changed" by a
-  // dependency array anyway.
-  const confirmedAreaRef = useRef(geometry.playArea);
-  if (!geometry.loading) {
-    try {
-      confirmedAreaRef.current = computeFactsArea(geometry.playArea, visibleConfirmedFacts, geometry.registries);
-    } catch (err) {
-      console.warn('[MapV2] Failed to fold confirmed facts into an area', err);
-    }
-  }
+  // shading represents. Populated by the fold effect below (run in
+  // geoWorker.ts, since folding real registry polygons can be expensive);
+  // draftsUniverse just reads whatever it currently holds.
+  const confirmedAreaRef = useRef(playAreaState.playArea);
   const draftsUniverse = useMemo(() => () => confirmedAreaRef.current, []);
 
   const [factsModule] = useState(() => new FactsLayerModule(
     { id: FACTS_MODULE_ID, groupId: GROUP_ID.FACTS, label: 'Facts', fillColor: '#d32f2f', fillOpacity: 0.35 },
-    geometry.registries,
     universe,
   ));
   const [draftFactsModule] = useState(() => new FactsLayerModule(
     { id: DRAFT_FACTS_MODULE_ID, groupId: GROUP_ID.FACTS, label: 'Draft Facts', fillColor: '#9c27b0', fillOpacity: 0.28, dashed: true },
-    geometry.registries,
     draftsUniverse,
   ));
 
-  // Toggling a confirmed fact's visibility changes confirmedAreaRef (via
-  // draftsUniverse) without changing draftFactsModule's own item list, so
-  // nothing would otherwise tell it to redraw. render() just re-reads
-  // toFeatures/extraFeatures against the current universe and calls
-  // setData — it doesn't call notifyTreeChange, so this can't feed back
-  // into another registry invalidation.
+  // Runs the confirmed-facts fold in the worker whenever what's visible
+  // actually changes. foldFactsAreaInWorker lazily resolves+hydrates
+  // whatever registry keys these facts reference before folding (see
+  // geoWorkerClient.ts) — there's no separate "registries loaded" gate any
+  // more. A generation counter discards a stale result if
+  // `visibleConfirmedFacts` changes again before a slower fold finishes;
+  // draftFactsModule.render() re-reads draftsUniverse (this same ref)
+  // itself, since nothing else would tell it the fold moved.
+  const foldGenerationRef = useRef(0);
   useEffect(() => {
-    draftFactsModule.render();
-  }, [visibleConfirmedFacts, draftFactsModule]);
+    if (playAreaState.loading) return;
+    const generation = ++foldGenerationRef.current;
+    foldFactsAreaInWorker(playAreaState.playArea, visibleConfirmedFacts)
+      .then((area) => {
+        if (generation !== foldGenerationRef.current) return;
+        confirmedAreaRef.current = area;
+        draftFactsModule.render();
+      })
+      .catch((err) => {
+        console.warn('[MapV2] Failed to fold confirmed facts into an area', err);
+      });
+  }, [playAreaState.loading, playAreaState.playArea, visibleConfirmedFacts, draftFactsModule]);
 
   // Draft questions created via the wizard — the legacy API has no concept
   // of an unanswered draft, so these only ever come from this session's own
@@ -117,8 +120,8 @@ export function useFactsLayers({ gameId, teamId, geometry }: UseFactsLayersOptio
     [draftQuestions],
   );
 
-  useMapLayerModule(factsModule, geometry.loading ? EMPTY_ITEMS : factItems);
-  useMapLayerModule(draftFactsModule, geometry.loading ? EMPTY_ITEMS : draftFactItems);
+  useMapLayerModule(factsModule, playAreaState.loading ? EMPTY_ITEMS : factItems);
+  useMapLayerModule(draftFactsModule, playAreaState.loading ? EMPTY_ITEMS : draftFactItems);
 
   return { factsModule, draftFactsModule, draftQuestions, addDraftQuestion, removeDraftQuestion };
 }

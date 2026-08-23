@@ -6,7 +6,7 @@ import { PolygonOverlayModule } from './layers/modules/PolygonOverlayModule';
 import { useMapInstance } from './hooks/useMapInstance';
 import { useTeamFilter } from './hooks/useTeamFilter';
 import { useMapInteractions } from './hooks/useMapInteractions';
-import { useGeometryRegistries } from './factsV2/registries';
+import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
 import { MapControlsPanel } from './components/MapControlsPanel';
@@ -18,7 +18,9 @@ import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
  * Orchestrator only. Each capability lives in its own hook or module —
  * this component's whole job is creating them in the right order and
  * wiring their outputs together:
- *   geometry         -> shared registries + play area (factsV2/registries.ts)
+ *   playArea         -> the eagerly-loaded game zone (factsV2/geometryAssets.ts)
+ *   polygonCatalog   -> corporation/metro-catchment zones, loaded lazily
+ *                        (factsV2/geometryAssets.ts)
  *   teamFilter       -> which team's facts to show (hooks/useTeamFilter.ts)
  *   facts            -> Facts/Draft Facts data + modules (factsV2/useFactsLayers.ts)
  *   wizard           -> the "Ask a question" form (factsV2/useDraftFactWizard.ts)
@@ -36,11 +38,16 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
   }, [registry]);
 
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
-  const geometry = useGeometryRegistries();
+  const playAreaState = usePlayArea();
+  const polygonCatalog = usePolygonCatalog();
   const teamFilter = useTeamFilter(gameId);
 
-  const facts = useFactsLayers({ gameId, teamId: teamFilter.selectedTeamId, geometry });
-  const wizard = useDraftFactWizard({ geometry, onSubmit: facts.addDraftQuestion });
+  const facts = useFactsLayers({ gameId, teamId: teamFilter.selectedTeamId, playAreaState });
+  const wizard = useDraftFactWizard({
+    zoneOptions: polygonCatalog.items,
+    zoneOptionsLoading: polygonCatalog.loading,
+    onSubmit: facts.addDraftQuestion,
+  });
   const interactions = useMapInteractions({
     mapRef,
     isMapReady,
@@ -51,10 +58,12 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
   });
 
   // Capability #2 — Registry Polygons. Simple enough (no data pipeline of
-  // its own, just geometry.polygonItems) to wire directly here rather than
-  // through a dedicated hook.
+  // its own, just polygonCatalog.items) to wire directly here rather than
+  // through a dedicated hook. Loads independently of the map/facts —
+  // usePolygonCatalog() fetches every known zone's geometry in the
+  // background, never gating on it.
   const [polygonModule] = useState(() => new PolygonOverlayModule());
-  useMapLayerModule(polygonModule, geometry.loading ? EMPTY_ITEMS : geometry.polygonItems);
+  useMapLayerModule(polygonModule, polygonCatalog.loading ? EMPTY_ITEMS : polygonCatalog.items);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>

@@ -98,26 +98,36 @@ export abstract class GeoJsonLayerModule<Item extends LayerItem> {
     }));
   }
 
-  private effectiveItems(): Item[] {
+  /** Exposed (not private) so a subclass overriding render() — currently
+   * only FactsLayerModule, to resolve regions asynchronously in a worker —
+   * can still ask "which items should I actually draw right now?" without
+   * reimplementing the group/module/item visibility cascade itself. */
+  protected effectiveItems(): Item[] {
     if (!this.containerVisible) return [];
     return Array.from(this.items.values())
       .filter((entry) => entry.visible)
       .map((entry) => entry.data);
   }
 
-  /** The only write any module makes to the map on a visibility or data
-   * change — filter to effectively-visible items, build one
-   * FeatureCollection, call setData. */
-  render(): void {
+  /** The tail end of render(), pulled out so a subclass with its own
+   * (e.g. async) way of producing features can still finish through the
+   * same single write path every module uses. */
+  protected writeFeatures(features: Feature[]): void {
     if (!this.mounted || !this.map) return;
     const source = this.map.getSource(this.sourceId()) as maplibregl.GeoJSONSource | undefined;
     if (!source) return;
 
+    const collection: FeatureCollection<Geometry> = { type: 'FeatureCollection', features };
+    source.setData(collection);
+  }
+
+  /** The only write any module makes to the map on a visibility or data
+   * change — filter to effectively-visible items, build one
+   * FeatureCollection, call setData. */
+  render(): void {
     const visibleItems = this.effectiveItems();
     const features: Feature[] = visibleItems.flatMap((item) => this.toFeatures(item));
     features.push(...this.extraFeatures(visibleItems));
-
-    const collection: FeatureCollection<Geometry> = { type: 'FeatureCollection', features };
-    source.setData(collection);
+    this.writeFeatures(features);
   }
 }

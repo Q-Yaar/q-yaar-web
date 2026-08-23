@@ -1,8 +1,10 @@
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import maplibregl from 'maplibre-gl';
 import { GeoJsonLayerModule } from '../GeoJsonLayerModule';
-import { FactDto, GeometryRegistries } from '../../factsV2/factTypes';
+import { FactDto } from '../../factsV2/factTypes';
 import { computeFactsArea } from '../../factsV2/resolveClue';
+import { resolveShadingInWorker } from '../../factsV2/geoWorkerClient';
+import { getCachedRegistriesSnapshot } from '../../factsV2/geometryAssets';
 import { differencePolygons } from '../../../../utils/geoUtils';
 
 export interface FactItem {
@@ -39,10 +41,13 @@ export class FactsLayerModule extends GeoJsonLayerModule<FactItem> {
   readonly label: string;
 
   private factIndex = new Map<string, FactDto>();
+  /** Bumped on every render() call; a worker response only gets written if
+   * it's still the most recent one requested — a fast second toggle can't
+   * have its result overwritten by a slower first one resolving late. */
+  private renderGeneration = 0;
 
   constructor(
     private readonly config: FactsLayerConfig,
-    private readonly registries: GeometryRegistries,
     private readonly universe: () => Feature<Polygon | MultiPolygon>,
   ) {
     super();
@@ -98,24 +103,59 @@ export class FactsLayerModule extends GeoJsonLayerModule<FactItem> {
     return [];
   }
 
+  /** Synchronous fallback path — used by render()'s catch handler if the
+   * worker fails, so the map isn't left blank. Same fold+difference the
+   * worker runs, just on this thread, against whatever registry keys
+   * happen to already be cached (getCachedRegistriesSnapshot) — it can't
+   * await a lazy fetch mid-render, so a key nothing's asked for yet simply
+   * isn't there, same as an empty registry always behaved. */
   extraFeatures(visibleItems: FactItem[]): Feature[] {
     if (visibleItems.length === 0) return [];
 
     const universe = this.universe();
     let remaining: Feature<Polygon | MultiPolygon>;
     try {
-      remaining = computeFactsArea(universe, visibleItems.map((item) => item.fact), this.registries);
+      remaining = computeFactsArea(universe, visibleItems.map((item) => item.fact), getCachedRegistriesSnapshot());
     } catch (err) {
       console.warn(`[${this.config.id}] could not fold visible facts into an area`, err);
       return [];
     }
 
     const shaded = differencePolygons(universe, remaining);
-    if (shaded.geometry.coordinates.length === 0) return [];
+    return shaded.geometry.coordinates.length === 0 ? [] : [this.tagShading(shaded)];
+  }
 
-    return [{
-      ...shaded,
-      properties: { ...shaded.properties, kind: 'shading' },
-    }];
+  private tagShading(shaded: Feature<Polygon | MultiPolygon>): Feature {
+    return { ...shaded, properties: { ...shaded.properties, kind: 'shading' } };
+  }
+
+  /**
+   * Overrides the base class's synchronous render() — folding every
+   * visible fact and differencing the result runs turf intersect/
+   * difference against real, many-vertex registry polygons, which is
+   * exactly the work src/modules/MapV2/factsV2/geoWorker.ts exists to keep
+   * off the main thread. toFeatures()/extraFeatures() stay as the
+   * synchronous fallback (used by super.render(), called below if the
+   * worker call fails), so this is the only method that changes.
+   */
+  render(): void {
+    const generation = ++this.renderGeneration;
+    const visibleItems = this.effectiveItems();
+
+    if (visibleItems.length === 0) {
+      this.writeFeatures([]);
+      return;
+    }
+
+    const universe = this.universe();
+    resolveShadingInWorker(universe, visibleItems.map((item) => item.fact))
+      .then((shaded) => {
+        if (generation !== this.renderGeneration) return; // superseded by a newer render() call
+        this.writeFeatures(shaded ? [this.tagShading(shaded)] : []);
+      })
+      .catch((err) => {
+        console.warn(`[${this.config.id}] worker shading failed, falling back to main thread`, err);
+        if (generation === this.renderGeneration) super.render();
+      });
   }
 }

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { AskedQuestionDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
 import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND, WizardKind } from './buildDraftQuestion';
 import { resolveCurrentLocation } from '../utils/geolocation';
-import { GeometryRegistriesResult } from './registries';
+import { PolygonOverlayItemData } from './geometryAssets';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
 const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
@@ -13,7 +13,8 @@ const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
 });
 
 export interface UseDraftFactWizardOptions {
-  geometry: GeometryRegistriesResult;
+  zoneOptions: PolygonOverlayItemData[];
+  zoneOptionsLoading: boolean;
   onSubmit: (question: AskedQuestionDto) => void;
 }
 
@@ -39,7 +40,7 @@ export interface UseDraftFactWizardResult {
  * wire the pick-prompt banner, and let its click handler check
  * pickResolverRef.
  */
-export function useDraftFactWizard({ geometry, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
+export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>(WIZARD_STEP.KIND);
   const [kind, setKind] = useState<WizardKind | null>(null);
@@ -121,14 +122,14 @@ export function useDraftFactWizard({ geometry, onSubmit }: UseDraftFactWizardOpt
       return `Are you within ${formatDistance(circleRadius)} of ${describeResolvedPoint(circleCenter)}?`;
     }
     if (kind === WIZARD_KIND.ZONE && zoneKey) {
-      const zone = geometry.polygonItems.find((z) => z.id === zoneKey);
+      const zone = zoneOptions.find((z) => z.id === zoneKey);
       return `Are you inside ${zone?.displayName ?? zoneKey}?`;
     }
     if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
       return `Compared to ${describeResolvedPoint(pointA)}, are you now closer to ${describeResolvedPoint(pointB)}?`;
     }
     return null;
-  }, [kind, circleCenter, circleRadius, zoneKey, pointA, pointB, geometry.polygonItems]);
+  }, [kind, circleCenter, circleRadius, zoneKey, pointA, pointB, zoneOptions]);
 
   const handleSubmit = useCallback(() => {
     if (!kind) return;
@@ -136,7 +137,7 @@ export function useDraftFactWizard({ geometry, onSubmit }: UseDraftFactWizardOpt
     if (kind === WIZARD_KIND.CIRCLE && circleCenter && circleRadius) {
       question = buildDraftQuestion({ kind: WIZARD_KIND.CIRCLE, center: circleCenter, radius: circleRadius });
     } else if (kind === WIZARD_KIND.ZONE && zoneKey) {
-      const zone = geometry.polygonItems.find((z) => z.id === zoneKey);
+      const zone = zoneOptions.find((z) => z.id === zoneKey);
       question = buildDraftQuestion({ kind: WIZARD_KIND.ZONE, zoneKey, zoneLabel: zone?.displayName ?? zoneKey });
     } else if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
       question = buildDraftQuestion({ kind: WIZARD_KIND.HOTTER_COLDER, pointA, pointB });
@@ -144,7 +145,7 @@ export function useDraftFactWizard({ geometry, onSubmit }: UseDraftFactWizardOpt
     if (!question) return;
     onSubmit(question);
     closeWizard();
-  }, [kind, circleCenter, circleRadius, zoneKey, pointA, pointB, geometry.polygonItems, onSubmit, closeWizard]);
+  }, [kind, circleCenter, circleRadius, zoneKey, pointA, pointB, zoneOptions, onSubmit, closeWizard]);
 
   const props: CreateDraftFactWizardProps = {
     isOpen,
@@ -160,8 +161,8 @@ export function useDraftFactWizard({ geometry, onSubmit }: UseDraftFactWizardOpt
     onPickCircleCenterOnMap: () => pickOnMap('Tap the map to set the circle’s center', setCircleCenter),
     onUseMyLocationForCircle: () => locateMeFor(setCircleCenter),
     onSetCircleRadius: setCircleRadius,
-    zoneOptions: geometry.polygonItems,
-    zoneOptionsLoading: geometry.loading,
+    zoneOptions,
+    zoneOptionsLoading,
     zoneKey,
     onSelectZone: setZoneKey,
     pointA,

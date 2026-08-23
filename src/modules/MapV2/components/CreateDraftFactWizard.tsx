@@ -4,7 +4,7 @@ import { Modal } from '../../../components/ui/modal';
 import { Button } from '../../../components/ui/button';
 import { ResolvedLatLon } from '../factsV2/factTypes';
 import { describeResolvedPoint, formatDistance, WIZARD_KIND, WizardKind } from '../factsV2/buildDraftQuestion';
-import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/registries';
+import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/geometryAssets';
 
 export { WIZARD_KIND };
 export type { WizardKind };
