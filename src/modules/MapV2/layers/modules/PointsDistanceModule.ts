@@ -197,7 +197,10 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
     const label: Feature<Point> = {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: mid },
-      properties: { 'distance-text': `${distanceMeters} meters`, kind: FEATURE_KIND.DISTANCE_LABEL },
+      properties: {
+        'distance-text': `${distanceMeters.toLocaleString('en-IN')} meters`,
+        kind: FEATURE_KIND.DISTANCE_LABEL,
+      },
     };
 
     // A circle with the two points as the endpoints of its diameter.

@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
 import { MapCanvas } from './MapCanvas';
 import { uberDark } from './theme';
 
@@ -11,6 +10,12 @@ import { uberDark } from './theme';
  * serves FactsV2-shaped facts directly). Lives entirely under
  * src/modules/MapV2 so the existing Map page (src/modules/Map) is
  * untouched.
+ *
+ * A single flex column filling the viewport (100dvh, not 100vh — the
+ * dynamic viewport unit that accounts for mobile browser chrome showing/
+ * hiding) with nothing of its own between this and the map: the back
+ * button lives in MapCanvas's TopBar now, as the first item in that same
+ * flex row, rather than floating on top of the map as a separate layer.
  */
 const MapV2Page: React.FC = () => {
   const navigate = useNavigate();
@@ -22,35 +27,12 @@ const MapV2Page: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         height: '100dvh',
-        width: '100vw',
+        width: '100%',
         overflow: 'hidden',
-        position: 'relative',
         backgroundColor: uberDark.surface,
       }}
     >
-      <button
-        onClick={() => navigate(-1)}
-        style={{
-          position: 'absolute',
-          top: '16px',
-          left: '16px',
-          zIndex: 1000,
-          backgroundColor: uberDark.surfaceElevated,
-          border: `1px solid ${uberDark.border}`,
-          borderRadius: '50%',
-          width: '40px',
-          height: '40px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
-          cursor: 'pointer',
-        }}
-      >
-        <ChevronLeft size={24} color={uberDark.textPrimary} />
-      </button>
-
-      <MapCanvas gameId={gameId} />
+      <MapCanvas gameId={gameId} onBack={() => navigate(-1)} />
     </div>
   );
 };

@@ -9,32 +9,57 @@ import { useMapInteractions } from './hooks/useMapInteractions';
 import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
-import { MapControlsPanel } from './components/MapControlsPanel';
+import { TopBar } from './components/TopBar';
+import { LayersSheet } from './components/LayersSheet';
+import { AskQuestionFab } from './components/AskQuestionFab';
+import { DraftQuestionsList } from './components/DraftQuestionsList';
+import { FactsChip } from './components/FactsChip';
 import { MapStatusBanner } from './components/MapStatusBanner';
 import { FactPopup } from './components/FactPopup';
 import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
 
+interface MapCanvasInnerProps {
+  registry: MapLayerRegistry;
+  gameId?: string;
+  onBack?: () => void;
+}
+
 /**
- * Orchestrator only. Each capability lives in its own hook or module —
- * this component's whole job is creating them in the right order and
- * wiring their outputs together:
+ * Orchestrator only. Each capability lives in its own hook or module — this
+ * component's whole job is creating them in the right order, wiring their
+ * outputs together, and laying out the chrome around the map itself:
  *   playArea         -> the eagerly-loaded game zone (factsV2/geometryAssets.ts)
  *   polygonCatalog   -> corporation/metro-catchment zones, loaded lazily
  *                        (factsV2/geometryAssets.ts)
  *   teamFilter       -> which team's facts to show (hooks/useTeamFilter.ts)
  *   facts            -> Facts/Draft Facts data + modules (factsV2/useFactsLayers.ts)
  *   wizard           -> the "Ask a question" form (factsV2/useDraftFactWizard.ts)
- *   interactions     -> map clicks/hover, Points & Distance, Point Preview
+ *   interactions     -> map clicks/hover, Points & Distance
  *                        (hooks/useMapInteractions.ts)
  * `wizard` feeds `interactions` its pick-resolver so a click can satisfy a
  * pending "tap the map" request; nothing else crosses between them.
+ *
+ * Layout is two real flex rows stacked in a column — a fixed-height TopBar,
+ * then a flex:1 map area — rather than one full-bleed map with every
+ * control floating on top of it. The wizard/layers/fact-detail sheets still
+ * overlay the map (they're full-viewport portals, by design — see
+ * BottomSheet), but nothing about them blocks it: no backdrop, and the
+ * sheet's own header never covers more than the bottom portion of the
+ * screen, so there's always map visible above it for orientation while a
+ * question is being composed.
  */
-const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> = ({ registry, gameId }) => {
+const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBack }) => {
   useEffect(() => {
+    // Measurement has no visibility toggle anywhere in the UI right now, so
+    // it stays permanently on — registering it is still required so
+    // PointsDistanceModule has a group to mount into.
     registry.registerGroup(GROUP_ID.MEASUREMENT, 'Measurement');
-    registry.registerGroup(GROUP_ID.OVERLAYS, 'Overlays', false);
+    // Registry Polygons' only visibility control is now the per-zone flat
+    // list in LayersSheet (no group-level toggle exposed), so the group
+    // itself must default visible — otherwise every zone checkbox would be
+    // fighting a group that's permanently hidden.
+    registry.registerGroup(GROUP_ID.OVERLAYS, 'Overlays');
     registry.registerGroup(GROUP_ID.FACTS, 'Facts');
-    registry.registerGroup(GROUP_ID.PREVIEW, 'Preview');
   }, [registry]);
 
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
@@ -46,6 +71,7 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
   const wizard = useDraftFactWizard({
     zoneOptions: polygonCatalog.items,
     zoneOptionsLoading: polygonCatalog.loading,
+    previewUniverse: facts.draftsUniverse,
     onSubmit: facts.addDraftQuestion,
   });
   const interactions = useMapInteractions({
@@ -54,7 +80,6 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
     factsModule: facts.factsModule,
     draftFactsModule: facts.draftFactsModule,
     pickResolverRef: wizard.pickResolverRef,
-    isPicking: wizard.isPicking,
   });
 
   // Capability #2 — Registry Polygons. Simple enough (no data pipeline of
@@ -65,38 +90,44 @@ const MapCanvasInner: React.FC<{ registry: MapLayerRegistry; gameId?: string }> 
   const [polygonModule] = useState(() => new PolygonOverlayModule());
   useMapLayerModule(polygonModule, polygonCatalog.loading ? EMPTY_ITEMS : polygonCatalog.items);
 
+  const [layersOpen, setLayersOpen] = useState(false);
+
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-
-      <MapControlsPanel
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 }}>
+      <TopBar
+        onBack={onBack}
         teamFilter={teamFilter}
-        onOpenWizard={wizard.openWizard}
-        previewEnabled={interactions.previewEnabled}
-        onTogglePreview={interactions.togglePreview}
-        draftQuestions={facts.draftQuestions}
-        onRemoveDraftQuestion={facts.removeDraftQuestion}
+        onOpenLayers={() => setLayersOpen(true)}
       />
 
-      <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
+      <div style={{ position: 'relative', flex: '1 1 auto', minHeight: 0 }}>
+        <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
-      <FactPopup
-        fact={interactions.selectedFact?.fact ?? null}
-        isDraft={interactions.selectedFact?.isDraft ?? false}
-        onClose={interactions.clearSelectedFact}
-      />
+        <FactsChip count={facts.factsCount} />
+        <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
+        <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
+        <AskQuestionFab onClick={wizard.openWizard} />
 
-      <CreateDraftFactWizard {...wizard.props} />
+        <LayersSheet isOpen={layersOpen} onClose={() => setLayersOpen(false)} />
+
+        <FactPopup
+          fact={interactions.selectedFact?.fact ?? null}
+          isDraft={interactions.selectedFact?.isDraft ?? false}
+          onClose={interactions.clearSelectedFact}
+        />
+
+        <CreateDraftFactWizard {...wizard.props} />
+      </div>
     </div>
   );
 };
 
-export const MapCanvas: React.FC<{ gameId?: string }> = ({ gameId }) => {
+export const MapCanvas: React.FC<{ gameId?: string; onBack?: () => void }> = ({ gameId, onBack }) => {
   const [registry] = useState(() => new MapLayerRegistry());
 
   return (
     <MapLayerRegistryProvider value={registry}>
-      <MapCanvasInner registry={registry} gameId={gameId} />
+      <MapCanvasInner registry={registry} gameId={gameId} onBack={onBack} />
     </MapLayerRegistryProvider>
   );
 };

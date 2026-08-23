@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { useGetFactsQuery } from '../../../apis/api';
 import { useLayerTree, useMapLayerModule, EMPTY_ITEMS } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
@@ -19,9 +20,16 @@ export interface UseFactsLayersOptions {
 export interface UseFactsLayersResult {
   factsModule: FactsLayerModule;
   draftFactsModule: FactsLayerModule;
+  /** Confirmed facts loaded for the selected team — for the map's FactsChip. */
+  factsCount: number;
   draftQuestions: AskedQuestionDto[];
   addDraftQuestion: (q: AskedQuestionDto) => void;
   removeDraftQuestion: (questionId: string) => void;
+  /** Wherever Draft Facts currently fold on top of — i.e. the confirmed
+   * area, minus visible confirmed facts. Exposed so the wizard's own live
+   * preview module folds from the exact same starting point a real draft
+   * would once added, instead of drifting from the raw play area. */
+  draftsUniverse: () => Feature<Polygon | MultiPolygon>;
 }
 
 /**
@@ -123,5 +131,8 @@ export function useFactsLayers({ gameId, teamId, playAreaState }: UseFactsLayers
   useMapLayerModule(factsModule, playAreaState.loading ? EMPTY_ITEMS : factItems);
   useMapLayerModule(draftFactsModule, playAreaState.loading ? EMPTY_ITEMS : draftFactItems);
 
-  return { factsModule, draftFactsModule, draftQuestions, addDraftQuestion, removeDraftQuestion };
+  return {
+    factsModule, draftFactsModule, factsCount: realFacts.length,
+    draftQuestions, addDraftQuestion, removeDraftQuestion, draftsUniverse,
+  };
 }

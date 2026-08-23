@@ -10,7 +10,7 @@ export interface PolygonOverlayItem {
   geometry: Polygon | MultiPolygon;
 }
 
-const MODULE_ID = 'polygon-overlays';
+export const POLYGON_OVERLAY_MODULE_ID = 'polygon-overlays';
 const SOURCE_ID = 'polygon-overlay-source';
 
 const PALETTE = ['#e57373', '#64b5f6', '#81c784', '#ffb74d', '#ba68c8', '#4db6ac', '#f06292'];
@@ -25,14 +25,18 @@ const colorFor = (id: string): string => {
  * Capability #2 — Registry Polygons as overlays. Items are named boundaries
  * pulled straight from the same registry the FactsV2 resolvers use for
  * POLYGON_INSIDE facts ({ registryKey, displayName, geometry }); each is
- * independently toggleable. Lives in the "overlays" group so it shares
- * group-level show/hide with Metro Lines without either module knowing
- * about the other.
+ * independently toggleable, off by default — the map opens uncluttered,
+ * and a zone is switched on one at a time from the Zones sheet rather than
+ * every corporation/metro-catchment boundary being drawn at once.
  */
 export class PolygonOverlayModule extends GeoJsonLayerModule<PolygonOverlayItem> {
-  readonly id = MODULE_ID;
+  readonly id = POLYGON_OVERLAY_MODULE_ID;
   readonly groupId = GROUP_ID.OVERLAYS;
   readonly label = 'Registry Polygons';
+
+  protected defaultItemVisible(): boolean {
+    return false;
+  }
 
   sourceId(): string {
     return SOURCE_ID;

@@ -10,3 +10,9 @@ export const DRAFT_FACTS_MODULE_ID = 'draft-facts';
 export const FACTS_FILL_LAYER = `${FACTS_MODULE_ID}-fill`;
 export const DRAFT_FACTS_FILL_LAYER = `${DRAFT_FACTS_MODULE_ID}-fill`;
 export const FACT_HIT_LAYERS = [FACTS_FILL_LAYER, DRAFT_FACTS_FILL_LAYER];
+
+/** The wizard's own live "what would this look like" preview — a third
+ * FactsLayerModule instance, not hit-testable (it's gone the moment the
+ * wizard leaves the review step or closes, so nothing should try to click
+ * it as if it were a real fact). */
+export const WIZARD_PREVIEW_MODULE_ID = 'wizard-preview-fact';

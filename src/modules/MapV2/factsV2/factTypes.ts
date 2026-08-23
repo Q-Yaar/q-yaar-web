@@ -132,8 +132,9 @@ export interface Region {
 /**
  * A question the asker has sent but the hider hasn't answered yet. Rendered
  * as a "Draft Fact" — same factToRegion path as a confirmed Fact, just with
- * an assumed value (see draftQuestionToFact in mockData.ts) and dashed
- * styling so it reads as unconfirmed.
+ * an assumed value (assumed_value, picked in the wizard's review step — see
+ * draftQuestionToFact in mockData.ts) and dashed styling so it reads as
+ * unconfirmed.
  */
 export interface AskedQuestionDto {
   question_id: string;
@@ -142,5 +143,9 @@ export interface AskedQuestionDto {
   question_meta: {
     resolved_slots: Record<string, unknown>;
     asserted_answer: Answer;
+    /** What we assume the hider will answer, chosen by the asker in the
+     * wizard's review step before adding the draft — true assumes the
+     * asserted pole holds, false assumes its opposite. */
+    assumed_value: boolean;
   };
 }

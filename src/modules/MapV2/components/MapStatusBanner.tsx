@@ -18,19 +18,19 @@ export const MapStatusBanner: React.FC<MapStatusBannerProps> = ({ pickPrompt, on
     return (
       <div
         style={{
-          position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', top: 'calc(12px + env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)',
           zIndex: 20, backgroundColor: uberDark.surfaceElevated, color: uberDark.textPrimary,
           padding: '8px 10px 8px 16px', border: `1px solid ${uberDark.border}`,
           borderRadius: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '12px',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.6)', maxWidth: 'calc(100% - 24px)',
         }}
       >
-        {pickPrompt}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pickPrompt}</span>
         <button
           onClick={onCancelPick}
           style={{
             background: 'rgba(255,255,255,0.12)', border: 'none', color: uberDark.textPrimary,
-            borderRadius: '14px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer',
+            borderRadius: '14px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', flexShrink: 0,
           }}
         >
           Cancel
@@ -39,17 +39,27 @@ export const MapStatusBanner: React.FC<MapStatusBannerProps> = ({ pickPrompt, on
     );
   }
 
+  // Stacked *above* the FAB row (not beside it) — sharing the bottom-right
+  // corner with "Ask a question" left too little horizontal room for this
+  // text on a phone-width screen and the two visibly overlapped.
   return (
     <div
       style={{
-        position: 'absolute', bottom: '16px', left: '50%', transform: 'translateX(-50%)',
-        zIndex: 10, backgroundColor: 'rgba(20,20,20,0.85)', padding: '6px 14px',
-        border: `1px solid ${uberDark.border}`,
-        borderRadius: '20px', fontSize: '12px', color: uberDark.textSecondary,
-        boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+        position: 'absolute', left: '12px', right: '12px', bottom: 'calc(76px + env(safe-area-inset-bottom))',
+        zIndex: 10, display: 'flex', justifyContent: 'flex-start',
       }}
     >
-      Click the map to place measurement points · click a shaded fact to inspect it
+      <div
+        style={{
+          backgroundColor: 'rgba(20,20,20,0.85)', padding: '6px 14px',
+          border: `1px solid ${uberDark.border}`,
+          borderRadius: '20px', fontSize: '11px', color: uberDark.textSecondary,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.5)', maxWidth: '100%',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}
+      >
+        Tap the map to measure · tap shading to inspect
+      </div>
     </div>
   );
 };

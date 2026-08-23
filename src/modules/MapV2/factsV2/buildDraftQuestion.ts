@@ -25,10 +25,15 @@ export const WIZARD_KIND = {
 
 export type WizardKind = (typeof WIZARD_KIND)[keyof typeof WIZARD_KIND];
 
-export type DraftQuestionInput =
+export type DraftQuestionInput = (
   | { kind: typeof WIZARD_KIND.CIRCLE; center: ResolvedLatLon; radius: number }
   | { kind: typeof WIZARD_KIND.ZONE; zoneKey: string; zoneLabel: string }
-  | { kind: typeof WIZARD_KIND.HOTTER_COLDER; pointA: ResolvedLatLon; pointB: ResolvedLatLon };
+  | { kind: typeof WIZARD_KIND.HOTTER_COLDER; pointA: ResolvedLatLon; pointB: ResolvedLatLon }
+) & {
+  /** What the wizard's review step assumes the hider will answer — see
+   * AskedQuestionDto.question_meta.assumed_value. */
+  assumedValue: boolean;
+};
 
 /**
  * Turns the wizard's plain-language inputs into an AskedQuestionDto —
@@ -48,6 +53,7 @@ export function buildDraftQuestion(input: DraftQuestionInput): AskedQuestionDto 
         question_meta: {
           resolved_slots: { point: input.center, radius: input.radius },
           asserted_answer: ANSWER.INSIDE,
+          assumed_value: input.assumedValue,
         },
       };
     case WIZARD_KIND.ZONE:
@@ -58,6 +64,7 @@ export function buildDraftQuestion(input: DraftQuestionInput): AskedQuestionDto 
         question_meta: {
           resolved_slots: { polygon: input.zoneKey },
           asserted_answer: ANSWER.INSIDE,
+          assumed_value: input.assumedValue,
         },
       };
     case WIZARD_KIND.HOTTER_COLDER:
@@ -68,6 +75,7 @@ export function buildDraftQuestion(input: DraftQuestionInput): AskedQuestionDto 
         question_meta: {
           resolved_slots: { point: input.pointA, pointFinal: input.pointB },
           asserted_answer: ANSWER.HOTTER,
+          assumed_value: input.assumedValue,
         },
       };
     default: {

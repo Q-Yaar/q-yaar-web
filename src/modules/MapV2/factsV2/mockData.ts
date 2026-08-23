@@ -132,6 +132,7 @@ export const MOCK_DRAFT_QUESTIONS: AskedQuestionDto[] = [
     question_meta: {
       resolved_slots: { point: rl(77.652, 12.951), radius: 2000 },
       asserted_answer: ANSWER.INSIDE,
+      assumed_value: true,
     },
   },
   {
@@ -141,19 +142,20 @@ export const MOCK_DRAFT_QUESTIONS: AskedQuestionDto[] = [
     question_meta: {
       resolved_slots: { polygon: 'BLR_NORTH_CORP' },
       asserted_answer: ANSWER.INSIDE,
+      assumed_value: true,
     },
   },
 ];
 
 /**
  * A draft has no Answer yet, so there's no hider boolean to flip
- * assertedAnswer against. We assume the asserted pole holds (value: true) —
- * a preview of what the constraint will look like if the hider confirms —
- * and mark provenance with a `draft-` answer_id prefix so it's obviously
- * not a real Answer record.
+ * assertedAnswer against — question_meta.assumed_value stands in for it,
+ * picked by the asker in the wizard's review step (default: assume the
+ * asserted pole holds). Marked with a `draft-` answer_id prefix so it's
+ * obviously not a real Answer record.
  */
 export function draftQuestionToFact(question: AskedQuestionDto): FactDto {
-  const { resolved_slots, asserted_answer } = question.question_meta;
+  const { resolved_slots, asserted_answer, assumed_value } = question.question_meta;
   return {
     fact_id: `draft-${question.question_id}`,
     fact_type: FACT_TYPE.GEO,
@@ -161,7 +163,7 @@ export function draftQuestionToFact(question: AskedQuestionDto): FactDto {
     answer_id: `draft-${question.question_id}`,
     fact_info: {
       op_type: question.answer_instruction_type,
-      op_meta: { ...resolved_slots, assertedAnswer: asserted_answer, value: true },
+      op_meta: { ...resolved_slots, assertedAnswer: asserted_answer, value: assumed_value },
     },
     created: new Date().toISOString(),
     modified: new Date().toISOString(),

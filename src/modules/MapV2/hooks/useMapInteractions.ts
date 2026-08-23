@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import maplibregl from 'maplibre-gl';
-import { useMapLayerModule, EMPTY_ITEMS } from '../layers/hooks';
+import { useMapLayerModule } from '../layers/hooks';
 import { PointDistanceItem, PointsDistanceModule } from '../layers/modules/PointsDistanceModule';
-import { PointPreviewModule } from '../layers/modules/PointPreviewModule';
 import { FactsLayerModule } from '../layers/modules/FactsLayerModule';
 import { FactDto } from '../factsV2/factTypes';
 import { DRAFT_FACTS_FILL_LAYER, FACT_HIT_LAYERS } from '../factsV2/factsLayerIds';
@@ -18,25 +17,20 @@ export interface UseMapInteractionsOptions {
   factsModule: FactsLayerModule;
   draftFactsModule: FactsLayerModule;
   /** Owned by useDraftFactWizard — a pending pick takes priority over
-   * everything else a click could mean, and also drives the hover preview
-   * while it's active. */
+   * everything else a click could mean. */
   pickResolverRef: React.RefObject<((coordinates: [number, number]) => void) | null>;
-  isPicking: boolean;
 }
 
 export interface UseMapInteractionsResult {
   selectedFact: SelectedFact | null;
   clearSelectedFact: () => void;
-  previewEnabled: boolean;
-  togglePreview: () => void;
 }
 
 /**
- * Owns Points & Distance measurement (capability #1) and Point Preview
- * (capability #4) end to end — their module instances, the click handler
- * that places points / opens a fact's popup / resolves a wizard map-pick,
- * and the hover effect that drives the preview ring. MapCanvas just needs
- * `selectedFact` (for the popup) and the preview toggle's own UI state.
+ * Owns Points & Distance measurement (capability #1) end to end — its
+ * module instance and the click handler that places points / opens a
+ * fact's popup / resolves a wizard map-pick. MapCanvas just needs
+ * `selectedFact` (for the popup).
  */
 export function useMapInteractions({
   mapRef,
@@ -44,17 +38,13 @@ export function useMapInteractions({
   factsModule,
   draftFactsModule,
   pickResolverRef,
-  isPicking,
 }: UseMapInteractionsOptions): UseMapInteractionsResult {
   const [pointsModule] = useState(() => new PointsDistanceModule());
-  const [previewModule] = useState(() => new PointPreviewModule());
 
   const [points, setPoints] = useState<PointDistanceItem[]>([]);
-  const [previewEnabled, setPreviewEnabled] = useState(false);
   const [selectedFact, setSelectedFact] = useState<SelectedFact | null>(null);
 
   useMapLayerModule(pointsModule, points);
-  useMapLayerModule(previewModule, EMPTY_ITEMS);
 
   // Click: while a wizard map-pick is pending, resolve it. Otherwise, a hit
   // on a fact polygon opens its FactsV2 popup; anything else places a
@@ -100,24 +90,8 @@ export function useMapInteractions({
     };
   }, [mapRef, isMapReady, pickResolverRef, factsModule, draftFactsModule]);
 
-  // Hover preview (capability #4) — driven either by the "Preview" toggle,
-  // or by an in-progress wizard map-pick.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !isMapReady || (!previewEnabled && !isPicking)) return;
-
-    const handleMove = (e: maplibregl.MapMouseEvent) => previewModule.preview([e.lngLat.lng, e.lngLat.lat]);
-    map.on('mousemove', handleMove);
-    return () => {
-      map.off('mousemove', handleMove);
-      previewModule.clear();
-    };
-  }, [mapRef, isMapReady, previewEnabled, isPicking, previewModule]);
-
   return {
     selectedFact,
     clearSelectedFact: () => setSelectedFact(null),
-    previewEnabled,
-    togglePreview: () => setPreviewEnabled((v) => !v),
   };
 }

@@ -62,13 +62,20 @@ export abstract class GeoJsonLayerModule<Item extends LayerItem> {
     return this.mounted;
   }
 
+  /** Whether an id never seen before starts visible. Overridden by
+   * PolygonOverlayModule (zones start off, toggled on individually via the
+   * Zones sheet) — every other module keeps the default. */
+  protected defaultItemVisible(): boolean {
+    return true;
+  }
+
   /** Replace the full item list. An id seen before keeps its prior
-   * visibility; a new id defaults to visible. */
+   * visibility; a new id falls back to defaultItemVisible(). */
   setItems(items: Item[]): void {
     const next = new Map<string, StoredItem<Item>>();
     for (const data of items) {
       const prior = this.items.get(data.id);
-      next.set(data.id, { data, visible: prior?.visible ?? true });
+      next.set(data.id, { data, visible: prior?.visible ?? this.defaultItemVisible() });
     }
     this.items = next;
     this.render();

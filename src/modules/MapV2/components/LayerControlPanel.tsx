@@ -1,113 +1,83 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Layers } from 'lucide-react';
+import React from 'react';
+import { Loader2 } from 'lucide-react';
 import { useLayerTree } from '../layers/hooks';
+import { GROUP_ID } from '../layers/groupIds';
+import { POLYGON_OVERLAY_MODULE_ID } from '../layers/modules/PolygonOverlayModule';
+import { PolygonOverlayItemData, REGION_KIND, usePolygonCatalog } from '../factsV2/geometryAssets';
 import { uberDark } from '../theme';
 
+interface ZoneSectionProps {
+  title: string;
+  zones: PolygonOverlayItemData[];
+  visibleIds: Set<string>;
+  onToggle: (id: string, visible: boolean) => void;
+}
+
+const ZoneSection: React.FC<ZoneSectionProps> = ({ title, zones, visibleIds, onToggle }) => {
+  if (zones.length === 0) return null;
+  return (
+    <div>
+      <div style={{ fontSize: '12px', fontWeight: 700, color: uberDark.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>
+        {title}
+      </div>
+      {zones.map((zone) => (
+        <label
+          key={zone.id}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '10px',
+            padding: '10px 4px', minHeight: '40px', fontSize: '14px',
+            color: uberDark.textPrimary, cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={visibleIds.has(zone.id)}
+            onChange={(e) => onToggle(zone.id, e.target.checked)}
+          />
+          {zone.displayName}
+        </label>
+      ))}
+    </div>
+  );
+};
+
 /**
- * The control-panel UI the architecture doc left open: a checkbox tree over
- * useLayerTree's group -> module -> item structure, calling
- * setGroupVisible/setModuleVisible/setItemVisible directly. No layer module
- * needs to know this exists.
+ * A flat list of every zone the "Registry Polygons" overlay can draw — city
+ * corporations, then metro line regions, each its own titled section, no
+ * group/module nesting. This sheet only ever controls that one overlay now:
+ * Measurement stays always-on, and Facts has its own quick-toggle chip on
+ * the map (see FactsChip.tsx) — neither needs a place in this list.
  */
 export const LayerControlPanel: React.FC = () => {
-  const { tree, setGroupVisible, setModuleVisible, setItemVisible } = useLayerTree();
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(tree.groups.map((g) => g.id)));
-  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+  const { tree, setItemVisible } = useLayerTree();
+  const polygonCatalog = usePolygonCatalog();
 
-  const toggleExpanded = (set: Set<string>, setSet: (s: Set<string>) => void, id: string) => {
-    const next = new Set(set);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setSet(next);
-  };
+  const overlaysGroup = tree.groups.find((g) => g.id === GROUP_ID.OVERLAYS);
+  const polygonModule = overlaysGroup?.modules.find((m) => m.id === POLYGON_OVERLAY_MODULE_ID);
+  const visibleIds = new Set(polygonModule?.items.filter((item) => item.visible).map((item) => item.id) ?? []);
+
+  if (polygonCatalog.loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: uberDark.textSecondary, fontSize: '13px', padding: '8px 4px' }}>
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading zones…
+      </div>
+    );
+  }
 
   return (
-    <div
-      style={{
-        backgroundColor: uberDark.surfaceElevated,
-        borderRadius: '16px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-        border: `1px solid ${uberDark.border}`,
-        padding: '8px',
-        width: '280px',
-        maxHeight: '60vh',
-        overflowY: 'auto',
-      }}
-    >
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '8px',
-        fontSize: '13px', fontWeight: 600, color: uberDark.textSecondary,
-        padding: '8px 8px', borderBottom: `1px solid ${uberDark.border}`, marginBottom: '4px',
-      }}
-      >
-        <Layers size={14} /> Layers
-      </div>
-
-      {tree.groups.map((group) => (
-        <div key={group.id} style={{ marginBottom: '2px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 4px' }}>
-            <button
-              onClick={() => toggleExpanded(expandedGroups, setExpandedGroups, group.id)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', color: uberDark.textSecondary }}
-              aria-label={expandedGroups.has(group.id) ? 'Collapse group' : 'Expand group'}
-            >
-              {expandedGroups.has(group.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </button>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', flex: 1, color: uberDark.textPrimary }}>
-              <input
-                type="checkbox"
-                checked={group.visible}
-                onChange={(e) => setGroupVisible(group.id, e.target.checked)}
-              />
-              {group.label}
-            </label>
-          </div>
-
-          {expandedGroups.has(group.id) && group.modules.map((mod) => (
-            <div key={mod.id} style={{ marginLeft: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 4px' }}>
-                {mod.items.length > 0 ? (
-                  <button
-                    onClick={() => toggleExpanded(expandedModules, setExpandedModules, mod.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', color: uberDark.textSecondary }}
-                    aria-label={expandedModules.has(mod.id) ? 'Collapse module' : 'Expand module'}
-                  >
-                    {expandedModules.has(mod.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  </button>
-                ) : <span style={{ width: '12px', display: 'inline-block' }} />}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', flex: 1, color: uberDark.textPrimary }}>
-                  <input
-                    type="checkbox"
-                    checked={mod.visible}
-                    onChange={(e) => setModuleVisible(mod.id, e.target.checked)}
-                  />
-                  {mod.label}
-                  <span style={{ color: uberDark.textSecondary, fontSize: '11px' }}>
-                    {mod.items.length > 0 ? `(${mod.items.filter((i) => i.visible).length}/${mod.items.length})` : ''}
-                  </span>
-                </label>
-              </div>
-
-              {expandedModules.has(mod.id) && mod.items.map((item) => (
-                <label
-                  key={item.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    marginLeft: '32px', padding: '2px 4px', fontSize: '12px',
-                    color: uberDark.textSecondary, cursor: 'pointer',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.visible}
-                    onChange={(e) => setItemVisible(mod.id, item.id, e.target.checked)}
-                  />
-                  {item.label ?? item.id}
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
-      ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <ZoneSection
+        title="City corporations"
+        zones={polygonCatalog.items.filter((z) => z.kind === REGION_KIND.CORPORATION)}
+        visibleIds={visibleIds}
+        onToggle={(id, visible) => setItemVisible(POLYGON_OVERLAY_MODULE_ID, id, visible)}
+      />
+      <ZoneSection
+        title="Metro line regions"
+        zones={polygonCatalog.items.filter((z) => z.kind === REGION_KIND.METRO_CATCHMENT)}
+        visibleIds={visibleIds}
+        onToggle={(id, visible) => setItemVisible(POLYGON_OVERLAY_MODULE_ID, id, visible)}
+      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Modal } from '../../../components/ui/modal';
 import { FactDto } from '../factsV2/factTypes';
+import { BottomSheet } from './BottomSheet';
 
 interface FactPopupProps {
   fact: FactDto | null;
@@ -21,13 +21,12 @@ const formatSlotValue = (value: unknown): string => {
 };
 
 /**
- * Every map modal that shows fact details reads straight off the FactsV2
- * DTO from "Ask to Fact" — op_type, the resolved op_meta slots, and the
- * assertedAnswer/value pair the region was computed from — rather than the
- * old ad hoc Fact.fact_info blob.
- *
- * Skips Modal's built-in `title` (it hardcodes dark text, illegible on this
- * dark-theme card) and renders its own light-colored heading instead.
+ * Every map detail view reads straight off the FactsV2 DTO from "Ask to
+ * Fact" — op_type, the resolved op_meta slots, and the assertedAnswer/value
+ * pair the region was computed from — rather than the old ad hoc
+ * Fact.fact_info blob. Uses the same BottomSheet as the draft-fact wizard
+ * (not the shared old-app Modal) so tapping a fact never blocks the map out
+ * from under it.
  */
 export const FactPopup: React.FC<FactPopupProps> = ({ fact, isDraft, onClose }) => {
   if (!fact) return null;
@@ -36,10 +35,8 @@ export const FactPopup: React.FC<FactPopupProps> = ({ fact, isDraft, onClose }) 
   const { assertedAnswer, value, ...slots } = op_meta;
 
   return (
-    <Modal isOpen onClose={onClose} className="dark bg-neutral-900 border border-white/10 text-white">
+    <BottomSheet isOpen title={isDraft ? 'Draft Fact' : 'Fact'} leftAction={{ label: 'Close', onClick: onClose }}>
       <div className="space-y-3 text-sm">
-        <h2 className="text-lg font-bold text-white">{isDraft ? 'Draft Fact' : 'Fact'}</h2>
-
         {isDraft && (
           <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-amber-300 text-xs">
             Not yet confirmed by the hider — shown assuming the asserted answer holds.
@@ -48,7 +45,7 @@ export const FactPopup: React.FC<FactPopupProps> = ({ fact, isDraft, onClose }) 
 
         <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
           <span className="text-white/50">fact_id</span>
-          <span className="font-mono text-xs text-white/90">{fact.fact_id}</span>
+          <span className="font-mono text-xs text-white/90 break-all">{fact.fact_id}</span>
 
           <span className="text-white/50">op_type</span>
           <span className="font-mono text-xs text-white/90">{op_type}</span>
@@ -72,10 +69,10 @@ export const FactPopup: React.FC<FactPopupProps> = ({ fact, isDraft, onClose }) 
           </div>
         </div>
 
-        <div className="text-xs text-white/40">
+        <div className="text-xs text-white/40 break-all">
           question_id: {fact.question_id} · answer_id: {fact.answer_id}
         </div>
       </div>
-    </Modal>
+    </BottomSheet>
   );
 };
