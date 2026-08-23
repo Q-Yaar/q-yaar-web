@@ -5,13 +5,15 @@ export const formatDistance = (metres: number): string => (
 );
 
 /** Human-readable stand-in for a resolved point, used in the wizard's live
- * preview sentence and the rendered_question it produces. */
-export const describeResolvedPoint = (p: ResolvedLatLon | null): string => {
-  if (!p) return 'a point';
-  if (p.source === POINT_SOURCE.ASKER_LOCATION) {
-    return p.accuracy_m ? `your location (±${p.accuracy_m} m)` : 'your location';
-  }
-  return `the point you picked (${Number(p.lat).toFixed(4)}, ${Number(p.lon).toFixed(4)})`;
+ * preview sentence and the rendered_question it produces. Deliberately
+ * never shows raw lat/lon — a GPS fix always reads as "your location";
+ * anything else falls back to whatever short label the caller passes (so
+ * two points in the same sentence, like hotter/colder's A and B, still
+ * read as distinct without spelling out coordinates). */
+export const describeResolvedPoint = (p: ResolvedLatLon | null, fallback = 'a point'): string => {
+  if (!p) return fallback;
+  if (p.source === POINT_SOURCE.ASKER_LOCATION) return 'your location';
+  return fallback;
 };
 
 const newQuestionId = (): string => `q-draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -48,7 +50,7 @@ export function buildDraftQuestion(input: DraftQuestionInput): AskedQuestionDto 
     case WIZARD_KIND.CIRCLE:
       return {
         question_id,
-        rendered_question: `Are you within ${formatDistance(input.radius)} of ${describeResolvedPoint(input.center)}?`,
+        rendered_question: `Are you within ${formatDistance(input.radius)} of ${describeResolvedPoint(input.center, 'the point you picked')}?`,
         answer_instruction_type: OP_TYPE.POINT_BUFFER_INSIDE,
         question_meta: {
           resolved_slots: { point: input.center, radius: input.radius },
@@ -70,7 +72,7 @@ export function buildDraftQuestion(input: DraftQuestionInput): AskedQuestionDto 
     case WIZARD_KIND.HOTTER_COLDER:
       return {
         question_id,
-        rendered_question: `Compared to ${describeResolvedPoint(input.pointA)}, are you now closer to ${describeResolvedPoint(input.pointB)}?`,
+        rendered_question: `Compared to ${describeResolvedPoint(input.pointA, 'point A')}, are you now closer to ${describeResolvedPoint(input.pointB, 'point B')}?`,
         answer_instruction_type: OP_TYPE.TWO_POINT_BISECTOR,
         question_meta: {
           resolved_slots: { point: input.pointA, pointFinal: input.pointB },

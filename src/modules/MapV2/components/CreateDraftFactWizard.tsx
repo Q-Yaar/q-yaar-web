@@ -48,21 +48,21 @@ interface PointFieldProps {
 
 const PointField: React.FC<PointFieldProps> = ({ label, helpText, value, locating, onPickOnMap, onUseMyLocation }) => (
   <div>
-    <div className="text-sm font-semibold text-white">{label}</div>
-    <div className="text-xs text-white/50 mb-2">{helpText}</div>
+    <div className="text-xs font-semibold text-white">{label}</div>
+    <div className="text-[11px] text-white/40 mb-1.5">{helpText}</div>
     {value ? (
-      <div className="flex items-center justify-between rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-300">
-        <span>✓ {describeResolvedPoint(value)}</span>
-        <button className="text-xs underline text-emerald-300" onClick={onPickOnMap}>change</button>
+      <div className="flex items-center justify-between rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-300">
+        <span>✓ {describeResolvedPoint(value, 'Location set')}</span>
+        <button className="text-[11px] underline text-emerald-300" onClick={onPickOnMap}>change</button>
       </div>
     ) : (
-      <div className="flex gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onUseMyLocation} disabled={locating} className="flex-1 h-11">
-          {locating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <LocateFixed className="w-4 h-4 mr-1" />}
+      <div className="flex gap-1.5">
+        <Button type="button" variant="outline" size="sm" onClick={onUseMyLocation} disabled={locating} className="flex-1 h-9 text-xs">
+          {locating ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <LocateFixed className="w-3.5 h-3.5 mr-1" />}
           Use my location
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={onPickOnMap} className="flex-1 h-11">
-          <MapPin className="w-4 h-4 mr-1" />
+        <Button type="button" variant="outline" size="sm" onClick={onPickOnMap} className="flex-1 h-9 text-xs">
+          <MapPin className="w-3.5 h-3.5 mr-1" />
           Tap the map
         </Button>
       </div>
@@ -71,7 +71,7 @@ const PointField: React.FC<PointFieldProps> = ({ label, helpText, value, locatin
 );
 
 const chipStyle = (selected: boolean): string =>
-  `px-3 py-2 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+  `px-2.5 py-1.5 rounded-full text-[11px] font-medium border transition-colors whitespace-nowrap ${
     selected ? 'bg-white text-neutral-900 border-white' : 'border-white/20 text-white/80 hover:border-white/40'
   }`;
 
@@ -86,8 +86,8 @@ const ZoneChipGroup: React.FC<ZoneChipGroupProps> = ({ label, zones, selected, o
   if (zones.length === 0) return null;
   return (
     <div>
-      <div className="text-xs font-semibold text-white/50 uppercase tracking-wide mb-2">{label}</div>
-      <div className="flex flex-wrap gap-2">
+      <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1.5">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
         {zones.map((z) => (
           <button key={z.id} onClick={() => onSelect(z.id)} className={chipStyle(selected === z.id)}>
             {z.displayName}
@@ -175,23 +175,23 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
   return (
     <BottomSheet isOpen={isOpen} title={title} leftAction={leftAction} rightAction={rightAction}>
       {locationError && (
-        <div className="rounded-md bg-red-500/10 border border-red-500/30 px-3 py-2 text-xs text-red-300">
+        <div className="rounded-md bg-red-500/10 border border-red-500/30 px-2.5 py-1.5 text-[11px] text-red-300">
           {locationError}
         </div>
       )}
 
       {step === WIZARD_STEP.KIND && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {(Object.keys(KIND_INFO) as WizardKind[]).map((k) => (
             <button
               key={k}
               onClick={() => onSelectKind(k)}
-              className="w-full flex items-start gap-3 rounded-lg border border-white/10 p-3.5 text-left hover:border-white/30 hover:bg-white/5 active:bg-white/10 transition-colors"
+              className="w-full flex items-center gap-2.5 rounded-lg border border-white/10 px-3 py-2.5 text-left hover:border-white/30 hover:bg-white/5 active:bg-white/10 transition-colors"
             >
-              <span className="text-white/70 mt-0.5">{KIND_INFO[k].icon}</span>
+              <span className="text-white/60">{KIND_INFO[k].icon}</span>
               <span>
-                <span className="block text-sm font-semibold text-white">{KIND_INFO[k].title}</span>
-                <span className="block text-xs text-white/50">{KIND_INFO[k].blurb}</span>
+                <span className="block text-xs font-semibold text-white">{KIND_INFO[k].title}</span>
+                <span className="block text-[11px] text-white/40">{KIND_INFO[k].blurb}</span>
               </span>
             </button>
           ))}
@@ -199,7 +199,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
       )}
 
       {step === WIZARD_STEP.DETAILS && kind === WIZARD_KIND.CIRCLE && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <PointField
             label="Center"
             helpText="Where should the circle be centered?"
@@ -209,8 +209,8 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
             onUseMyLocation={onUseMyLocationForCircle}
           />
           <div>
-            <div className="text-sm font-semibold text-white">How big?</div>
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="text-xs font-semibold text-white">How big?</div>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
               {RADIUS_CHOICES_M.map((m) => (
                 <button key={m} onClick={() => onSetCircleRadius(m)} className={chipStyle(circleRadius === m)}>
                   {formatDistance(m)}
@@ -222,10 +222,10 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
       )}
 
       {step === WIZARD_STEP.DETAILS && kind === WIZARD_KIND.ZONE && (
-        <div className="space-y-4">
-          <div className="text-sm font-semibold text-white">Which zone?</div>
+        <div className="space-y-3">
+          <div className="text-xs font-semibold text-white">Which zone?</div>
           {zoneOptionsLoading ? (
-            <div className="text-xs text-white/50 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading zones…</div>
+            <div className="text-[11px] text-white/40 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading zones…</div>
           ) : (
             <>
               <ZoneChipGroup
@@ -246,7 +246,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
       )}
 
       {step === WIZARD_STEP.DETAILS && kind === WIZARD_KIND.HOTTER_COLDER && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <PointField
             label="Point A — where you started"
             helpText="The reference point to compare against."
@@ -267,17 +267,17 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
       )}
 
       {step === WIZARD_STEP.REVIEW && (
-        <div className="space-y-4">
-          <div className="rounded-md border border-white/10 bg-white/5 px-4 py-3 text-sm text-white">
+        <div className="space-y-3">
+          <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white">
             {renderedQuestionPreview}
           </div>
 
           <div>
-            <div className="text-sm font-semibold text-white mb-2">If the hider answers this…</div>
-            <div className="flex gap-2">
+            <div className="text-xs font-semibold text-white mb-1.5">If the hider answers this…</div>
+            <div className="flex gap-1.5">
               <button
                 onClick={() => onSetAssumedValue(true)}
-                className={`flex-1 h-11 rounded-full text-sm font-semibold border transition-colors ${
+                className={`flex-1 h-9 rounded-full text-xs font-semibold border transition-colors ${
                   assumedValue ? 'bg-emerald-500 text-white border-emerald-500' : 'border-white/20 text-white/70 hover:border-white/40'
                 }`}
               >
@@ -285,7 +285,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
               </button>
               <button
                 onClick={() => onSetAssumedValue(false)}
-                className={`flex-1 h-11 rounded-full text-sm font-semibold border transition-colors ${
+                className={`flex-1 h-9 rounded-full text-xs font-semibold border transition-colors ${
                   !assumedValue ? 'bg-rose-500 text-white border-rose-500' : 'border-white/20 text-white/70 hover:border-white/40'
                 }`}
               >
@@ -294,8 +294,8 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
             </div>
           </div>
 
-          <p className="text-xs text-white/50">
-            The amber shape now on the map is a live preview of what stays possible if the hider answers “{assumedValue ? 'yes' : 'no'}”. It shows up as a draft fact — dashed, purple — once you add it, until the hider actually answers.
+          <p className="text-[11px] text-white/40">
+            The amber shape on the map previews what stays possible if the hider answers “{assumedValue ? 'yes' : 'no'}”. It becomes a dashed draft fact once added, until the hider actually answers.
           </p>
         </div>
       )}

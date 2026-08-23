@@ -1,15 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { AskedQuestionDto, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
 import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND, WizardKind } from './buildDraftQuestion';
 import { resolveCurrentLocation } from '../utils/geolocation';
 import { PolygonOverlayItemData } from './geometryAssets';
 import { draftQuestionToFact } from './mockData';
+import { foldFactsAreaInWorker } from './geoWorkerClient';
 import { GROUP_ID } from '../layers/groupIds';
 import { useMapLayerModule } from '../layers/hooks';
 import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
 import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
+import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/WizardShapePreviewModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
@@ -29,6 +31,11 @@ export interface UseDraftFactWizardOptions {
    * useFactsLayers's draftsUniverse) — the live review-step preview folds
    * from here too, so it shows the same shape the draft will actually have. */
   previewUniverse: () => Feature<Polygon | MultiPolygon>;
+  /** The raw game zone, unreduced by any fact — what the details step's
+   * shape preview is bounded to instead of previewUniverse, since at that
+   * point the question isn't asking "what stays possible," just "what does
+   * this shape look like." */
+  playArea: Feature<Polygon | MultiPolygon>;
   /** Owned by MapCanvas (not created here) so useMapInteractions can be
    * wired up — and its Measurement module registered/mounted — *before*
    * this hook runs, without a circular data dependency between the two.
@@ -62,7 +69,7 @@ export interface UseDraftFactWizardResult {
  * pick-prompt banner — pickResolverRef itself is MapCanvas's (see that
  * option's doc) and already shared with useMapInteractions.
  */
-export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
+export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>(WIZARD_STEP.KIND);
   const [kind, setKind] = useState<WizardKind | null>(null);
@@ -208,6 +215,53 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
     [previewFact],
   );
   useMapLayerModule(previewModule, previewItems);
+
+  // Details-step shape preview — the raw region a fact would describe
+  // (assuming its asserted pole holds; there's no yes/no toggle yet at this
+  // step), bounded only by the play area, not by other facts. Shows the
+  // instant enough fields exist to compute it (canContinue), e.g. a full
+  // circle the moment a radius chip is tapped, or a zone's own boundary
+  // the moment it's picked — distinct from the review step's amber
+  // possible-area preview above, which folds against previewUniverse
+  // instead. Built the same way previewFact is, just gated on DETAILS
+  // instead of REVIEW and always assuming true (no toggle to read yet).
+  const detailsShapeFact = useMemo<FactDto | null>(() => {
+    if (step !== WIZARD_STEP.DETAILS || !canContinue) return null;
+    let question: AskedQuestionDto | null = null;
+    if (kind === WIZARD_KIND.CIRCLE && circleCenter && circleRadius) {
+      question = buildDraftQuestion({ kind: WIZARD_KIND.CIRCLE, center: circleCenter, radius: circleRadius, assumedValue: true });
+    } else if (kind === WIZARD_KIND.ZONE && zoneKey) {
+      const zone = zoneOptions.find((z) => z.id === zoneKey);
+      question = buildDraftQuestion({ kind: WIZARD_KIND.ZONE, zoneKey, zoneLabel: zone?.displayName ?? zoneKey, assumedValue: true });
+    } else if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
+      question = buildDraftQuestion({ kind: WIZARD_KIND.HOTTER_COLDER, pointA, pointB, assumedValue: true });
+    }
+    return question ? draftQuestionToFact(question) : null;
+  }, [step, canContinue, kind, circleCenter, circleRadius, zoneKey, zoneOptions, pointA, pointB]);
+
+  const [shapeModule] = useState(() => new WizardShapePreviewModule());
+  const [detailsShapeArea, setDetailsShapeArea] = useState<Feature<Polygon | MultiPolygon> | null>(null);
+  const shapeGenerationRef = useRef(0);
+  useEffect(() => {
+    if (!detailsShapeFact) {
+      setDetailsShapeArea(null);
+      return;
+    }
+    const generation = ++shapeGenerationRef.current;
+    foldFactsAreaInWorker(playArea, [detailsShapeFact])
+      .then((area) => {
+        if (generation !== shapeGenerationRef.current) return;
+        setDetailsShapeArea(area);
+      })
+      .catch((err) => {
+        console.warn('[MapV2] Failed to compute wizard shape preview', err);
+      });
+  }, [detailsShapeFact, playArea]);
+  const shapeItems = useMemo<WizardShapeItem[]>(
+    () => (detailsShapeArea ? [{ id: 'shape', geometry: detailsShapeArea.geometry }] : []),
+    [detailsShapeArea],
+  );
+  useMapLayerModule(shapeModule, shapeItems);
 
   // Marks whichever point(s) the current kind actually uses, live as soon
   // as each is picked (not only once the shaded preview exists on review) —

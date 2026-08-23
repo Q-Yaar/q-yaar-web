@@ -101,6 +101,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     zoneOptions: polygonCatalog.items,
     zoneOptionsLoading: polygonCatalog.loading,
     previewUniverse: facts.draftsUniverse,
+    playArea: playAreaState.playArea,
     pickResolverRef,
     onSubmit: facts.addDraftQuestion,
   });
