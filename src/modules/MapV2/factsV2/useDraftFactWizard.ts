@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { AskedQuestionDto, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
 import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND, WizardKind } from './buildDraftQuestion';
@@ -8,6 +8,7 @@ import { draftQuestionToFact } from './mockData';
 import { GROUP_ID } from '../layers/groupIds';
 import { useMapLayerModule } from '../layers/hooks';
 import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
+import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
@@ -28,19 +29,28 @@ export interface UseDraftFactWizardOptions {
    * useFactsLayers's draftsUniverse) — the live review-step preview folds
    * from here too, so it shows the same shape the draft will actually have. */
   previewUniverse: () => Feature<Polygon | MultiPolygon>;
+  /** Owned by MapCanvas (not created here) so useMapInteractions can be
+   * wired up — and its Measurement module registered/mounted — *before*
+   * this hook runs, without a circular data dependency between the two.
+   * MapLibre draws later-mounted layers on top, and the wizard's own
+   * preview/points should always be the topmost thing on the map, never
+   * obscured by the measurement tool's crosshair/rings/points. */
+  pickResolverRef: React.RefObject<((coordinates: [number, number]) => void) | null>;
   onSubmit: (question: AskedQuestionDto) => void;
 }
 
 export interface UseDraftFactWizardResult {
   /** Spread directly onto <CreateDraftFactWizard>. */
   props: CreateDraftFactWizardProps;
-  openWizard: () => void;
+  /** Opens the wizard, optionally seeded from the Points & Distance tool's
+   * currently-placed points — one point becomes the circle's center, two
+   * become hotter/colder's point A and B, so measuring first and asking
+   * about the same spot doesn't mean picking it all over again. */
+  openWizard: (measurementPoints?: PointDistanceItem[]) => void;
   /** For the pick-prompt banner: the prompt text (null when no pick is
    * pending) and its cancel button. */
   pickPrompt: string | null;
   cancelPick: () => void;
-  /** For the map's click handler: resolve the pending pick, if any. */
-  pickResolverRef: React.RefObject<((coordinates: [number, number]) => void) | null>;
 }
 
 /**
@@ -48,10 +58,11 @@ export interface UseDraftFactWizardResult {
  * state, the map-pick handshake (hide the wizard, wait for a click, refill
  * the field, reopen), a live on-map preview of the shape while reviewing it,
  * and the final AskedQuestionDto it hands to onSubmit. MapCanvas only needs
- * to render <CreateDraftFactWizard {...wizard.props}>, wire the pick-prompt
- * banner, and let its click handler check pickResolverRef.
+ * to render <CreateDraftFactWizard {...wizard.props}> and wire the
+ * pick-prompt banner — pickResolverRef itself is MapCanvas's (see that
+ * option's doc) and already shared with useMapInteractions.
  */
-export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
+export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>(WIZARD_STEP.KIND);
   const [kind, setKind] = useState<WizardKind | null>(null);
@@ -66,10 +77,10 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
   // assumes the asserted pole holds, false previews the opposite instead.
   const [assumedValue, setAssumedValue] = useState(true);
 
-  // A map-pick in progress: the prompt shown in the banner, and the
-  // resolver the next map click feeds into.
+  // A map-pick in progress: the prompt shown in the banner. pickResolverRef
+  // itself is passed in (see UseDraftFactWizardOptions) — the next map
+  // click feeds into it.
   const [pickPrompt, setPickPrompt] = useState<string | null>(null);
-  const pickResolverRef = useRef<((coordinates: [number, number]) => void) | null>(null);
 
   const resetForm = useCallback(() => {
     setStep(WIZARD_STEP.KIND);
@@ -83,8 +94,14 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
     setAssumedValue(true);
   }, []);
 
-  const openWizard = useCallback(() => {
+  const openWizard = useCallback((measurementPoints: PointDistanceItem[] = []) => {
     resetForm();
+    if (measurementPoints.length === 1) {
+      setCircleCenter(toMapPoint(measurementPoints[0].coordinates));
+    } else if (measurementPoints.length === 2) {
+      setPointA(toMapPoint(measurementPoints[0].coordinates));
+      setPointB(toMapPoint(measurementPoints[1].coordinates));
+    }
     setIsOpen(true);
   }, [resetForm]);
 
@@ -93,7 +110,7 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
     setPickPrompt(null);
     pickResolverRef.current = null;
     resetForm();
-  }, [resetForm]);
+  }, [resetForm, pickResolverRef]);
 
   /** Hides the wizard, arms the next map click to resolve `onResolved`, and
    * reopens the wizard once it fires. Cancelling (via the banner) just
@@ -107,13 +124,13 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
       onResolved(toMapPoint(coordinates));
       setIsOpen(true);
     };
-  }, []);
+  }, [pickResolverRef]);
 
   const cancelPick = useCallback(() => {
     setPickPrompt(null);
     pickResolverRef.current = null;
     setIsOpen(true);
-  }, []);
+  }, [pickResolverRef]);
 
   const locateMeFor = useCallback((onResolved: (p: ResolvedLatLon) => void) => {
     setLocating(true);
@@ -243,5 +260,5 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
     onSubmit: handleSubmit,
   };
 
-  return { props, openWizard, pickPrompt, cancelPick, pickResolverRef };
+  return { props, openWizard, pickPrompt, cancelPick };
 }

@@ -170,13 +170,36 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       },
       filter: ['==', ['get', 'kind'], FEATURE_KIND.POINT],
     });
+
+    // A/B labels — same convention as the draft-fact wizard's own point
+    // markers (WizardPointsModule) — so "point A" means the same thing
+    // whether it came from measuring or from composing a question.
+    map.addLayer({
+      id: 'points-distance-point-labels',
+      type: 'symbol',
+      source: this.sourceId(),
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-font': ['Noto Sans Bold'],
+        'text-size': 11,
+        'text-offset': [0, -1.6],
+        'text-allow-overlap': true,
+        'text-ignore-placement': true,
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-color': '#000000',
+        'text-halo-width': 1.5,
+      },
+      filter: ['==', ['get', 'kind'], FEATURE_KIND.POINT],
+    });
   }
 
   toFeatures(item: PointDistanceItem): Feature[] {
     return [{
       type: 'Feature',
       geometry: { type: 'Point', coordinates: item.coordinates },
-      properties: { id: item.id, kind: FEATURE_KIND.POINT },
+      properties: { id: item.id, kind: FEATURE_KIND.POINT, label: item.id === 'p1' ? 'A' : 'B' },
     }];
   }
 

@@ -24,6 +24,10 @@ export interface UseMapInteractionsOptions {
 export interface UseMapInteractionsResult {
   selectedFact: SelectedFact | null;
   clearSelectedFact: () => void;
+  /** The Points & Distance tool's current placed points (0-2) — exposed so
+   * the draft-fact wizard can start from them instead of asking the user to
+   * pick the same point twice (see useDraftFactWizard's openWizard). */
+  measurementPoints: PointDistanceItem[];
 }
 
 /**
@@ -93,5 +97,6 @@ export function useMapInteractions({
   return {
     selectedFact,
     clearSelectedFact: () => setSelectedFact(null),
+    measurementPoints: points,
   };
 }

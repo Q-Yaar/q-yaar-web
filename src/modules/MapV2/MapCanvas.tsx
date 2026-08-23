@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapLayerRegistry } from './layers/MapLayerRegistry';
 import { MapLayerRegistryProvider, useMapLayerModule, EMPTY_ITEMS } from './layers/hooks';
 import { GROUP_ID } from './layers/groupIds';
@@ -33,11 +33,19 @@ interface MapCanvasInnerProps {
  *                        (factsV2/geometryAssets.ts)
  *   teamFilter       -> which team's facts to show (hooks/useTeamFilter.ts)
  *   facts            -> Facts/Draft Facts data + modules (factsV2/useFactsLayers.ts)
- *   wizard           -> the "Ask a question" form (factsV2/useDraftFactWizard.ts)
  *   interactions     -> map clicks/hover, Points & Distance
  *                        (hooks/useMapInteractions.ts)
- * `wizard` feeds `interactions` its pick-resolver so a click can satisfy a
- * pending "tap the map" request; nothing else crosses between them.
+ *   wizard           -> the "Ask a question" form (factsV2/useDraftFactWizard.ts)
+ * `pickResolverRef` is created here (not inside either hook) and shared by
+ * both: `interactions`'s click handler resolves a pending pick through it,
+ * `wizard` arms/clears it. That's also why `interactions` is constructed
+ * *before* `wizard` — MapLibre draws later-registered modules' layers on
+ * top, and the wizard's own live preview/points (useDraftFactWizard) should
+ * always be the topmost thing on the map, never obscured by Measurement's
+ * crosshair/rings/points or by the Registry Polygons overlay. `interactions`
+ * also feeds back the Points & Distance tool's current points so opening
+ * the wizard can start from whatever's already been measured instead of
+ * picking it all over again.
  *
  * Layout is two real flex rows stacked in a column — a fixed-height TopBar,
  * then a flex:1 map area — rather than one full-bleed map with every
@@ -68,27 +76,34 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const teamFilter = useTeamFilter(gameId);
 
   const facts = useFactsLayers({ gameId, teamId: teamFilter.selectedTeamId, playAreaState });
-  const wizard = useDraftFactWizard({
-    zoneOptions: polygonCatalog.items,
-    zoneOptionsLoading: polygonCatalog.loading,
-    previewUniverse: facts.draftsUniverse,
-    onSubmit: facts.addDraftQuestion,
-  });
-  const interactions = useMapInteractions({
-    mapRef,
-    isMapReady,
-    factsModule: facts.factsModule,
-    draftFactsModule: facts.draftFactsModule,
-    pickResolverRef: wizard.pickResolverRef,
-  });
 
   // Capability #2 — Registry Polygons. Simple enough (no data pipeline of
   // its own, just polygonCatalog.items) to wire directly here rather than
   // through a dedicated hook. Loads independently of the map/facts —
   // usePolygonCatalog() fetches every known zone's geometry in the
-  // background, never gating on it.
+  // background, never gating on it. Registered before Measurement/the
+  // wizard so a zone overlay never draws over either of them.
   const [polygonModule] = useState(() => new PolygonOverlayModule());
   useMapLayerModule(polygonModule, polygonCatalog.loading ? EMPTY_ITEMS : polygonCatalog.items);
+
+  // See the module-order note above for why this lives here rather than
+  // inside useDraftFactWizard.
+  const pickResolverRef = useRef<((coordinates: [number, number]) => void) | null>(null);
+
+  const interactions = useMapInteractions({
+    mapRef,
+    isMapReady,
+    factsModule: facts.factsModule,
+    draftFactsModule: facts.draftFactsModule,
+    pickResolverRef,
+  });
+  const wizard = useDraftFactWizard({
+    zoneOptions: polygonCatalog.items,
+    zoneOptionsLoading: polygonCatalog.loading,
+    previewUniverse: facts.draftsUniverse,
+    pickResolverRef,
+    onSubmit: facts.addDraftQuestion,
+  });
 
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -106,7 +121,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         <FactsChip count={facts.factsCount} />
         <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
         <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
-        <AskQuestionFab onClick={wizard.openWizard} />
+        <AskQuestionFab onClick={() => wizard.openWizard(interactions.measurementPoints)} />
 
         <LayersSheet isOpen={layersOpen} onClose={() => setLayersOpen(false)} />
 
