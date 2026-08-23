@@ -10,6 +10,8 @@ export interface PointDistanceItem {
   coordinates: [number, number];
 }
 
+const LINE_COLOR = '#28351e';
+
 const MODULE_ID = 'points-distance';
 const SOURCE_ID = 'points-distance-source';
 
@@ -35,7 +37,7 @@ const RING_DISTANCES_KM: { km: number; label: string }[] = [
 /** Half of the perpendicular bisector's total length — 50 km each way, so
  * it reads as a long reference line across the map regardless of how far
  * apart the two measured points actually are. */
-const PERPENDICULAR_HALF_LENGTH_KM = 50;
+const PERPENDICULAR_HALF_LENGTH_KM = 500;
 
 /**
  * Capability #1 — Points & Distance. A single placed point draws its own
@@ -65,7 +67,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       type: 'line',
       source: this.sourceId(),
       paint: {
-        'line-color': '#ffffff',
+        'line-color': LINE_COLOR,
         'line-width': 1.5,
         'line-dasharray': [2, 3],
         'line-opacity': 0.35,
@@ -85,7 +87,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
         'text-ignore-placement': true,
       },
       paint: {
-        'text-color': '#ffffff',
+        'text-color': "#FFFFFF",
         'text-halo-color': '#000000',
         'text-halo-width': 1.5,
       },
@@ -97,7 +99,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       type: 'line',
       source: this.sourceId(),
       paint: {
-        'line-color': '#9b9b9b',
+        'line-color': LINE_COLOR,
         'line-width': 1.5,
         'line-dasharray': [2, 2],
         'line-opacity': 0.5,
@@ -110,8 +112,8 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       type: 'line',
       source: this.sourceId(),
       paint: {
-        'line-color': '#4CAF50',
-        'line-width': 2,
+        'line-color': LINE_COLOR,
+        'line-width': 1.5,
         'line-dasharray': [3, 2],
         'line-opacity': 0.3,
       },
@@ -122,7 +124,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       id: 'points-distance-perpendicular',
       type: 'line',
       source: this.sourceId(),
-      paint: { 'line-color': '#ff00ff', 'line-width': 2, 'line-dasharray': [2, 2], 'line-opacity': 0.3 },
+      paint: { 'line-color': LINE_COLOR, 'line-width': 1, 'line-dasharray': [2, 2], },
       filter: ['==', ['get', 'kind'], FEATURE_KIND.PERPENDICULAR],
     });
 
@@ -131,7 +133,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       type: 'line',
       source: this.sourceId(),
       layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#276EF1', 'line-width': 3, 'line-dasharray': [2, 2] },
+      paint: { 'line-color': LINE_COLOR, 'line-width': 2, 'line-dasharray': [2, 2] },
       filter: ['==', ['get', 'kind'], FEATURE_KIND.CONNECTOR],
     });
 
@@ -149,7 +151,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
         'text-ignore-placement': true,
       },
       paint: {
-        'text-color': '#ffffff',
+        'text-color': "#FFFFFF",
         'text-halo-color': '#000000',
         'text-halo-width': 2,
       },
@@ -162,7 +164,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
       source: this.sourceId(),
       paint: {
         'circle-radius': 7,
-        'circle-color': '#ffffff',
+        'circle-color': "#ffffff",
         'circle-stroke-width': 2,
         'circle-stroke-color': '#141414',
       },
@@ -205,7 +207,12 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
 
     // Perpendicular bisector through the midpoint — a long fixed-length
     // guide line (independent of how far apart A and B actually are),
-    // rather than one clipped to the diameter circle.
+    // rather than one clipped to the diameter circle. `mid` is included as
+    // its own middle vertex: a great-circle destination() in one bearing
+    // and its exact opposite don't generally lie on a straight line back
+    // through the origin (only true for due north/south), so a 2-point
+    // segment between just the two ends can sag kilometers away from
+    // `mid` — invisible zoomed out, glaringly off-center zoomed in.
     const perpendicularBearing = bearing(a.coordinates, b.coordinates) + 90;
     const perpendicular: Feature<LineString> = {
       type: 'Feature',
@@ -213,6 +220,7 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
         type: 'LineString',
         coordinates: [
           destination(mid, PERPENDICULAR_HALF_LENGTH_KM, perpendicularBearing, { units: 'kilometers' }).geometry.coordinates as [number, number],
+          mid,
           destination(mid, PERPENDICULAR_HALF_LENGTH_KM, perpendicularBearing - 180, { units: 'kilometers' }).geometry.coordinates as [number, number],
         ],
       },
@@ -241,12 +249,18 @@ export class PointsDistanceModule extends GeoJsonLayerModule<PointDistanceItem> 
 
     // Two intersecting crosshair lines through the point — one north-south,
     // one east-west — the same fixed length as the perpendicular bisector.
+    // item.coordinates is included as its own middle vertex for the same
+    // reason as the perpendicular bisector above: the east-west line in
+    // particular sags kilometers away from the point otherwise, since a
+    // due-east/due-west great-circle destination pair's straight segment
+    // doesn't pass back through the origin.
     const along = (bearingDeg: number, oppositeBearingDeg: number): Feature<LineString> => ({
       type: 'Feature',
       geometry: {
         type: 'LineString',
         coordinates: [
           destination(item.coordinates, PERPENDICULAR_HALF_LENGTH_KM, bearingDeg, { units: 'kilometers' }).geometry.coordinates as [number, number],
+          item.coordinates,
           destination(item.coordinates, PERPENDICULAR_HALF_LENGTH_KM, oppositeBearingDeg, { units: 'kilometers' }).geometry.coordinates as [number, number],
         ],
       },
