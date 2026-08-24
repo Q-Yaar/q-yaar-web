@@ -93,6 +93,10 @@ interface PlaceholderSlotFieldProps {
   slotName: string;
   binding: Extract<SlotBinding, { source: 'PLACEHOLDER' }>;
   slotKind: 'POINT' | 'LINE' | 'POLYGON' | 'LENGTH';
+  /** This placeholder's own allowed_values from the template — undefined
+   * only in the brief window before the template detail call resolves
+   * (see useDraftFactWizard's selectTemplate). */
+  allowedValues: (string | number)[] | undefined;
   placeholderValues: PlaceholderValues;
   onSetPlaceholderValue: (key: string, value: string | number) => void;
   zoneOptions: PolygonOverlayItemData[];
@@ -100,27 +104,32 @@ interface PlaceholderSlotFieldProps {
 }
 
 const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
-  slotName, binding, slotKind, placeholderValues, onSetPlaceholderValue, zoneOptions, zoneOptionsLoading,
+  slotName, binding, slotKind, allowedValues, placeholderValues, onSetPlaceholderValue, zoneOptions, zoneOptionsLoading,
 }) => {
   const selected = placeholderValues[binding.placeholder];
 
   if (slotKind === 'POLYGON') {
+    // Only ever the zones this specific template allows — never the whole
+    // catalog. allowedValues is undefined only until the template detail
+    // call resolves (the list endpoint never carries it), in which case
+    // every zone is shown briefly rather than none.
+    const allowedZones = allowedValues ? zoneOptions.filter((z) => allowedValues.includes(z.id)) : zoneOptions;
     return (
       <div>
         <div className="text-xs font-semibold text-white mb-1.5">Which zone?</div>
-        {zoneOptionsLoading ? (
+        {zoneOptionsLoading || !allowedValues ? (
           <div className="text-[11px] text-white/40 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading zones…</div>
         ) : (
           <div className="space-y-2">
             <ZoneChipGroup
               label="City corporations"
-              zones={zoneOptions.filter((z) => z.kind === REGION_KIND.CORPORATION)}
+              zones={allowedZones.filter((z) => z.kind === REGION_KIND.CORPORATION)}
               selected={selected}
               onSelect={(key) => onSetPlaceholderValue(binding.placeholder, key)}
             />
             <ZoneChipGroup
               label="Metro catchments"
-              zones={zoneOptions.filter((z) => z.kind === REGION_KIND.METRO_CATCHMENT)}
+              zones={allowedZones.filter((z) => z.kind === REGION_KIND.METRO_CATCHMENT)}
               selected={selected}
               onSelect={(key) => onSetPlaceholderValue(binding.placeholder, key)}
             />
@@ -306,6 +315,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
                 slotName={slotName}
                 binding={binding}
                 slotKind={slotKind}
+                allowedValues={selectedTemplate.placeholders[binding.placeholder]?.allowed_values}
                 placeholderValues={placeholderValues}
                 onSetPlaceholderValue={onSetPlaceholderValue}
                 zoneOptions={zoneOptions}

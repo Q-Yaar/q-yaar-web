@@ -8,10 +8,11 @@
  * ({data, isLoading} / [trigger, {isLoading}]) even though the "network"
  * here is just a setTimeout over static JSON.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import templatesJson from '../mock/v2_question_templates.output.json';
 import { Answer, OpType } from '../factsV2/factTypes';
-import { QuestionTemplateDto } from '../factsV2/questionPipelineTypes';
+import { PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { POLYGON_CATALOG, REGION_KIND, RegionKind } from '../factsV2/geometryAssets';
 
 const MOCK_LATENCY_MS = 350;
 
@@ -42,6 +43,83 @@ export function useGetQuestionTemplatesQuery(): UseGetQuestionTemplatesResult {
   }, []);
 
   return { data, isLoading };
+}
+
+/** Which polygon catalog kind a POLYGON placeholder's own name implies —
+ * "metro_line" clearly wants metro catchments, "gba_corporation"/"region"
+ * clearly want corporations. A placeholder name this doesn't recognise
+ * falls back to the whole catalog rather than guessing wrong. This whole
+ * function is a mock-only stand-in for whatever curation a real detail
+ * endpoint would already have done — the point isn't the heuristic, it's
+ * that every value it returns is a real POLYGON_CATALOG key ("options are
+ * from asset content only"), never an arbitrary string. */
+function catalogKindForPlaceholder(placeholderKey: string): RegionKind | null {
+  const key = placeholderKey.toLowerCase();
+  if (key.includes('metro') || key.includes('line')) return REGION_KIND.METRO_CATCHMENT;
+  if (key.includes('corp') || key.includes('gba') || key.includes('region')) return REGION_KIND.CORPORATION;
+  return null;
+}
+
+/** Every placeholder key bound to a POLYGON-kind slot in this template —
+ * derived from SUBOP_CONTRACT, not the slot's name, so this stays correct
+ * even for an op_type that names its polygon slot something other than
+ * "polygon". */
+function polygonPlaceholderKeys(template: QuestionTemplateDto): Set<string> {
+  const contract = SUBOP_CONTRACT[template.answer_instruction_type];
+  const keys = new Set<string>();
+  for (const [slotName, binding] of Object.entries(template.slot_bindings)) {
+    if (binding.source === 'PLACEHOLDER' && contract.slots[slotName] === 'POLYGON') {
+      keys.add(binding.placeholder);
+    }
+  }
+  return keys;
+}
+
+function withPlaceholderAllowedValues(template: QuestionTemplateDto): QuestionTemplateDto {
+  const polygonKeys = polygonPlaceholderKeys(template);
+  const placeholders: Record<string, PlaceholderSpec> = {};
+  for (const [key, spec] of Object.entries(template.placeholders)) {
+    const alreadyHasOptions = spec.allowed_values && spec.allowed_values.length > 0;
+    if (alreadyHasOptions || !polygonKeys.has(key)) {
+      placeholders[key] = spec;
+      continue;
+    }
+    const kind = catalogKindForPlaceholder(key);
+    const allowed = POLYGON_CATALOG.filter((entry) => !kind || entry.kind === kind).map((entry) => entry.key);
+    placeholders[key] = { ...spec, allowed_values: allowed };
+  }
+  return { ...template, placeholders };
+}
+
+export interface UseGetQuestionTemplateDetailResult {
+  isLoading: boolean;
+}
+
+/** Stand-in for GET /qna/v2/questions/:id — the one endpoint that actually
+ * carries a placeholder's allowed_values (the list endpoint above never
+ * does, matching the real legacy API this whole pipeline mirrors — see
+ * legacyTemplateConverter.ts's tokensInProse fallback). The wizard calls
+ * this once a template is picked, so the zone picker can scope itself to
+ * exactly what the template allows instead of every zone that exists. */
+export function useGetQuestionTemplateDetail(): [
+  (templateId: string) => Promise<QuestionTemplateDto | undefined>,
+  UseGetQuestionTemplateDetailResult,
+] {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const trigger = useCallback((templateId: string): Promise<QuestionTemplateDto | undefined> => {
+    setIsLoading(true);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        setIsLoading(false);
+        const templates = templatesJson as unknown as QuestionTemplateDto[];
+        const base = templates.find((t) => t.question_template_id === templateId);
+        resolve(base ? withPlaceholderAllowedValues(base) : undefined);
+      }, MOCK_LATENCY_MS);
+    });
+  }, []);
+
+  return [trigger, { isLoading }];
 }
 
 export interface AskQuestionInput {

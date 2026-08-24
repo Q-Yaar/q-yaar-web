@@ -22,7 +22,7 @@ import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
 import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/WizardShapePreviewModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
-import { useAskQuestionMutation, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
+import { useAskQuestionMutation, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
 import { QuestionTemplateDto } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
@@ -88,6 +88,7 @@ export interface UseDraftFactWizardResult {
 export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
   const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery();
   const [askQuestion, { isLoading: submitting }] = useAskQuestionMutation();
+  const [getTemplateDetail] = useGetQuestionTemplateDetail();
 
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>(WIZARD_STEP.KIND);
@@ -168,7 +169,13 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
    * the Points & Distance tool already had placed (positionally, one point
    * per point-slot) — or, failing that, an automatic device fix for the
    * first ASKER_LOCATION-bound slot, since "device GPS, automatically" is
-   * exactly what that binding means. */
+   * exactly what that binding means. Also fetches the template's detail —
+   * the list endpoint never carries a placeholder's allowed_values (see
+   * legacyTemplateConverter.ts), only the detail one does — so a polygon
+   * picker starts against the list-sourced template (all slots except the
+   * zone list itself already usable) and swaps to the enriched one the
+   * moment the detail call resolves, scoping the zone picker to exactly
+   * what this template allows instead of every zone that exists. */
   const selectTemplate = useCallback((template: QuestionTemplateDto) => {
     setSelectedTemplate(template);
     setPlaceholderValues({});
@@ -188,8 +195,12 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
       if (autoSlot) locateMeFor((p) => setPointForSlot(autoSlot, p));
     }
 
+    getTemplateDetail(template.question_template_id).then((detail) => {
+      if (detail) setSelectedTemplate((current) => (current?.question_template_id === detail.question_template_id ? detail : current));
+    });
+
     setStep(WIZARD_STEP.DETAILS);
-  }, [locateMeFor, setPointForSlot]);
+  }, [locateMeFor, setPointForSlot, getTemplateDetail]);
 
   const canContinue = selectedTemplate ? isTemplateComplete(selectedTemplate, points, placeholderValues) : false;
 
