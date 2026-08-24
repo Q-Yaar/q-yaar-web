@@ -1,0 +1,315 @@
+[
+  {
+    "question_id": "d2f5b33b-aed6-4e38-a779-89f3247fb112",
+    "question_template_id": "06e9bee5-a181-4dce-9792-497ead9732f8",
+    "template": "Are you within {{ distance }} metres of me?",
+    "rendered_question": "Are you within 2000 metres of me?",
+    "category": {
+      "category_id": "02588604-868f-41d1-ab96-ad4f92f3514e",
+      "category_name": "Radar",
+      "priority": 3
+    },
+    "answer_instruction_type": "POINT_BUFFER_INSIDE",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "13.0242969",
+          "lon": "77.6325497",
+          "source": "ASKER_LOCATION"
+        },
+        "radius": 2000
+      },
+      "asserted_answer": "INSIDE",
+      "location_points": [
+        {
+          "lat": "13.0242969",
+          "lon": "77.6325497"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": false,
+    "created": "2026-08-16T10:06:03.788732Z",
+    "modified": "2026-08-16T10:08:22.144226Z"
+  },
+  {
+    "question_id": "3f8b9916-aa90-4b77-a46f-c71fa45277ce",
+    "question_template_id": "17b4c363-d953-488c-b646-168bc5097b63",
+    "template": "I've just travelled {{ distance }} metres. Am I hotter or colder?",
+    "rendered_question": "I've just travelled custom metres. Am I hotter or colder?",
+    "category": {
+      "category_id": "8f8067e7-42ac-4c74-ad9f-b092081c35cf",
+      "category_name": "Thermometer",
+      "priority": 4
+    },
+    "answer_instruction_type": "TWO_POINT_BISECTOR",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "13.0275464",
+          "lon": "77.6324109",
+          "source": "ASKER_LOCATION"
+        },
+        "pointFinal": {
+          "lat": "13.028092",
+          "lon": "77.6325942",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "HOTTER",
+      "location_points": [
+        {
+          "lat": "13.0275464",
+          "lon": "77.6324109"
+        },
+        {
+          "lat": "13.0275464",
+          "lon": "77.6324109"
+        },
+        {
+          "lat": "13.028092",
+          "lon": "77.6325942"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": true,
+    "created": "2026-08-16T09:43:20.372565Z",
+    "modified": "2026-08-16T09:47:51.520510Z"
+  },
+  {
+    "question_id": "f03ba59b-a38f-485e-bfa3-49942130e92c",
+    "question_template_id": "17b4c363-d953-488c-b646-168bc5097b63",
+    "template": "I've just travelled {{ distance }} metres. Am I hotter or colder?",
+    "rendered_question": "I've just travelled custom metres. Am I hotter or colder?",
+    "category": {
+      "category_id": "8f8067e7-42ac-4c74-ad9f-b092081c35cf",
+      "category_name": "Thermometer",
+      "priority": 4
+    },
+    "answer_instruction_type": "TWO_POINT_BISECTOR",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "13.0319035",
+          "lon": "77.622181",
+          "source": "ASKER_LOCATION"
+        },
+        "pointFinal": {
+          "lat": "13.0320502",
+          "lon": "77.6218265",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "HOTTER",
+      "location_points": [
+        {
+          "lat": "13.0319035",
+          "lon": "77.622181"
+        },
+        {
+          "lat": "13.0319035",
+          "lon": "77.622181"
+        },
+        {
+          "lat": "13.0320502",
+          "lon": "77.6218265"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": false,
+    "created": "2026-08-16T08:40:16.645699Z",
+    "modified": "2026-08-16T08:45:12.395109Z"
+  },
+  {
+    "question_id": "7e742970-093a-423c-a0bb-2a7a84ec8137",
+    "question_template_id": "8b9cf099-62be-4846-88e3-0f39fb5728c8",
+    "template": "Compared to me, are you closer to or further from {{ landmark_name }}?",
+    "rendered_question": "Compared to me, are you closer to or further from Richmond town?",
+    "category": {
+      "category_id": "34059e87-faaf-4c49-8ea6-bffc5656d2b0",
+      "category_name": "Measuring",
+      "priority": 5
+    },
+    "answer_instruction_type": "POINT_POINT_BUFFER_INSIDE",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "anchor": {
+          "lat": "12.965321432846949",
+          "lon": "77.60113232694749",
+          "source": "MAP_POINT"
+        },
+        "point": {
+          "lat": "13.0297918",
+          "lon": "77.6306198",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "INSIDE",
+      "location_points": [
+        {
+          "lat": "13.0297918",
+          "lon": "77.6306198"
+        },
+        {
+          "lat": "12.965321432846949",
+          "lon": "77.60113232694749"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": true,
+    "created": "2026-08-16T07:48:44.286637Z",
+    "modified": "2026-08-16T07:55:38.919397Z"
+  },
+  {
+    "question_id": "c58638cd-be2d-46c5-a22a-a463718fc995",
+    "question_template_id": "17b4c363-d953-488c-b646-168bc5097b63",
+    "template": "I've just travelled {{ distance }} metres. Am I hotter or colder?",
+    "rendered_question": "I've just travelled 1000 metres. Am I hotter or colder?",
+    "category": {
+      "category_id": "8f8067e7-42ac-4c74-ad9f-b092081c35cf",
+      "category_name": "Thermometer",
+      "priority": 4
+    },
+    "answer_instruction_type": "TWO_POINT_BISECTOR",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "13.0257094",
+          "lon": "77.6394838",
+          "source": "ASKER_LOCATION"
+        },
+        "pointFinal": {
+          "lat": "13.0300314",
+          "lon": "77.6309925",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "HOTTER",
+      "location_points": [
+        {
+          "lat": "13.0257094",
+          "lon": "77.6394838"
+        },
+        {
+          "lat": "13.0257094",
+          "lon": "77.6394838"
+        },
+        {
+          "lat": "13.0300314",
+          "lon": "77.6309925"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": true,
+    "created": "2026-08-16T07:30:09.551362Z",
+    "modified": "2026-08-16T07:38:22.028478Z"
+  },
+  {
+    "question_id": "f2e342c3-ec43-4a38-91f9-e9eaa99acb18",
+    "question_template_id": "c5d88c25-9488-4afc-88cb-081b8c6fcf3f",
+    "template": "Are you {{ direction }} of me?",
+    "rendered_question": "Are you west of me?",
+    "category": {
+      "category_id": "47cc4c38-c578-4ab0-b856-96234c5fe805",
+      "category_name": "Relative",
+      "priority": 1
+    },
+    "answer_instruction_type": "POINT_SPLIT",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "13.0004199",
+          "lon": "77.6761761",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "W",
+      "location_points": [
+        {
+          "lat": "13.0004199",
+          "lon": "77.6761761"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": true,
+    "created": "2026-08-16T07:02:21.803768Z",
+    "modified": "2026-08-16T07:12:13.248749Z"
+  },
+  {
+    "question_id": "3ff3e0af-02c2-4a1f-a0ad-cc8f7fb42c2f",
+    "question_template_id": "c5d88c25-9488-4afc-88cb-081b8c6fcf3f",
+    "template": "Are you {{ direction }} of me?",
+    "rendered_question": "Are you east of me?",
+    "category": {
+      "category_id": "47cc4c38-c578-4ab0-b856-96234c5fe805",
+      "category_name": "Relative",
+      "priority": 1
+    },
+    "answer_instruction_type": "POINT_SPLIT",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "12.9754154",
+          "lon": "77.6071572",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "E",
+      "location_points": [
+        {
+          "lat": "12.9754154",
+          "lon": "77.6071572"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": true,
+    "created": "2026-08-16T06:24:15.329404Z",
+    "modified": "2026-08-16T06:26:18.566256Z"
+  },
+  {
+    "question_id": "4749878a-a77d-4b2f-a3d4-a12ac0631e02",
+    "question_template_id": "c5d88c25-9488-4afc-88cb-081b8c6fcf3f",
+    "template": "Are you {{ direction }} of me?",
+    "rendered_question": "Are you north of me?",
+    "category": {
+      "category_id": "47cc4c38-c578-4ab0-b856-96234c5fe805",
+      "category_name": "Relative",
+      "priority": 1
+    },
+    "answer_instruction_type": "POINT_SPLIT",
+    "question_meta": {
+      "placeholder_values": {},
+      "resolved_slots": {
+        "point": {
+          "lat": "12.999635",
+          "lon": "77.6768034",
+          "source": "ASKER_LOCATION"
+        }
+      },
+      "asserted_answer": "N",
+      "location_points": [
+        {
+          "lat": "12.999635",
+          "lon": "77.6768034"
+        }
+      ]
+    },
+    "answered": true,
+    "accepted": true,
+    "created": "2026-08-16T06:04:06.402440Z",
+    "modified": "2026-08-16T06:12:57.337201Z"
+  }
+]

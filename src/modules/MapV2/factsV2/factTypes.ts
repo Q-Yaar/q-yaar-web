@@ -66,8 +66,8 @@ export interface ResolvedLatLon {
  * the registry lookup entirely when it's present. Named to match
  * RegistryEntry.geometry, which is the same "here's the real geometry"
  * value in the normal (registry-backed) case. AskedQuestionDto/
- * buildDraftQuestion.ts never set this — the wizard only ever resolves
- * slots through a registry key, never an inline geometry.
+ * templateQuestionBuilder.ts never set this — the wizard only ever
+ * resolves slots through a registry key, never an inline geometry.
  */
 export interface LineBufferInsideMeta { line: string; distance: number; geometry?: LineString }
 export interface LinePointBufferInsideMeta { line: string; point: ResolvedLatLon; geometry?: LineString }

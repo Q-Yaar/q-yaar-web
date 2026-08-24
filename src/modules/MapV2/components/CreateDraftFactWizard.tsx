@@ -1,13 +1,11 @@
 import React from 'react';
-import { Circle, Thermometer, MapPinned, LocateFixed, MapPin, Loader2 } from 'lucide-react';
+import { Circle, Compass, LocateFixed, Loader2, MapPin, MapPinned, Ruler, Thermometer } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
-import { ResolvedLatLon } from '../factsV2/factTypes';
-import { describeResolvedPoint, formatDistance, WIZARD_KIND, WizardKind } from '../factsV2/buildDraftQuestion';
+import { Answer, OP_TYPE, OpType, ResolvedLatLon } from '../factsV2/factTypes';
+import { ANSWER_WORD, describeResolvedPoint, formatDistance, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
 import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/geometryAssets';
+import { QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
 import { BottomSheet } from './BottomSheet';
-
-export { WIZARD_KIND };
-export type { WizardKind };
 
 export const WIZARD_STEP = {
   KIND: 'kind',
@@ -19,22 +17,12 @@ export type WizardStep = (typeof WIZARD_STEP)[keyof typeof WIZARD_STEP];
 
 const RADIUS_CHOICES_M = [250, 500, 1000, 3000, 5000, 10000];
 
-const KIND_INFO: Record<WizardKind, { title: string; blurb: string; icon: React.ReactNode }> = {
-  [WIZARD_KIND.CIRCLE]: {
-    title: 'Inside a circle',
-    blurb: 'Ask if someone is within a certain distance of a point.',
-    icon: <Circle className="w-6 h-6" />,
-  },
-  [WIZARD_KIND.HOTTER_COLDER]: {
-    title: 'Hotter or colder',
-    blurb: 'Ask if someone got closer to, or farther from, a spot.',
-    icon: <Thermometer className="w-6 h-6" />,
-  },
-  [WIZARD_KIND.ZONE]: {
-    title: 'Inside a zone',
-    blurb: 'Ask if someone is inside a named area, like a city zone.',
-    icon: <MapPinned className="w-6 h-6" />,
-  },
+const OP_TYPE_ICON: Partial<Record<OpType, React.ReactNode>> = {
+  [OP_TYPE.POINT_BUFFER_INSIDE]: <Circle className="w-5 h-5" />,
+  [OP_TYPE.POLYGON_INSIDE]: <MapPinned className="w-5 h-5" />,
+  [OP_TYPE.TWO_POINT_BISECTOR]: <Thermometer className="w-5 h-5" />,
+  [OP_TYPE.POINT_POINT_BUFFER_INSIDE]: <Ruler className="w-5 h-5" />,
+  [OP_TYPE.POINT_SPLIT]: <Compass className="w-5 h-5" />,
 };
 
 interface PointFieldProps {
@@ -78,7 +66,7 @@ const chipStyle = (selected: boolean): string =>
 interface ZoneChipGroupProps {
   label: string;
   zones: PolygonOverlayItemData[];
-  selected: string | null;
+  selected: string | number | undefined;
   onSelect: (key: string) => void;
 }
 
@@ -98,34 +86,113 @@ const ZoneChipGroup: React.FC<ZoneChipGroupProps> = ({ label, zones, selected, o
   );
 };
 
+/** One block per PLACEHOLDER-bound slot — a zone picker for a POLYGON slot,
+ * a distance picker for a LENGTH slot. The slot's own placeholder name is
+ * the key into placeholderValues, same key resolveTemplateSlots reads. */
+interface PlaceholderSlotFieldProps {
+  slotName: string;
+  binding: Extract<SlotBinding, { source: 'PLACEHOLDER' }>;
+  slotKind: 'POINT' | 'LINE' | 'POLYGON' | 'LENGTH';
+  placeholderValues: PlaceholderValues;
+  onSetPlaceholderValue: (key: string, value: string | number) => void;
+  zoneOptions: PolygonOverlayItemData[];
+  zoneOptionsLoading: boolean;
+}
+
+const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
+  slotName, binding, slotKind, placeholderValues, onSetPlaceholderValue, zoneOptions, zoneOptionsLoading,
+}) => {
+  const selected = placeholderValues[binding.placeholder];
+
+  if (slotKind === 'POLYGON') {
+    return (
+      <div>
+        <div className="text-xs font-semibold text-white mb-1.5">Which zone?</div>
+        {zoneOptionsLoading ? (
+          <div className="text-[11px] text-white/40 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading zones…</div>
+        ) : (
+          <div className="space-y-2">
+            <ZoneChipGroup
+              label="City corporations"
+              zones={zoneOptions.filter((z) => z.kind === REGION_KIND.CORPORATION)}
+              selected={selected}
+              onSelect={(key) => onSetPlaceholderValue(binding.placeholder, key)}
+            />
+            <ZoneChipGroup
+              label="Metro catchments"
+              zones={zoneOptions.filter((z) => z.kind === REGION_KIND.METRO_CATCHMENT)}
+              selected={selected}
+              onSelect={(key) => onSetPlaceholderValue(binding.placeholder, key)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (slotKind === 'LENGTH') {
+    return (
+      <div>
+        <div className="text-xs font-semibold text-white mb-1.5">How far?</div>
+        <div className="flex flex-wrap gap-1.5">
+          {RADIUS_CHOICES_M.map((m) => (
+            <button key={m} onClick={() => onSetPlaceholderValue(binding.placeholder, m)} className={chipStyle(selected === m)}>
+              {formatDistance(m)}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // LINE has no registry picker in MapV2 yet — templates needing one are
+  // filtered out of the selectable group in step 1, so this shouldn't
+  // normally render; kept as an honest fallback rather than silently blank.
+  return <div key={slotName} className="text-[11px] text-amber-300">This question type isn’t supported yet.</div>;
+};
+
+interface AnswerChipsProps {
+  answers: readonly Answer[];
+  selected: string | number | undefined;
+  onSelect: (value: string) => void;
+}
+
+const AnswerChips: React.FC<AnswerChipsProps> = ({ answers, selected, onSelect }) => (
+  <div>
+    <div className="text-xs font-semibold text-white mb-1.5">Which way?</div>
+    <div className="flex flex-wrap gap-1.5">
+      {answers.map((answer) => (
+        <button key={answer} onClick={() => onSelect(answer)} className={chipStyle(selected === answer)}>
+          {ANSWER_WORD[answer]}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 export interface CreateDraftFactWizardProps {
   isOpen: boolean;
   onClose: () => void;
   step: WizardStep;
-  kind: WizardKind | null;
-  onSelectKind: (kind: WizardKind) => void;
+
+  templates: QuestionTemplateDto[];
+  templatesLoading: boolean;
+  selectedTemplate: QuestionTemplateDto | null;
+  onSelectTemplate: (template: QuestionTemplateDto) => void;
   onBack: () => void;
 
   locating: boolean;
   locationError: string | null;
 
-  circleCenter: ResolvedLatLon | null;
-  circleRadius: number | null;
-  onPickCircleCenterOnMap: () => void;
-  onUseMyLocationForCircle: () => void;
-  onSetCircleRadius: (metres: number) => void;
+  points: PointValues;
+  onPickPointOnMap: (slotName: string, label: string) => void;
+  onUseMyLocationForSlot: (slotName: string) => void;
+
+  placeholderValues: PlaceholderValues;
+  onSetPlaceholderValue: (placeholderKey: string, value: string | number) => void;
 
   zoneOptions: PolygonOverlayItemData[];
   zoneOptionsLoading: boolean;
-  zoneKey: string | null;
-  onSelectZone: (key: string) => void;
-
-  pointA: ResolvedLatLon | null;
-  pointB: ResolvedLatLon | null;
-  onPickPointAOnMap: () => void;
-  onUseMyLocationForPointA: () => void;
-  onPickPointBOnMap: () => void;
-  onUseMyLocationForPointB: () => void;
 
   renderedQuestionPreview: string | null;
   /** What the review step's live map preview assumes the hider will
@@ -135,15 +202,21 @@ export interface CreateDraftFactWizardProps {
   canContinue: boolean;
   onContinue: () => void;
   onSubmit: () => void;
+  /** True while the mock ask-question API call from the last submit is
+   * in flight. */
+  submitting: boolean;
 }
 
 /**
- * A plain-language question wizard for creating draft facts — "are you
- * inside a circle", "are you hotter or colder", "are you inside a zone" —
- * instead of the technical map-tool jargon the old app used. All state
+ * The "Ask a question" wizard — step 1 lists every real question template
+ * from apis/mockQnaApi.ts (map-answerable ones first), step 2 is a generic
+ * form built entirely from the selected template's slot_bindings (one
+ * block per slot, driven by each binding's source/kind — no per-category
+ * branch), step 3 reviews the rendered question with a live map preview
+ * and a Yes/No toggle for what the hider is assumed to answer. All state
  * lives in the parent (MapCanvas) so this component can be safely hidden
- * mid-flow while the user taps the map to place a point, then reopened with
- * nothing lost.
+ * mid-flow while the user taps the map to place a point, then reopened
+ * with nothing lost.
  *
  * Renders as a BottomSheet, not a centered modal: the map stays visible and
  * interactive above it while the question is being composed, only fully
@@ -152,25 +225,33 @@ export interface CreateDraftFactWizardProps {
  */
 export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (props) => {
   const {
-    isOpen, onClose, step, kind, onSelectKind, onBack,
+    isOpen, onClose, step,
+    templates, templatesLoading, selectedTemplate, onSelectTemplate, onBack,
     locating, locationError,
-    circleCenter, circleRadius, onPickCircleCenterOnMap, onUseMyLocationForCircle, onSetCircleRadius,
-    zoneOptions, zoneOptionsLoading, zoneKey, onSelectZone,
-    pointA, pointB, onPickPointAOnMap, onUseMyLocationForPointA, onPickPointBOnMap, onUseMyLocationForPointB,
-    renderedQuestionPreview, assumedValue, onSetAssumedValue, canContinue, onContinue, onSubmit,
+    points, onPickPointOnMap, onUseMyLocationForSlot,
+    placeholderValues, onSetPlaceholderValue,
+    zoneOptions, zoneOptionsLoading,
+    renderedQuestionPreview, assumedValue, onSetAssumedValue, canContinue, onContinue, onSubmit, submitting,
   } = props;
 
-  const title = step === WIZARD_STEP.KIND ? 'Ask a question' : step === WIZARD_STEP.REVIEW ? 'Review' : kind ? KIND_INFO[kind].title : 'Ask a question';
+  const title = step === WIZARD_STEP.KIND
+    ? 'Ask a question'
+    : step === WIZARD_STEP.REVIEW
+      ? 'Review'
+      : selectedTemplate?.category.category_name ?? 'Ask a question';
 
   const leftAction = step === WIZARD_STEP.KIND
     ? { label: 'Cancel', onClick: onClose }
-    : { label: 'Back', onClick: onBack };
+    : { label: 'Back', onClick: onBack, disabled: submitting };
 
   const rightAction = step === WIZARD_STEP.DETAILS
     ? { label: 'Continue', onClick: onContinue, disabled: !canContinue }
     : step === WIZARD_STEP.REVIEW
-      ? { label: 'Add fact', onClick: onSubmit }
+      ? { label: submitting ? 'Adding…' : 'Add fact', onClick: onSubmit, disabled: submitting }
       : undefined;
+
+  const supportedTemplates = templates.filter((t) => isTemplateSupported(t));
+  const otherTemplates = templates.filter((t) => !isTemplateSupported(t));
 
   return (
     <BottomSheet isOpen={isOpen} title={title} leftAction={leftAction} rightAction={rightAction}>
@@ -181,88 +262,69 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
       )}
 
       {step === WIZARD_STEP.KIND && (
-        <div className="space-y-1.5">
-          {(Object.keys(KIND_INFO) as WizardKind[]).map((k) => (
-            <button
-              key={k}
-              onClick={() => onSelectKind(k)}
-              className="w-full flex items-center gap-2.5 rounded-lg border border-white/10 px-3 py-2.5 text-left hover:border-white/30 hover:bg-white/5 active:bg-white/10 transition-colors"
-            >
-              <span className="text-white/60">{KIND_INFO[k].icon}</span>
-              <span>
-                <span className="block text-xs font-semibold text-white">{KIND_INFO[k].title}</span>
-                <span className="block text-[11px] text-white/40">{KIND_INFO[k].blurb}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {step === WIZARD_STEP.DETAILS && kind === WIZARD_KIND.CIRCLE && (
         <div className="space-y-3">
-          <PointField
-            label="Center"
-            helpText="Where should the circle be centered?"
-            value={circleCenter}
-            locating={locating}
-            onPickOnMap={onPickCircleCenterOnMap}
-            onUseMyLocation={onUseMyLocationForCircle}
-          />
-          <div>
-            <div className="text-xs font-semibold text-white">How big?</div>
-            <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {RADIUS_CHOICES_M.map((m) => (
-                <button key={m} onClick={() => onSetCircleRadius(m)} className={chipStyle(circleRadius === m)}>
-                  {formatDistance(m)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {step === WIZARD_STEP.DETAILS && kind === WIZARD_KIND.ZONE && (
-        <div className="space-y-3">
-          <div className="text-xs font-semibold text-white">Which zone?</div>
-          {zoneOptionsLoading ? (
-            <div className="text-[11px] text-white/40 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading zones…</div>
+          {templatesLoading ? (
+            <div className="text-[11px] text-white/40 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading questions…</div>
           ) : (
             <>
-              <ZoneChipGroup
-                label="City corporations"
-                zones={zoneOptions.filter((z) => z.kind === REGION_KIND.CORPORATION)}
-                selected={zoneKey}
-                onSelect={onSelectZone}
-              />
-              <ZoneChipGroup
-                label="Metro catchments"
-                zones={zoneOptions.filter((z) => z.kind === REGION_KIND.METRO_CATCHMENT)}
-                selected={zoneKey}
-                onSelect={onSelectZone}
-              />
+              <TemplateList templates={supportedTemplates} onSelect={onSelectTemplate} />
+              {otherTemplates.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1.5">Other</div>
+                  <TemplateList templates={otherTemplates} onSelect={onSelectTemplate} disabled />
+                </div>
+              )}
             </>
           )}
         </div>
       )}
 
-      {step === WIZARD_STEP.DETAILS && kind === WIZARD_KIND.HOTTER_COLDER && (
+      {step === WIZARD_STEP.DETAILS && selectedTemplate && (
         <div className="space-y-3">
-          <PointField
-            label="Point A — where you started"
-            helpText="The reference point to compare against."
-            value={pointA}
-            locating={locating}
-            onPickOnMap={onPickPointAOnMap}
-            onUseMyLocation={onUseMyLocationForPointA}
-          />
-          <PointField
-            label="Point B — where you are now"
-            helpText="Getting closer to this one is “hotter”."
-            value={pointB}
-            locating={locating}
-            onPickOnMap={onPickPointBOnMap}
-            onUseMyLocation={onUseMyLocationForPointB}
-          />
+          {Object.entries(selectedTemplate.slot_bindings).map(([slotName, binding]) => {
+            if (binding.source === 'TEMPLATE_CONSTANT') return null;
+
+            if (binding.source === 'ASKER_LOCATION' || binding.source === 'MAP_POINT') {
+              const label = pointSlotLabel(slotName, binding);
+              return (
+                <PointField
+                  key={slotName}
+                  label={label}
+                  helpText={binding.source === 'ASKER_LOCATION' ? 'Resolved from your device automatically.' : `Where is ${label.toLowerCase()}?`}
+                  value={points[slotName] ?? null}
+                  locating={locating}
+                  onPickOnMap={() => onPickPointOnMap(slotName, label)}
+                  onUseMyLocation={() => onUseMyLocationForSlot(slotName)}
+                />
+              );
+            }
+
+            const slotKind = SUBOP_CONTRACT[selectedTemplate.answer_instruction_type].slots[slotName];
+            return (
+              <PlaceholderSlotField
+                key={slotName}
+                slotName={slotName}
+                binding={binding}
+                slotKind={slotKind}
+                placeholderValues={placeholderValues}
+                onSetPlaceholderValue={onSetPlaceholderValue}
+                zoneOptions={zoneOptions}
+                zoneOptionsLoading={zoneOptionsLoading}
+              />
+            );
+          })}
+
+          {(() => {
+            const { asserted_answer: assertedAnswer } = selectedTemplate;
+            if (assertedAnswer.source !== 'PLACEHOLDER') return null;
+            return (
+              <AnswerChips
+                answers={SUBOP_CONTRACT[selectedTemplate.answer_instruction_type].answers}
+                selected={placeholderValues[assertedAnswer.placeholder]}
+                onSelect={(value) => onSetPlaceholderValue(assertedAnswer.placeholder, value)}
+              />
+            );
+          })()}
         </div>
       )}
 
@@ -300,5 +362,37 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
         </div>
       )}
     </BottomSheet>
+  );
+};
+
+interface TemplateListProps {
+  templates: QuestionTemplateDto[];
+  onSelect: (template: QuestionTemplateDto) => void;
+  disabled?: boolean;
+}
+
+const TemplateList: React.FC<TemplateListProps> = ({ templates, onSelect, disabled }) => {
+  if (templates.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      {templates.map((template) => (
+        <button
+          key={template.question_template_id}
+          onClick={() => !disabled && onSelect(template)}
+          disabled={disabled}
+          className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+            disabled
+              ? 'border-white/5 opacity-40 cursor-not-allowed'
+              : 'border-white/10 hover:border-white/30 hover:bg-white/5 active:bg-white/10'
+          }`}
+        >
+          <span className="text-white/60">{OP_TYPE_ICON[template.answer_instruction_type] ?? <MapPinned className="w-5 h-5" />}</span>
+          <span>
+            <span className="block text-xs font-semibold text-white">{template.template}</span>
+            <span className="block text-[11px] text-white/40">{template.category.category_name}{disabled ? ' — not yet supported' : ''}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 };

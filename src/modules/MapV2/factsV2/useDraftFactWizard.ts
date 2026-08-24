@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { AskedQuestionDto, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
-import { buildDraftQuestion, describeResolvedPoint, formatDistance, WIZARD_KIND, WizardKind } from './buildDraftQuestion';
+import {
+  buildAskedQuestion,
+  buildRenderedQuestion,
+  firstAskerLocationSlot,
+  isTemplateComplete,
+  PlaceholderValues,
+  PointValues,
+  pointSlotLabel,
+  pointSlotNames,
+} from './templateQuestionBuilder';
 import { resolveCurrentLocation } from '../utils/geolocation';
 import { PolygonOverlayItemData } from './geometryAssets';
 import { draftQuestionToFact } from './mockData';
@@ -13,6 +22,8 @@ import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
 import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/WizardShapePreviewModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
+import { useAskQuestionMutation, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
+import { QuestionTemplateDto } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
 const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
@@ -23,6 +34,8 @@ const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
 });
 
 const toCoordinates = (p: ResolvedLatLon): [number, number] => [Number(p.lon), Number(p.lat)];
+
+const newQuestionId = (): string => `q-draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export interface UseDraftFactWizardOptions {
   zoneOptions: PolygonOverlayItemData[];
@@ -50,8 +63,8 @@ export interface UseDraftFactWizardResult {
   /** Spread directly onto <CreateDraftFactWizard>. */
   props: CreateDraftFactWizardProps;
   /** Opens the wizard, optionally seeded from the Points & Distance tool's
-   * currently-placed points — one point becomes the circle's center, two
-   * become hotter/colder's point A and B, so measuring first and asking
+   * currently-placed points — used once a template is picked to seed that
+   * template's point slots positionally, so measuring first and asking
    * about the same spot doesn't mean picking it all over again. */
   openWizard: (measurementPoints?: PointDistanceItem[]) => void;
   /** For the pick-prompt banner: the prompt text (null when no pick is
@@ -61,23 +74,26 @@ export interface UseDraftFactWizardResult {
 }
 
 /**
- * The whole "Ask a question" wizard as one hook: every piece of its form
- * state, the map-pick handshake (hide the wizard, wait for a click, refill
- * the field, reopen), a live on-map preview of the shape while reviewing it,
- * and the final AskedQuestionDto it hands to onSubmit. MapCanvas only needs
- * to render <CreateDraftFactWizard {...wizard.props}> and wire the
- * pick-prompt banner — pickResolverRef itself is MapCanvas's (see that
- * option's doc) and already shared with useMapInteractions.
+ * The whole "Ask a question" wizard as one hook: fetching real question
+ * templates (apis/mockQnaApi.ts), every piece of the generic slot-filling
+ * form state, the map-pick handshake (hide the wizard, wait for a click,
+ * refill the field, reopen), a live on-map preview of the shape while
+ * composing and reviewing it, and the final submit — which calls the mock
+ * ask-question API before handing the resulting AskedQuestionDto to
+ * onSubmit. MapCanvas only needs to render
+ * <CreateDraftFactWizard {...wizard.props}> and wire the pick-prompt
+ * banner — pickResolverRef itself is MapCanvas's (see that option's doc)
+ * and already shared with useMapInteractions.
  */
 export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
+  const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery();
+  const [askQuestion, { isLoading: submitting }] = useAskQuestionMutation();
+
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>(WIZARD_STEP.KIND);
-  const [kind, setKind] = useState<WizardKind | null>(null);
-  const [circleCenter, setCircleCenter] = useState<ResolvedLatLon | null>(null);
-  const [circleRadius, setCircleRadius] = useState<number | null>(null);
-  const [zoneKey, setZoneKey] = useState<string | null>(null);
-  const [pointA, setPointA] = useState<ResolvedLatLon | null>(null);
-  const [pointB, setPointB] = useState<ResolvedLatLon | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<QuestionTemplateDto | null>(null);
+  const [points, setPoints] = useState<PointValues>({});
+  const [placeholderValues, setPlaceholderValues] = useState<PlaceholderValues>({});
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   // What the review step assumes the hider will answer — true (the default)
@@ -88,27 +104,23 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
   // itself is passed in (see UseDraftFactWizardOptions) — the next map
   // click feeds into it.
   const [pickPrompt, setPickPrompt] = useState<string | null>(null);
+  // Whatever Points & Distance had placed when the wizard was opened —
+  // read once a template is picked (see selectTemplate), not at open time,
+  // since which slots exist isn't known until then.
+  const measurementPointsRef = useRef<PointDistanceItem[]>([]);
 
   const resetForm = useCallback(() => {
     setStep(WIZARD_STEP.KIND);
-    setKind(null);
-    setCircleCenter(null);
-    setCircleRadius(null);
-    setZoneKey(null);
-    setPointA(null);
-    setPointB(null);
+    setSelectedTemplate(null);
+    setPoints({});
+    setPlaceholderValues({});
     setLocationError(null);
     setAssumedValue(true);
   }, []);
 
   const openWizard = useCallback((measurementPoints: PointDistanceItem[] = []) => {
     resetForm();
-    if (measurementPoints.length === 1) {
-      setCircleCenter(toMapPoint(measurementPoints[0].coordinates));
-    } else if (measurementPoints.length === 2) {
-      setPointA(toMapPoint(measurementPoints[0].coordinates));
-      setPointB(toMapPoint(measurementPoints[1].coordinates));
-    }
+    measurementPointsRef.current = measurementPoints;
     setIsOpen(true);
   }, [resetForm]);
 
@@ -148,63 +160,73 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
       .finally(() => setLocating(false));
   }, []);
 
-  const canContinue = kind === WIZARD_KIND.CIRCLE
-    ? !!circleCenter && !!circleRadius
-    : kind === WIZARD_KIND.ZONE
-      ? !!zoneKey
-      : kind === WIZARD_KIND.HOTTER_COLDER
-        ? !!pointA && !!pointB
-        : false;
+  const setPointForSlot = useCallback((slotName: string, point: ResolvedLatLon) => {
+    setPoints((prev) => ({ ...prev, [slotName]: point }));
+  }, []);
+
+  /** Picking a template moves straight to details, seeded from whatever
+   * the Points & Distance tool already had placed (positionally, one point
+   * per point-slot) — or, failing that, an automatic device fix for the
+   * first ASKER_LOCATION-bound slot, since "device GPS, automatically" is
+   * exactly what that binding means. */
+  const selectTemplate = useCallback((template: QuestionTemplateDto) => {
+    setSelectedTemplate(template);
+    setPlaceholderValues({});
+    setLocationError(null);
+
+    const slotNames = pointSlotNames(template);
+    const measured = measurementPointsRef.current;
+    if (measured.length > 0 && slotNames.length > 0) {
+      const seeded: PointValues = {};
+      slotNames.forEach((slotName, i) => {
+        if (measured[i]) seeded[slotName] = toMapPoint(measured[i].coordinates);
+      });
+      setPoints(seeded);
+    } else {
+      setPoints({});
+      const autoSlot = firstAskerLocationSlot(template);
+      if (autoSlot) locateMeFor((p) => setPointForSlot(autoSlot, p));
+    }
+
+    setStep(WIZARD_STEP.DETAILS);
+  }, [locateMeFor, setPointForSlot]);
+
+  const canContinue = selectedTemplate ? isTemplateComplete(selectedTemplate, points, placeholderValues) : false;
 
   const renderedQuestionPreview = useMemo(() => {
-    if (kind === WIZARD_KIND.CIRCLE && circleCenter && circleRadius) {
-      return `Are you within ${formatDistance(circleRadius)} of ${describeResolvedPoint(circleCenter)}?`;
-    }
-    if (kind === WIZARD_KIND.ZONE && zoneKey) {
-      const zone = zoneOptions.find((z) => z.id === zoneKey);
-      return `Are you inside ${zone?.displayName ?? zoneKey}?`;
-    }
-    if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
-      return `Compared to ${describeResolvedPoint(pointA)}, are you now closer to ${describeResolvedPoint(pointB)}?`;
-    }
-    return null;
-  }, [kind, circleCenter, circleRadius, zoneKey, pointA, pointB, zoneOptions]);
+    if (!selectedTemplate || !canContinue) return null;
+    return buildRenderedQuestion(selectedTemplate, points, placeholderValues, zoneOptions);
+  }, [selectedTemplate, points, placeholderValues, zoneOptions, canContinue]);
 
   const handleSubmit = useCallback(() => {
-    if (!kind) return;
-    let question: AskedQuestionDto | null = null;
-    if (kind === WIZARD_KIND.CIRCLE && circleCenter && circleRadius) {
-      question = buildDraftQuestion({ kind: WIZARD_KIND.CIRCLE, center: circleCenter, radius: circleRadius, assumedValue });
-    } else if (kind === WIZARD_KIND.ZONE && zoneKey) {
-      const zone = zoneOptions.find((z) => z.id === zoneKey);
-      question = buildDraftQuestion({ kind: WIZARD_KIND.ZONE, zoneKey, zoneLabel: zone?.displayName ?? zoneKey, assumedValue });
-    } else if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
-      question = buildDraftQuestion({ kind: WIZARD_KIND.HOTTER_COLDER, pointA, pointB, assumedValue });
-    }
+    if (!selectedTemplate) return;
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, zoneOptions, newQuestionId());
     if (!question) return;
-    onSubmit(question);
-    closeWizard();
-  }, [kind, circleCenter, circleRadius, zoneKey, pointA, pointB, zoneOptions, assumedValue, onSubmit, closeWizard]);
+
+    askQuestion({
+      question_template_id: selectedTemplate.question_template_id,
+      rendered_question: question.rendered_question,
+      answer_instruction_type: question.answer_instruction_type,
+      resolved_slots: question.question_meta.resolved_slots,
+      asserted_answer: question.question_meta.asserted_answer,
+    })
+      .then(() => {
+        onSubmit(question);
+        closeWizard();
+      })
+      .catch((err) => {
+        console.warn('[MapV2] Mock ask-question call failed', err);
+      });
+  }, [selectedTemplate, points, placeholderValues, assumedValue, zoneOptions, askQuestion, onSubmit, closeWizard]);
 
   // Live "what would this look like" preview — only while reviewing, so the
   // shape the user is about to commit to shows on the map before they add
-  // it, reacting instantly to the Yes/No toggle. Rebuilt (not reused) from
-  // handleSubmit's own inputs rather than sharing one FactDto, since the
-  // preview needs to recompute on every field change while composing, not
-  // just once at submit time.
+  // it, reacting instantly to the Yes/No toggle.
   const previewFact = useMemo<FactDto | null>(() => {
-    if (step !== WIZARD_STEP.REVIEW || !kind) return null;
-    let question: AskedQuestionDto | null = null;
-    if (kind === WIZARD_KIND.CIRCLE && circleCenter && circleRadius) {
-      question = buildDraftQuestion({ kind: WIZARD_KIND.CIRCLE, center: circleCenter, radius: circleRadius, assumedValue });
-    } else if (kind === WIZARD_KIND.ZONE && zoneKey) {
-      const zone = zoneOptions.find((z) => z.id === zoneKey);
-      question = buildDraftQuestion({ kind: WIZARD_KIND.ZONE, zoneKey, zoneLabel: zone?.displayName ?? zoneKey, assumedValue });
-    } else if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
-      question = buildDraftQuestion({ kind: WIZARD_KIND.HOTTER_COLDER, pointA, pointB, assumedValue });
-    }
+    if (step !== WIZARD_STEP.REVIEW || !selectedTemplate) return null;
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, zoneOptions, 'wizard-review-preview');
     return question ? draftQuestionToFact(question) : null;
-  }, [step, kind, circleCenter, circleRadius, zoneKey, zoneOptions, pointA, pointB, assumedValue]);
+  }, [step, selectedTemplate, points, placeholderValues, assumedValue, zoneOptions]);
 
   const [previewModule] = useState(() => new FactsLayerModule(
     { id: WIZARD_PREVIEW_MODULE_ID, groupId: GROUP_ID.FACTS, label: 'Question preview', fillColor: '#FFC043', fillOpacity: 0.3, dashed: true },
@@ -220,24 +242,15 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
   // (assuming its asserted pole holds; there's no yes/no toggle yet at this
   // step), bounded only by the play area, not by other facts. Shows the
   // instant enough fields exist to compute it (canContinue), e.g. a full
-  // circle the moment a radius chip is tapped, or a zone's own boundary
+  // circle the moment a distance chip is tapped, or a zone's own boundary
   // the moment it's picked — distinct from the review step's amber
   // possible-area preview above, which folds against previewUniverse
-  // instead. Built the same way previewFact is, just gated on DETAILS
-  // instead of REVIEW and always assuming true (no toggle to read yet).
+  // instead.
   const detailsShapeFact = useMemo<FactDto | null>(() => {
-    if (step !== WIZARD_STEP.DETAILS || !canContinue) return null;
-    let question: AskedQuestionDto | null = null;
-    if (kind === WIZARD_KIND.CIRCLE && circleCenter && circleRadius) {
-      question = buildDraftQuestion({ kind: WIZARD_KIND.CIRCLE, center: circleCenter, radius: circleRadius, assumedValue: true });
-    } else if (kind === WIZARD_KIND.ZONE && zoneKey) {
-      const zone = zoneOptions.find((z) => z.id === zoneKey);
-      question = buildDraftQuestion({ kind: WIZARD_KIND.ZONE, zoneKey, zoneLabel: zone?.displayName ?? zoneKey, assumedValue: true });
-    } else if (kind === WIZARD_KIND.HOTTER_COLDER && pointA && pointB) {
-      question = buildDraftQuestion({ kind: WIZARD_KIND.HOTTER_COLDER, pointA, pointB, assumedValue: true });
-    }
+    if (step !== WIZARD_STEP.DETAILS || !selectedTemplate || !canContinue) return null;
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, true, zoneOptions, 'wizard-shape-preview');
     return question ? draftQuestionToFact(question) : null;
-  }, [step, canContinue, kind, circleCenter, circleRadius, zoneKey, zoneOptions, pointA, pointB]);
+  }, [step, selectedTemplate, canContinue, points, placeholderValues, zoneOptions]);
 
   const [shapeModule] = useState(() => new WizardShapePreviewModule());
   const [detailsShapeArea, setDetailsShapeArea] = useState<Feature<Polygon | MultiPolygon> | null>(null);
@@ -263,55 +276,48 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
   );
   useMapLayerModule(shapeModule, shapeItems);
 
-  // Marks whichever point(s) the current kind actually uses, live as soon
-  // as each is picked (not only once the shaded preview exists on review) —
-  // "where is the center/point I just tapped" is useful feedback while
-  // still composing, not just at the end.
+  // Marks every point slot the current template uses, live as soon as
+  // each is resolved (not only once the shaded preview exists on review) —
+  // "where is the point I just captured" is useful feedback while still
+  // composing, not just at the end.
   const [pointsModule] = useState(() => new WizardPointsModule());
   const wizardPointItems = useMemo<WizardPointItem[]>(() => {
-    if (kind === WIZARD_KIND.CIRCLE && circleCenter) {
-      return [{ id: 'center', coordinates: toCoordinates(circleCenter), label: 'Center' }];
-    }
-    if (kind === WIZARD_KIND.HOTTER_COLDER) {
-      const items: WizardPointItem[] = [];
-      if (pointA) items.push({ id: 'point-a', coordinates: toCoordinates(pointA), label: 'A' });
-      if (pointB) items.push({ id: 'point-b', coordinates: toCoordinates(pointB), label: 'B' });
-      return items;
-    }
-    return [];
-  }, [kind, circleCenter, pointA, pointB]);
+    if (!selectedTemplate) return [];
+    return pointSlotNames(selectedTemplate)
+      .filter((slotName) => points[slotName])
+      .map((slotName) => ({
+        id: slotName,
+        coordinates: toCoordinates(points[slotName]),
+        label: pointSlotLabel(slotName, selectedTemplate.slot_bindings[slotName]),
+      }));
+  }, [selectedTemplate, points]);
   useMapLayerModule(pointsModule, wizardPointItems);
 
   const props: CreateDraftFactWizardProps = {
     isOpen,
     onClose: closeWizard,
     step,
-    kind,
-    onSelectKind: (k) => { setKind(k); setStep(WIZARD_STEP.DETAILS); },
+    templates: templates ?? [],
+    templatesLoading,
+    selectedTemplate,
+    onSelectTemplate: selectTemplate,
     onBack: () => setStep(step === WIZARD_STEP.REVIEW ? WIZARD_STEP.DETAILS : WIZARD_STEP.KIND),
     locating,
     locationError,
-    circleCenter,
-    circleRadius,
-    onPickCircleCenterOnMap: () => pickOnMap('Tap the map to set the circle’s center', setCircleCenter),
-    onUseMyLocationForCircle: () => locateMeFor(setCircleCenter),
-    onSetCircleRadius: setCircleRadius,
+    points,
+    onPickPointOnMap: (slotName, label) => pickOnMap(`Tap the map for ${label}`, (p) => setPointForSlot(slotName, p)),
+    onUseMyLocationForSlot: (slotName) => locateMeFor((p) => setPointForSlot(slotName, p)),
+    placeholderValues,
+    onSetPlaceholderValue: (key, value) => setPlaceholderValues((prev) => ({ ...prev, [key]: value })),
     zoneOptions,
     zoneOptionsLoading,
-    zoneKey,
-    onSelectZone: setZoneKey,
-    pointA,
-    pointB,
-    onPickPointAOnMap: () => pickOnMap('Tap the map for Point A', setPointA),
-    onUseMyLocationForPointA: () => locateMeFor(setPointA),
-    onPickPointBOnMap: () => pickOnMap('Tap the map for Point B', setPointB),
-    onUseMyLocationForPointB: () => locateMeFor(setPointB),
     renderedQuestionPreview,
     assumedValue,
     onSetAssumedValue: setAssumedValue,
     canContinue,
     onContinue: () => setStep(WIZARD_STEP.REVIEW),
     onSubmit: handleSubmit,
+    submitting,
   };
 
   return { props, openWizard, pickPrompt, cancelPick };

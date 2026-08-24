@@ -1,0 +1,183 @@
+[
+  {
+    "fact_id": "qna-d2f5b33b-aed6-4e38-a779-89f3247fb112",
+    "fact_type": "GEO",
+    "question_id": "d2f5b33b-aed6-4e38-a779-89f3247fb112",
+    "answer_id": "qna-answer-d2f5b33b-aed6-4e38-a779-89f3247fb112",
+    "fact_info": {
+      "op_type": "POINT_BUFFER_INSIDE",
+      "op_meta": {
+        "point": {
+          "lat": "13.0242969",
+          "lon": "77.6325497",
+          "source": "ASKER_LOCATION"
+        },
+        "radius": 2000,
+        "assertedAnswer": "INSIDE",
+        "value": false
+      }
+    },
+    "created": "2026-08-16T10:08:22.144226Z",
+    "modified": "2026-08-16T10:08:22.144226Z"
+  },
+  {
+    "fact_id": "qna-3f8b9916-aa90-4b77-a46f-c71fa45277ce",
+    "fact_type": "GEO",
+    "question_id": "3f8b9916-aa90-4b77-a46f-c71fa45277ce",
+    "answer_id": "qna-answer-3f8b9916-aa90-4b77-a46f-c71fa45277ce",
+    "fact_info": {
+      "op_type": "TWO_POINT_BISECTOR",
+      "op_meta": {
+        "point": {
+          "lat": "13.0275464",
+          "lon": "77.6324109",
+          "source": "ASKER_LOCATION"
+        },
+        "pointFinal": {
+          "lat": "13.028092",
+          "lon": "77.6325942",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "HOTTER",
+        "value": false
+      }
+    },
+    "created": "2026-08-16T09:47:51.520510Z",
+    "modified": "2026-08-16T09:47:51.520510Z"
+  },
+  {
+    "fact_id": "qna-f03ba59b-a38f-485e-bfa3-49942130e92c",
+    "fact_type": "GEO",
+    "question_id": "f03ba59b-a38f-485e-bfa3-49942130e92c",
+    "answer_id": "qna-answer-f03ba59b-a38f-485e-bfa3-49942130e92c",
+    "fact_info": {
+      "op_type": "TWO_POINT_BISECTOR",
+      "op_meta": {
+        "point": {
+          "lat": "13.0319035",
+          "lon": "77.622181",
+          "source": "ASKER_LOCATION"
+        },
+        "pointFinal": {
+          "lat": "13.0320502",
+          "lon": "77.6218265",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "HOTTER",
+        "value": true
+      }
+    },
+    "created": "2026-08-16T08:45:12.395109Z",
+    "modified": "2026-08-16T08:45:12.395109Z"
+  },
+  {
+    "fact_id": "qna-7e742970-093a-423c-a0bb-2a7a84ec8137",
+    "fact_type": "GEO",
+    "question_id": "7e742970-093a-423c-a0bb-2a7a84ec8137",
+    "answer_id": "qna-answer-7e742970-093a-423c-a0bb-2a7a84ec8137",
+    "fact_info": {
+      "op_type": "POINT_POINT_BUFFER_INSIDE",
+      "op_meta": {
+        "anchor": {
+          "lat": "12.965321432846949",
+          "lon": "77.60113232694749",
+          "source": "MAP_POINT"
+        },
+        "point": {
+          "lat": "13.0297918",
+          "lon": "77.6306198",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "INSIDE",
+        "value": true
+      }
+    },
+    "created": "2026-08-16T07:55:38.919397Z",
+    "modified": "2026-08-16T07:55:38.919397Z"
+  },
+  {
+    "fact_id": "qna-c58638cd-be2d-46c5-a22a-a463718fc995",
+    "fact_type": "GEO",
+    "question_id": "c58638cd-be2d-46c5-a22a-a463718fc995",
+    "answer_id": "qna-answer-c58638cd-be2d-46c5-a22a-a463718fc995",
+    "fact_info": {
+      "op_type": "TWO_POINT_BISECTOR",
+      "op_meta": {
+        "point": {
+          "lat": "13.0257094",
+          "lon": "77.6394838",
+          "source": "ASKER_LOCATION"
+        },
+        "pointFinal": {
+          "lat": "13.0300314",
+          "lon": "77.6309925",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "HOTTER",
+        "value": true
+      }
+    },
+    "created": "2026-08-16T07:38:22.028478Z",
+    "modified": "2026-08-16T07:38:22.028478Z"
+  },
+  {
+    "fact_id": "qna-f2e342c3-ec43-4a38-91f9-e9eaa99acb18",
+    "fact_type": "GEO",
+    "question_id": "f2e342c3-ec43-4a38-91f9-e9eaa99acb18",
+    "answer_id": "qna-answer-f2e342c3-ec43-4a38-91f9-e9eaa99acb18",
+    "fact_info": {
+      "op_type": "POINT_SPLIT",
+      "op_meta": {
+        "point": {
+          "lat": "13.0004199",
+          "lon": "77.6761761",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "W",
+        "value": true
+      }
+    },
+    "created": "2026-08-16T07:12:13.248749Z",
+    "modified": "2026-08-16T07:12:13.248749Z"
+  },
+  {
+    "fact_id": "qna-3ff3e0af-02c2-4a1f-a0ad-cc8f7fb42c2f",
+    "fact_type": "GEO",
+    "question_id": "3ff3e0af-02c2-4a1f-a0ad-cc8f7fb42c2f",
+    "answer_id": "qna-answer-3ff3e0af-02c2-4a1f-a0ad-cc8f7fb42c2f",
+    "fact_info": {
+      "op_type": "POINT_SPLIT",
+      "op_meta": {
+        "point": {
+          "lat": "12.9754154",
+          "lon": "77.6071572",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "E",
+        "value": false
+      }
+    },
+    "created": "2026-08-16T06:26:18.566256Z",
+    "modified": "2026-08-16T06:26:18.566256Z"
+  },
+  {
+    "fact_id": "qna-4749878a-a77d-4b2f-a3d4-a12ac0631e02",
+    "fact_type": "GEO",
+    "question_id": "4749878a-a77d-4b2f-a3d4-a12ac0631e02",
+    "answer_id": "qna-answer-4749878a-a77d-4b2f-a3d4-a12ac0631e02",
+    "fact_info": {
+      "op_type": "POINT_SPLIT",
+      "op_meta": {
+        "point": {
+          "lat": "12.999635",
+          "lon": "77.6768034",
+          "source": "ASKER_LOCATION"
+        },
+        "assertedAnswer": "N",
+        "value": true
+      }
+    },
+    "created": "2026-08-16T06:12:57.337201Z",
+    "modified": "2026-08-16T06:12:57.337201Z"
+  }
+]
