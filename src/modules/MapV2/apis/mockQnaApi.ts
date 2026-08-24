@@ -11,8 +11,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import templatesJson from '../mock/v2_question_templates.output.json';
 import { Answer, OpType } from '../factsV2/factTypes';
-import { PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { AnswerRecordDto, AskedQuestionRecordDto, PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
 import { POLYGON_CATALOG, REGION_KIND, RegionKind } from '../factsV2/geometryAssets';
+import { MOCK_PENDING_QUESTIONS } from '../factsV2/mockPendingQuestions';
 
 const MOCK_LATENCY_MS = 350;
 
@@ -157,6 +158,73 @@ export function useAskQuestionMutation(): [
         resolve({
           question_id: `mock-asked-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           created: new Date().toISOString(),
+        });
+      }, MOCK_LATENCY_MS);
+    });
+  };
+
+  return [trigger, { isLoading }];
+}
+
+export interface UseGetPendingQuestionsResult {
+  data: AskedQuestionRecordDto[] | undefined;
+  isLoading: boolean;
+}
+
+/** Stand-in for GET /qna/v2/asked-questions/?answered=false — every
+ * question awaiting the hider's answer (mockPendingQuestions.ts). teamId is
+ * accepted for API shape parity with a real, team-scoped endpoint; the mock
+ * data itself isn't keyed by team. */
+export function useGetPendingQuestionsQuery(teamId: string | null): UseGetPendingQuestionsResult {
+  const [data, setData] = useState<AskedQuestionRecordDto[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setData(MOCK_PENDING_QUESTIONS);
+      setIsLoading(false);
+    }, MOCK_LATENCY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [teamId]);
+
+  return { data, isLoading };
+}
+
+export interface AnswerQuestionInput {
+  question_id: string;
+  value: boolean;
+}
+
+export interface UseAnswerQuestionMutationResult {
+  isLoading: boolean;
+}
+
+/** Stand-in for PATCH /qna/v2/asked-questions/:id/answer — mints an
+ * AnswerRecordDto (stage 3) after a simulated round trip, exactly the shape
+ * questionPipelineTypes.ts's toFactRecord expects to compose into a Fact
+ * (stage 4). */
+export function useAnswerQuestionMutation(): [
+  (input: AnswerQuestionInput) => Promise<AnswerRecordDto>,
+  UseAnswerQuestionMutationResult,
+] {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const trigger = (input: AnswerQuestionInput): Promise<AnswerRecordDto> => {
+    setIsLoading(true);
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        setIsLoading(false);
+        resolve({
+          answer_id: `mock-answer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          question_id: input.question_id,
+          value: input.value,
+          answered_at: new Date().toISOString(),
         });
       }, MOCK_LATENCY_MS);
     });

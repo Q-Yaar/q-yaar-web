@@ -5,18 +5,22 @@ import { GROUP_ID } from './layers/groupIds';
 import { PolygonOverlayModule } from './layers/modules/PolygonOverlayModule';
 import { useMapInstance } from './hooks/useMapInstance';
 import { useTeamFilter } from './hooks/useTeamFilter';
+import { useGameMode, GAME_MODE } from './hooks/useGameMode';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
+import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
+import { FactDto } from './factsV2/factTypes';
 import { TopBar } from './components/TopBar';
 import { LayersSheet } from './components/LayersSheet';
-import { AskQuestionFab } from './components/AskQuestionFab';
+import { ModeActionButtons } from './components/ModeActionButtons';
 import { DraftQuestionsList } from './components/DraftQuestionsList';
 import { FactsChip } from './components/FactsChip';
 import { MapStatusBanner } from './components/MapStatusBanner';
 import { FactPopup } from './components/FactPopup';
 import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
+import { AnswerQuestionsSheet } from './components/AnswerQuestionsSheet';
 
 interface MapCanvasInnerProps {
   registry: MapLayerRegistry;
@@ -31,21 +35,37 @@ interface MapCanvasInnerProps {
  *   playArea         -> the eagerly-loaded game zone (factsV2/geometryAssets.ts)
  *   polygonCatalog   -> corporation/metro-catchment zones, loaded lazily
  *                        (factsV2/geometryAssets.ts)
- *   teamFilter       -> which team's facts to show (hooks/useTeamFilter.ts)
- *   facts            -> Facts/Draft Facts data + modules (factsV2/useFactsLayers.ts)
+ *   gameMode         -> Hiding/Seeking toggle, manual (hooks/useGameMode.ts —
+ *                        there's no real hider/seeker field anywhere in the
+ *                        data model yet)
+ *   teamFilter       -> the Seeking-mode team dropdown (hooks/useTeamFilter.ts)
+ *   facts            -> Facts/Draft Facts data + modules (factsV2/useFactsLayers.ts).
+ *                        Which team's facts load is mode-dependent: Hiding
+ *                        shows the player's own team (teamFilter.myTeamId —
+ *                        a hider always sees their own team's facts, the
+ *                        dropdown isn't shown), Seeking shows whichever team
+ *                        the dropdown has selected.
  *   interactions     -> map clicks/hover, Points & Distance
  *                        (hooks/useMapInteractions.ts)
- *   wizard           -> the "Ask a question" form (factsV2/useDraftFactWizard.ts)
- * `pickResolverRef` is created here (not inside either hook) and shared by
- * both: `interactions`'s click handler resolves a pending pick through it,
- * `wizard` arms/clears it. That's also why `interactions` is constructed
- * *before* `wizard` — MapLibre draws later-registered modules' layers on
- * top, and the wizard's own live preview/points (useDraftFactWizard) should
- * always be the topmost thing on the map, never obscured by Measurement's
+ *   wizard           -> Seeking's "Ask a question" form (factsV2/useDraftFactWizard.ts)
+ *   answerFlow       -> Hiding's "Answer questions" form (factsV2/useAnswerQuestionsFlow.ts)
+ * `pickResolverRef` is created here (not inside either hook) and shared with
+ * `wizard`: `interactions`'s click handler resolves a pending pick through
+ * it, `wizard` arms/clears it. That's also why `interactions` is constructed
+ * *before* `wizard`/`answerFlow` — MapLibre draws later-registered modules'
+ * layers on top, and each flow's own live preview/points should always be
+ * the topmost thing on the map, never obscured by Measurement's
  * crosshair/rings/points or by the Registry Polygons overlay. `interactions`
  * also feeds back the Points & Distance tool's current points so opening
  * the wizard can start from whatever's already been measured instead of
  * picking it all over again.
+ *
+ * `answeredFacts` is plain state owned here (not inside useAnswerQuestionsFlow
+ * itself) so it can be threaded into `facts` *before* `answerFlow` exists —
+ * `facts` needs it as soon as it's constructed, but `answerFlow` needs to be
+ * constructed *after* `interactions` for the z-order reason above, and
+ * `interactions` itself needs `facts`'s modules. Same "lift state out to
+ * break a hook-ordering cycle" move as pickResolverRef.
  *
  * The map is full-bleed — TopBar is a floating translucent strip over its
  * top edge (see TopBar.tsx), not a separate flex row pushing it down, so
@@ -73,9 +93,19 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
   const playAreaState = usePlayArea();
   const polygonCatalog = usePolygonCatalog();
+  const gameMode = useGameMode(gameId);
   const teamFilter = useTeamFilter(gameId);
 
-  const facts = useFactsLayers({ gameId, teamId: teamFilter.selectedTeamId, playAreaState });
+  // Hiding always shows the player's own team's facts; Seeking shows
+  // whichever team the dropdown has selected (see TopBar — the dropdown
+  // itself is hidden in Hiding mode).
+  const factsTeamId = gameMode.mode === GAME_MODE.HIDING ? teamFilter.myTeamId : teamFilter.selectedTeamId;
+
+  // See the class doc comment for why this is lifted out here rather than
+  // owned inside useAnswerQuestionsFlow.
+  const [answeredFacts, setAnsweredFacts] = useState<FactDto[]>([]);
+
+  const facts = useFactsLayers({ gameId, teamId: factsTeamId, playAreaState, extraFacts: answeredFacts });
 
   // Capability #2 — Registry Polygons. Simple enough (no data pipeline of
   // its own, just polygonCatalog.items) to wire directly here rather than
@@ -105,6 +135,11 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     pickResolverRef,
     onSubmit: facts.addDraftQuestion,
   });
+  const answerFlow = useAnswerQuestionsFlow({
+    teamId: teamFilter.myTeamId,
+    previewUniverse: facts.draftsUniverse,
+    onAnswered: (fact) => setAnsweredFacts((prev) => [...prev, fact]),
+  });
 
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -114,14 +149,25 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
 
       <TopBar
         onBack={onBack}
+        mode={gameMode.mode}
+        onSetMode={gameMode.setMode}
         teamFilter={teamFilter}
         onOpenLayers={() => setLayersOpen(true)}
       />
 
       <FactsChip count={facts.factsCount} />
       <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
-      <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
-      <AskQuestionFab onClick={() => wizard.openWizard(interactions.measurementPoints)} />
+
+      {gameMode.mode === GAME_MODE.SEEKING && (
+        <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
+      )}
+
+      <ModeActionButtons
+        mode={gameMode.mode}
+        onAnswerQuestions={answerFlow.openSheet}
+        pendingAnswerCount={answerFlow.pendingCount}
+        onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
+      />
 
       <LayersSheet isOpen={layersOpen} onClose={() => setLayersOpen(false)} />
 
@@ -131,7 +177,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onClose={interactions.clearSelectedFact}
       />
 
-      <CreateDraftFactWizard {...wizard.props} />
+      {gameMode.mode === GAME_MODE.SEEKING && <CreateDraftFactWizard {...wizard.props} />}
+      {gameMode.mode === GAME_MODE.HIDING && <AnswerQuestionsSheet {...answerFlow.props} />}
     </div>
   );
 };

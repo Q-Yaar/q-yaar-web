@@ -21,7 +21,7 @@ export const DraftQuestionsList: React.FC<DraftQuestionsListProps> = ({ question
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 'calc(132px + env(safe-area-inset-bottom))',
+        bottom: 'calc(172px + env(safe-area-inset-bottom))',
         zIndex: 15,
         display: 'flex',
         gap: '8px',

@@ -27,9 +27,11 @@ export const FactsChip: React.FC<FactsChipProps> = ({ count }) => {
         left: '12px', zIndex: 15,
         display: 'flex', alignItems: 'center', gap: '8px',
         padding: '6px 8px 6px 14px', borderRadius: '20px',
-        backgroundColor: uberDark.surfaceElevated,
-        border: `1px solid ${uberDark.border}`,
-        boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
         fontSize: '12px', color: uberDark.textPrimary,
       }}
     >
@@ -39,7 +41,7 @@ export const FactsChip: React.FC<FactsChipProps> = ({ count }) => {
         aria-label={visible ? 'Hide facts' : 'Show facts'}
         style={{
           width: '26px', height: '26px', borderRadius: '50%', border: 'none',
-          backgroundColor: 'rgba(255,255,255,0.12)', color: uberDark.textPrimary,
+          backgroundColor: 'rgba(255,255,255,0.22)', color: uberDark.textPrimary,
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
         }}
       >

@@ -5,7 +5,7 @@ import { useLayerTree, useMapLayerModule, EMPTY_ITEMS } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
 import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
 import { PlayAreaResult } from './geometryAssets';
-import { AskedQuestionDto } from './factTypes';
+import { AskedQuestionDto, FactDto } from './factTypes';
 import { foldFactsAreaInWorker } from './geoWorkerClient';
 import { draftQuestionToFact } from './mockData';
 import { convertLegacyFacts } from './legacyFactConverter';
@@ -15,6 +15,13 @@ export interface UseFactsLayersOptions {
   gameId?: string;
   teamId: string | null;
   playAreaState: PlayAreaResult;
+  /** Facts resolved locally this session that the real /facts/ endpoint
+   * doesn't know about yet — currently just the Hider's Answer Questions
+   * flow (useAnswerQuestionsFlow.ts), so a just-answered question shows up
+   * as a real (non-dashed) fact immediately instead of waiting on a refetch
+   * the mock backend will never actually push. Folded in alongside
+   * realFacts, same as any other confirmed fact. */
+  extraFacts?: FactDto[];
 }
 
 export interface UseFactsLayersResult {
@@ -41,12 +48,15 @@ export interface UseFactsLayersResult {
  * needs to know any of that; it just needs the two module instances (for
  * map click hit-testing) and the draft-question list (for the wizard/UI).
  */
-export function useFactsLayers({ gameId, teamId, playAreaState }: UseFactsLayersOptions): UseFactsLayersResult {
+export function useFactsLayers({ gameId, teamId, playAreaState, extraFacts = [] }: UseFactsLayersOptions): UseFactsLayersResult {
   const { data: factsResponse } = useGetFactsQuery(
     { game_id: gameId ?? '', team_id: teamId ?? undefined },
     { skip: !gameId || !teamId },
   );
-  const realFacts = useMemo(() => convertLegacyFacts(factsResponse?.results ?? []), [factsResponse]);
+  const realFacts = useMemo(
+    () => [...convertLegacyFacts(factsResponse?.results ?? []), ...extraFacts],
+    [factsResponse, extraFacts],
+  );
 
   const playAreaRef = useRef(playAreaState.playArea);
   playAreaRef.current = playAreaState.playArea;

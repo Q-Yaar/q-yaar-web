@@ -16,3 +16,9 @@ export const FACT_HIT_LAYERS = [FACTS_FILL_LAYER, DRAFT_FACTS_FILL_LAYER];
  * wizard leaves the review step or closes, so nothing should try to click
  * it as if it were a real fact). */
 export const WIZARD_PREVIEW_MODULE_ID = 'wizard-preview-fact';
+
+/** Same idea as WIZARD_PREVIEW_MODULE_ID, for the Hider's Answer Questions
+ * flow instead of the Ask a Question wizard — a fourth FactsLayerModule
+ * instance, live only while a pending question is open in the answer
+ * sheet. */
+export const ANSWER_PREVIEW_MODULE_ID = 'answer-preview-fact';

@@ -8,6 +8,10 @@ export interface TeamFilterResult {
   playerTeams: Team[];
   selectedTeamId: string | null;
   setSelectedTeamId: (teamId: string) => void;
+  /** The signed-in player's own team — Hiding mode's facts load from here
+   * instead of the dropdown's selectedTeamId. Null until useFetchMyTeamQuery
+   * settles. */
+  myTeamId: string | null;
   isLoading: boolean;
   error: unknown;
 }
@@ -38,5 +42,5 @@ export function useTeamFilter(gameId: string | undefined): TeamFilterResult {
     initializedRef.current = true;
   }, [teamsLoading, myTeamLoading, playerTeams, myTeam]);
 
-  return { playerTeams, selectedTeamId, setSelectedTeamId, isLoading: teamsLoading, error };
+  return { playerTeams, selectedTeamId, setSelectedTeamId, myTeamId: myTeam?.team_id ?? null, isLoading: teamsLoading, error };
 }
