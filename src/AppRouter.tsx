@@ -48,8 +48,8 @@ function ProtectedRoutes(): JSX.Element {
           <Route path={GAME_JOIN_ROUTE} element={<JoinGameByCode />} />
           <Route path={DICE_ROLLER_ROUTE} element={<DiceRoller />} />
           <Route path={DECK_ROUTE} element={<DeckPage />} />
-          <Route path={MAP_ROUTE} element={<MapPage />} />
-          <Route path={MAP_V2_ROUTE} element={<MapV2Page />} />
+          <Route path={MAP_ROUTE} element={<MapV2Page />} />
+          <Route path={MAP_V2_ROUTE} element={<MapPage />} />
           <Route path={ASK_QUESTION_ROUTE} element={<AskQuestionModule />} />
           <Route
             path={ANSWER_QUESTION_ROUTE}

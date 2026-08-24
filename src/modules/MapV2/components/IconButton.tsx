@@ -10,7 +10,9 @@ interface IconButtonProps {
 
 /** The one 40px circular touch target every icon control in MapV2's chrome
  * (back, layers, preview) is built from, so they line up exactly regardless
- * of which component renders them. */
+ * of which component renders them. Frosted-glass by default (a light tint
+ * over whatever's behind it, blurred) rather than a solid disc, to match
+ * the floating TopBar it normally sits on. */
 export const IconButton: React.FC<IconButtonProps> = ({ onClick, ariaLabel, active, children }) => (
   <button
     onClick={onClick}
@@ -19,14 +21,17 @@ export const IconButton: React.FC<IconButtonProps> = ({ onClick, ariaLabel, acti
       width: '40px',
       height: '40px',
       borderRadius: '50%',
-      border: `1px solid ${active ? uberDark.accent : uberDark.border}`,
-      backgroundColor: active ? uberDark.accent : uberDark.surfaceElevated,
+      border: `1px solid ${active ? uberDark.accent : 'rgba(255,255,255,0.2)'}`,
+      backgroundColor: active ? uberDark.accent : 'rgba(255,255,255,0.12)',
+      backdropFilter: active ? undefined : 'blur(8px)',
+      WebkitBackdropFilter: active ? undefined : 'blur(8px)',
       color: uberDark.textPrimary,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       cursor: 'pointer',
       flexShrink: 0,
+      boxShadow: active ? undefined : '0 2px 8px rgba(0,0,0,0.25)',
     }}
   >
     {children}

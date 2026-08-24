@@ -27,11 +27,14 @@ export const TeamFilterDropdown: React.FC<TeamFilterDropdownProps> = ({ playerTe
         maxWidth: '220px',
         padding: '9px 12px',
         borderRadius: '20px',
-        border: `1px solid ${uberDark.border}`,
-        backgroundColor: uberDark.surfaceElevated,
+        border: '1px solid rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         color: uberDark.textPrimary,
         fontSize: '13px',
         fontWeight: 600,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
       }}
     >
       {playerTeams.map((team) => (

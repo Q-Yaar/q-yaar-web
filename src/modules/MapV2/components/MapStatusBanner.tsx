@@ -1,5 +1,5 @@
 import React from 'react';
-import { uberDark } from '../theme';
+import { MAP_HEADER_HEIGHT_PX, uberDark } from '../theme';
 
 interface MapStatusBannerProps {
   /** Non-null while a wizard map-pick is pending — shown instead of the
@@ -18,7 +18,9 @@ export const MapStatusBanner: React.FC<MapStatusBannerProps> = ({ pickPrompt, on
     return (
       <div
         style={{
-          position: 'absolute', top: 'calc(12px + env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute',
+          top: `calc(${MAP_HEADER_HEIGHT_PX}px + env(safe-area-inset-top) + 8px)`,
+          left: '50%', transform: 'translateX(-50%)',
           zIndex: 20, backgroundColor: uberDark.surfaceElevated, color: uberDark.textPrimary,
           padding: '8px 10px 8px 16px', border: `1px solid ${uberDark.border}`,
           borderRadius: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '12px',

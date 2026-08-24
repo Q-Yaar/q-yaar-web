@@ -10,6 +10,13 @@
 
 export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
+/** The floating TopBar's approximate rendered height (excluding the safe
+ * area inset it also adds on top) — shared with anything else positioned
+ * over the map that needs to sit below it (FactsChip, the pick-prompt
+ * banner) and with useMapInstance's own top-right control offset, so none
+ * of them drift out of sync with the header's actual size. */
+export const MAP_HEADER_HEIGHT_PX = 56;
+
 export const uberDark = {
   surface: '#141414',
   surfaceElevated: '#1f1f1f',

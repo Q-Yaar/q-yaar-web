@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol as PMTilesProtocol } from 'pmtiles';
 import { MapLayerRegistry } from '../layers/MapLayerRegistry';
-import { MAP_STYLE_URL } from '../theme';
+import { MAP_HEADER_HEIGHT_PX, MAP_STYLE_URL } from '../theme';
 import { MAP_ASSETS } from '../assets';
 import { normalizePlayArea } from '../utils/geo';
 import { differencePolygons, globalWorld } from '../../../utils/geoUtils';
@@ -69,6 +69,15 @@ export function useMapInstance({
       showAccuracyCircle: false,
     });
     m.addControl(geolocateControl, 'top-right');
+
+    // TopBar floats over the map now (see TopBar.tsx) rather than pushing
+    // it down, so MapLibre's own top-right zoom/geolocate buttons need a
+    // manual push clear of it — otherwise they'd render right under the
+    // Zones icon button.
+    const topRightControls = container.querySelector<HTMLElement>('.maplibregl-ctrl-top-right');
+    if (topRightControls) {
+      topRightControls.style.marginTop = `calc(${MAP_HEADER_HEIGHT_PX}px + env(safe-area-inset-top))`;
+    }
 
     const resizeObserver = new ResizeObserver(() => m.resize());
     resizeObserver.observe(container);

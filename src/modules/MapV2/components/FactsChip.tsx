@@ -2,7 +2,7 @@ import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useLayerTree } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
-import { uberDark } from '../theme';
+import { MAP_HEADER_HEIGHT_PX, uberDark } from '../theme';
 
 interface FactsChipProps {
   count: number;
@@ -22,7 +22,9 @@ export const FactsChip: React.FC<FactsChipProps> = ({ count }) => {
   return (
     <div
       style={{
-        position: 'absolute', top: '12px', left: '12px', zIndex: 15,
+        position: 'absolute',
+        top: `calc(${MAP_HEADER_HEIGHT_PX}px + env(safe-area-inset-top) + 8px)`,
+        left: '12px', zIndex: 15,
         display: 'flex', alignItems: 'center', gap: '8px',
         padding: '6px 8px 6px 14px', borderRadius: '20px',
         backgroundColor: uberDark.surfaceElevated,

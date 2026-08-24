@@ -47,14 +47,14 @@ interface MapCanvasInnerProps {
  * the wizard can start from whatever's already been measured instead of
  * picking it all over again.
  *
- * Layout is two real flex rows stacked in a column — a fixed-height TopBar,
- * then a flex:1 map area — rather than one full-bleed map with every
- * control floating on top of it. The wizard/layers/fact-detail sheets still
- * overlay the map (they're full-viewport portals, by design — see
- * BottomSheet), but nothing about them blocks it: no backdrop, and the
- * sheet's own header never covers more than the bottom portion of the
- * screen, so there's always map visible above it for orientation while a
- * question is being composed.
+ * The map is full-bleed — TopBar is a floating translucent strip over its
+ * top edge (see TopBar.tsx), not a separate flex row pushing it down, so
+ * the basemap is visible (blurred) underneath it rather than hidden behind
+ * a solid bar. The wizard/layers/fact-detail sheets overlay the map too
+ * (they're full-viewport portals, by design — see BottomSheet), but nothing
+ * about them blocks it: no backdrop, and the sheet's own header never
+ * covers more than the bottom portion of the screen, so there's always map
+ * visible above it for orientation while a question is being composed.
  */
 const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBack }) => {
   useEffect(() => {
@@ -109,31 +109,29 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const [layersOpen, setLayersOpen] = useState(false);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0 }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+
       <TopBar
         onBack={onBack}
         teamFilter={teamFilter}
         onOpenLayers={() => setLayersOpen(true)}
       />
 
-      <div style={{ position: 'relative', flex: '1 1 auto', minHeight: 0 }}>
-        <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      <FactsChip count={facts.factsCount} />
+      <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
+      <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
+      <AskQuestionFab onClick={() => wizard.openWizard(interactions.measurementPoints)} />
 
-        <FactsChip count={facts.factsCount} />
-        <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
-        <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
-        <AskQuestionFab onClick={() => wizard.openWizard(interactions.measurementPoints)} />
+      <LayersSheet isOpen={layersOpen} onClose={() => setLayersOpen(false)} />
 
-        <LayersSheet isOpen={layersOpen} onClose={() => setLayersOpen(false)} />
+      <FactPopup
+        fact={interactions.selectedFact?.fact ?? null}
+        isDraft={interactions.selectedFact?.isDraft ?? false}
+        onClose={interactions.clearSelectedFact}
+      />
 
-        <FactPopup
-          fact={interactions.selectedFact?.fact ?? null}
-          isDraft={interactions.selectedFact?.isDraft ?? false}
-          onClose={interactions.clearSelectedFact}
-        />
-
-        <CreateDraftFactWizard {...wizard.props} />
-      </div>
+      <CreateDraftFactWizard {...wizard.props} />
     </div>
   );
 };
