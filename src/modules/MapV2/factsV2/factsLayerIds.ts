@@ -22,3 +22,8 @@ export const WIZARD_PREVIEW_MODULE_ID = 'wizard-preview-fact';
  * instance, live only while a pending question is open in the answer
  * sheet. */
 export const ANSWER_PREVIEW_MODULE_ID = 'answer-preview-fact';
+
+/** The answer-questions flow's own raw-shape step (before Yes/No) — same
+ * idea as the ask-question wizard's details-step WizardShapePreviewModule,
+ * a separate id since both could in principle be mounted at once. */
+export const ANSWER_SHAPE_PREVIEW_MODULE_ID = 'answer-shape-preview';

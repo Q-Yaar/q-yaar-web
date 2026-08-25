@@ -22,7 +22,7 @@ import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
 import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/WizardShapePreviewModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
-import { useAskQuestionMutation, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
+import { useAskQuestionMutation, useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
 import { QuestionTemplateDto } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
@@ -87,6 +87,7 @@ export interface UseDraftFactWizardResult {
  */
 export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
   const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery();
+  const { data: nonGeoTemplates, isLoading: nonGeoTemplatesLoading } = useGetNonGeoQuestionTemplatesQuery();
   const [askQuestion, { isLoading: submitting }] = useAskQuestionMutation();
   const [getTemplateDetail] = useGetQuestionTemplateDetail();
 
@@ -263,7 +264,7 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
     return question ? draftQuestionToFact(question) : null;
   }, [step, selectedTemplate, canContinue, points, placeholderValues, zoneOptions]);
 
-  const [shapeModule] = useState(() => new WizardShapePreviewModule());
+  const [shapeModule] = useState(() => new WizardShapePreviewModule({ id: 'wizard-shape-preview', label: 'Question shape preview', color: '#22D3EE' }));
   const [detailsShapeArea, setDetailsShapeArea] = useState<Feature<Polygon | MultiPolygon> | null>(null);
   const shapeGenerationRef = useRef(0);
   useEffect(() => {
@@ -310,6 +311,8 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
     step,
     templates: templates ?? [],
     templatesLoading,
+    nonGeoTemplates: nonGeoTemplates ?? [],
+    nonGeoTemplatesLoading,
     selectedTemplate,
     onSelectTemplate: selectTemplate,
     onBack: () => setStep(step === WIZARD_STEP.REVIEW ? WIZARD_STEP.DETAILS : WIZARD_STEP.KIND),

@@ -1,0 +1,13 @@
+[
+  {
+    "question_template_id": "08efb887-da74-4ed3-b0df-6894c660e4c0",
+    "template": "Send a photo of {{ photo }}",
+    "category": {
+      "category_id": "03101ca4-f7ba-4e5a-af35-62fd61ef0c75",
+      "category_name": "Photos",
+      "priority": 2
+    },
+    "created": "2026-08-15T13:41:59.379212Z",
+    "modified": "2026-08-15T13:42:18.277659Z"
+  }
+]

@@ -1,10 +1,10 @@
 import React from 'react';
-import { Circle, Compass, LocateFixed, Loader2, MapPin, MapPinned, Ruler, Thermometer } from 'lucide-react';
+import { Camera, Circle, Compass, LocateFixed, Loader2, MapPin, MapPinned, MessageSquare, Ruler, Thermometer } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Answer, OP_TYPE, OpType, ResolvedLatLon } from '../factsV2/factTypes';
 import { ANSWER_WORD, describeResolvedPoint, formatDistance, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
 import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/geometryAssets';
-import { QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { NonGeoQuestionTemplateDto, QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
 import { BottomSheet } from './BottomSheet';
 
 export const WIZARD_STEP = {
@@ -23,6 +23,12 @@ const OP_TYPE_ICON: Partial<Record<OpType, React.ReactNode>> = {
   [OP_TYPE.TWO_POINT_BISECTOR]: <Thermometer className="w-5 h-5" />,
   [OP_TYPE.POINT_POINT_BUFFER_INSIDE]: <Ruler className="w-5 h-5" />,
   [OP_TYPE.POINT_SPLIT]: <Compass className="w-5 h-5" />,
+};
+
+/** Per legacy category name, for the non-map section below — falls back to
+ * a generic icon for a category this list hasn't seen yet. */
+const NON_GEO_CATEGORY_ICON: Record<string, React.ReactNode> = {
+  Photos: <Camera className="w-5 h-5" />,
 };
 
 interface PointFieldProps {
@@ -186,6 +192,12 @@ export interface CreateDraftFactWizardProps {
 
   templates: QuestionTemplateDto[];
   templatesLoading: boolean;
+  /** Question types with no geo mechanism at all (Photos, ...) — listed
+   * below the real (map-answerable) templates purely so askers can see
+   * they exist too; always rendered disabled, same as an unsupported geo
+   * template, since there's no flow behind them yet. */
+  nonGeoTemplates: NonGeoQuestionTemplateDto[];
+  nonGeoTemplatesLoading: boolean;
   selectedTemplate: QuestionTemplateDto | null;
   onSelectTemplate: (template: QuestionTemplateDto) => void;
   onBack: () => void;
@@ -235,7 +247,7 @@ export interface CreateDraftFactWizardProps {
 export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (props) => {
   const {
     isOpen, onClose, step,
-    templates, templatesLoading, selectedTemplate, onSelectTemplate, onBack,
+    templates, templatesLoading, nonGeoTemplates, nonGeoTemplatesLoading, selectedTemplate, onSelectTemplate, onBack,
     locating, locationError,
     points, onPickPointOnMap, onUseMyLocationForSlot,
     placeholderValues, onSetPlaceholderValue,
@@ -281,6 +293,12 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
                 <div>
                   <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1.5">Other</div>
                   <TemplateList templates={otherTemplates} onSelect={onSelectTemplate} disabled />
+                </div>
+              )}
+              {!nonGeoTemplatesLoading && nonGeoTemplates.length > 0 && (
+                <div className="border-t border-white/10 pt-3">
+                  <div className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1.5">Non-map questions</div>
+                  <NonGeoTemplateList templates={nonGeoTemplates} />
                 </div>
               )}
             </>
@@ -406,3 +424,30 @@ const TemplateList: React.FC<TemplateListProps> = ({ templates, onSelect, disabl
     </div>
   );
 };
+
+interface NonGeoTemplateListProps {
+  templates: NonGeoQuestionTemplateDto[];
+}
+
+/** The "Non-map questions" section — question types with no geo mechanism
+ * at all (Photos, ...), always disabled since there's no flow behind them
+ * yet. A separate component from TemplateList because
+ * NonGeoQuestionTemplateDto has no answer_instruction_type to pick an icon
+ * from. */
+const NonGeoTemplateList: React.FC<NonGeoTemplateListProps> = ({ templates }) => (
+  <div className="space-y-1.5">
+    {templates.map((template) => (
+      <button
+        key={template.question_template_id}
+        disabled
+        className="w-full flex items-center gap-2.5 rounded-lg border border-white/5 px-3 py-2.5 text-left opacity-40 cursor-not-allowed"
+      >
+        <span className="text-white/60">{NON_GEO_CATEGORY_ICON[template.category.category_name] ?? <MessageSquare className="w-5 h-5" />}</span>
+        <span>
+          <span className="block text-xs font-semibold text-white">{template.template}</span>
+          <span className="block text-[11px] text-white/40">{template.category.category_name} — not yet supported</span>
+        </span>
+      </button>
+    ))}
+  </div>
+);

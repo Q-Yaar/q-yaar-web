@@ -68,6 +68,22 @@ export interface QuestionTemplateDto {
 }
 
 /**
+ * A template whose legacy category has no geo mechanism at all (Photos,
+ * ...) — no op_type, no slots, nothing SUBOP_CONTRACT can describe. Kept
+ * as its own minimal shape (not a QuestionTemplateDto with a fake op_type)
+ * so the type system can't accidentally treat one as map-answerable
+ * anywhere downstream. The wizard lists these purely for visibility — see
+ * legacyTemplateConverter.ts's convertLegacyNonGeoTemplates.
+ */
+export interface NonGeoQuestionTemplateDto {
+  question_template_id: string;
+  template: string;
+  category: PipelineCategory;
+  created: string;
+  modified: string;
+}
+
+/**
  * Stage 2 — every slot resolved to a concrete value by the asker. Named
  * AskedQuestionRecordDto (not AskedQuestionDto) to stay clear of
  * factTypes.ts's AskedQuestionDto, which is a different, MapV2-local

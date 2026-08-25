@@ -17,15 +17,18 @@
  * CategoryConfig entry's `ask` block already declares, the same way
  * legacyFactConverter.ts mirrors geoWorker.ts's applySingleOperation.
  *
- * Only the five categories with a genuine geo mechanism convert (Matching,
- * Measuring, Thermometer/"Hotter / Colder", Radar, Relative/"Relative
- * Heading"); everything else (Text Fact, Photo, ...) has no SUBOP_CONTRACT
- * equivalent and is skipped — same as legacyFactConverter.ts skips non-GEO
- * facts.
+ * Only the five categories with a genuine geo mechanism convert to a
+ * QuestionTemplateDto (Matching, Measuring, Thermometer/"Hotter / Colder",
+ * Radar, Relative/"Relative Heading") — everything else (Photos, ...) has
+ * no SUBOP_CONTRACT equivalent, same as legacyFactConverter.ts skips
+ * non-GEO facts. Those non-geo categories aren't dropped entirely though:
+ * convertLegacyNonGeoTemplates (below) converts them into the much
+ * smaller NonGeoQuestionTemplateDto shape instead, for the wizard's
+ * "other question types" listing.
  */
 import { QuestionTemplate } from '../../../models/QnA';
 import { OP_TYPE, OpType } from './factTypes';
-import { AssertedAnswerBinding, PlaceholderSpec, QuestionTemplateDto, SlotBinding } from './questionPipelineTypes';
+import { AssertedAnswerBinding, NonGeoQuestionTemplateDto, PlaceholderSpec, QuestionTemplateDto, SlotBinding } from './questionPipelineTypes';
 
 /** Every placeholder key CATEGORY_REGISTRY's placeholderMap ever routes to
  * the given legacy fact_meta field, across every category that might use
@@ -191,4 +194,30 @@ export function convertLegacyTemplates(templates: QuestionTemplate[]): QuestionT
   return templates
     .map(convertLegacyTemplate)
     .filter((t): t is QuestionTemplateDto => t !== null);
+}
+
+/** The inverse of convertLegacyTemplate — every category with no geo
+ * mechanism (Photos, ...), kept as a minimal listing (see
+ * NonGeoQuestionTemplateDto) so the wizard can show "these question types
+ * exist too" without pretending they produce a map shape. */
+export function convertLegacyNonGeoTemplate(template: QuestionTemplate): NonGeoQuestionTemplateDto | null {
+  if (LEGACY_CATEGORY_SHAPES[template.category.category_name]) return null;
+
+  return {
+    question_template_id: template.question_id,
+    template: template.template,
+    category: {
+      category_id: template.category.category_id,
+      category_name: template.category.category_name,
+      priority: template.category.priority,
+    },
+    created: template.created,
+    modified: template.modified,
+  };
+}
+
+export function convertLegacyNonGeoTemplates(templates: QuestionTemplate[]): NonGeoQuestionTemplateDto[] {
+  return templates
+    .map(convertLegacyNonGeoTemplate)
+    .filter((t): t is NonGeoQuestionTemplateDto => t !== null);
 }

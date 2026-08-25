@@ -10,8 +10,9 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import templatesJson from '../mock/v2_question_templates.output.json';
+import nonGeoTemplatesJson from '../mock/v2_non_geo_templates.output.json';
 import { Answer, OpType } from '../factsV2/factTypes';
-import { AnswerRecordDto, AskedQuestionRecordDto, PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { AnswerRecordDto, AskedQuestionRecordDto, NonGeoQuestionTemplateDto, PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
 import { POLYGON_CATALOG, REGION_KIND, RegionKind } from '../factsV2/geometryAssets';
 import { MOCK_PENDING_QUESTIONS } from '../factsV2/mockPendingQuestions';
 
@@ -35,6 +36,37 @@ export function useGetQuestionTemplatesQuery(): UseGetQuestionTemplatesResult {
     const timer = setTimeout(() => {
       if (cancelled) return;
       setData(templatesJson as unknown as QuestionTemplateDto[]);
+      setIsLoading(false);
+    }, MOCK_LATENCY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  return { data, isLoading };
+}
+
+export interface UseGetNonGeoQuestionTemplatesResult {
+  data: NonGeoQuestionTemplateDto[] | undefined;
+  isLoading: boolean;
+}
+
+/** Stand-in for GET /qna/v2/questions/?geo=false — question types with no
+ * geo mechanism (Photos, ...), listed separately from
+ * useGetQuestionTemplatesQuery since a NonGeoQuestionTemplateDto isn't
+ * map-answerable at all (see questionPipelineTypes.ts). The wizard shows
+ * these below the real question list purely for visibility. */
+export function useGetNonGeoQuestionTemplatesQuery(): UseGetNonGeoQuestionTemplatesResult {
+  const [data, setData] = useState<NonGeoQuestionTemplateDto[] | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setData(nonGeoTemplatesJson as unknown as NonGeoQuestionTemplateDto[]);
       setIsLoading(false);
     }, MOCK_LATENCY_MS);
     return () => {

@@ -8,7 +8,7 @@
  * depends on them; these are separate copies split out for MapV2.
  */
 
-const publicUrl = (path: string): string => `${process.env.PUBLIC_URL || ''}${path}`;
+export const publicUrl = (path: string): string => `${process.env.PUBLIC_URL || ''}${path}`;
 const GEOJSON_DIR = '/assets/geojsons/bengaluru';
 const regionUrl = (key: string): string => publicUrl(`${GEOJSON_DIR}/${key}.geojson`);
 

@@ -138,6 +138,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const answerFlow = useAnswerQuestionsFlow({
     teamId: teamFilter.myTeamId,
     previewUniverse: facts.draftsUniverse,
+    playArea: playAreaState.playArea,
     onAnswered: (fact) => setAnsweredFacts((prev) => [...prev, fact]),
   });
 

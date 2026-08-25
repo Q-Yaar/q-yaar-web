@@ -5,6 +5,7 @@ import { BottomSheet } from './BottomSheet';
 
 export const ANSWER_STEP = {
   LIST: 'list',
+  SHAPE: 'shape',
   ANSWER: 'answer',
 } as const;
 
@@ -21,6 +22,9 @@ export interface AnswerQuestionsSheetProps {
   onSelectQuestion: (question: AskedQuestionRecordDto) => void;
 
   selectedQuestion: AskedQuestionRecordDto | null;
+  /** SHAPE -> ANSWER — once the hider has seen what the question is
+   * actually asking about. */
+  onContinueToAnswer: () => void;
   value: boolean;
   onSetValue: (value: boolean) => void;
   onSubmit: () => void;
@@ -40,7 +44,7 @@ export interface AnswerQuestionsSheetProps {
 export const AnswerQuestionsSheet: React.FC<AnswerQuestionsSheetProps> = ({
   isOpen, onClose, step, onBack,
   questions, questionsLoading, onSelectQuestion,
-  selectedQuestion, value, onSetValue, onSubmit, submitting,
+  selectedQuestion, onContinueToAnswer, value, onSetValue, onSubmit, submitting,
 }) => {
   const title = step === ANSWER_STEP.LIST ? 'Answer questions' : selectedQuestion?.category.category_name ?? 'Answer';
 
@@ -48,9 +52,11 @@ export const AnswerQuestionsSheet: React.FC<AnswerQuestionsSheetProps> = ({
     ? { label: 'Close', onClick: onClose }
     : { label: 'Back', onClick: onBack, disabled: submitting };
 
-  const rightAction = step === ANSWER_STEP.ANSWER
-    ? { label: submitting ? 'Saving…' : 'Submit', onClick: onSubmit, disabled: submitting }
-    : undefined;
+  const rightAction = step === ANSWER_STEP.SHAPE
+    ? { label: 'Continue', onClick: onContinueToAnswer }
+    : step === ANSWER_STEP.ANSWER
+      ? { label: submitting ? 'Saving…' : 'Submit', onClick: onSubmit, disabled: submitting }
+      : undefined;
 
   return (
     <BottomSheet isOpen={isOpen} title={title} leftAction={leftAction} rightAction={rightAction}>
@@ -73,6 +79,17 @@ export const AnswerQuestionsSheet: React.FC<AnswerQuestionsSheetProps> = ({
             ))}
           </div>
         )
+      )}
+
+      {step === ANSWER_STEP.SHAPE && selectedQuestion && (
+        <div className="space-y-3">
+          <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white">
+            {selectedQuestion.rendered_question}
+          </div>
+          <p className="text-[11px] text-white/40">
+            The cyan shape on the map is exactly what this question is asking about, bounded by the game area — take a look before you answer.
+          </p>
+        </div>
       )}
 
       {step === ANSWER_STEP.ANSWER && selectedQuestion && (

@@ -1,3 +1,4 @@
+import { publicUrl } from './assets';
 /**
  * A rough "Uber dark mode" look for the whole MapV2 surface: a near-black
  * basemap, near-black floating UI chrome, a single blue accent, white/gray
@@ -8,7 +9,8 @@
  * components.
  */
 
-export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+export const MAP_STYLE_URL =publicUrl(`/assets/base_map_style.json`);
+// export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
 /** The floating TopBar's approximate rendered height (excluding the safe
  * area inset it also adds on top) — shared with anything else positioned

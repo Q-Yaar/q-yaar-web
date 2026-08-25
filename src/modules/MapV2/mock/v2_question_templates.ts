@@ -6,12 +6,14 @@
  * file exists so the conversion runs once at import time rather than being
  * redone wherever mock v2 template data is needed.
  *
- * "Photos" converts to nothing (no SUBOP_CONTRACT op exists for it), so
- * v2QuestionTemplates has fewer entries than templateResponse.results.
+ * "Photos" has no SUBOP_CONTRACT op, so it converts to a
+ * NonGeoQuestionTemplateDto (v2NonGeoQuestionTemplates) instead of a
+ * QuestionTemplateDto — v2QuestionTemplates has fewer entries than
+ * templateResponse.results for exactly that reason.
  */
 import { templateResponse } from './legacy_questions_template_response';
 import { QuestionTemplate } from '../../../models/QnA';
-import { convertLegacyTemplates } from '../factsV2/legacyTemplateConverter';
+import { convertLegacyNonGeoTemplates, convertLegacyTemplates } from '../factsV2/legacyTemplateConverter';
 
 // The mock JSON has a couple of fields (location_points sometimes null,
 // answer_instruction_type in a vocabulary QuestionTemplate doesn't model)
@@ -20,3 +22,4 @@ import { convertLegacyTemplates } from '../factsV2/legacyTemplateConverter';
 const legacyTemplates = templateResponse.results as unknown as QuestionTemplate[];
 
 export const v2QuestionTemplates = convertLegacyTemplates(legacyTemplates);
+export const v2NonGeoQuestionTemplates = convertLegacyNonGeoTemplates(legacyTemplates);
