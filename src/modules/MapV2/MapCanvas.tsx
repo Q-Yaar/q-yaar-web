@@ -12,9 +12,12 @@ import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
 import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
 import { FactDto } from './factsV2/factTypes';
+import { CARD_SHEET, useCardModule } from './cards/useCardModule';
 import { TopBar } from './components/TopBar';
 import { LayersSheet } from './components/LayersSheet';
 import { ModeActionButtons } from './components/ModeActionButtons';
+import { CardModule } from './components/CardModule';
+import { CardsSheet } from './components/CardsSheet';
 import { DraftQuestionsList } from './components/DraftQuestionsList';
 import { FactsChip } from './components/FactsChip';
 import { MapStatusBanner } from './components/MapStatusBanner';
@@ -49,6 +52,8 @@ interface MapCanvasInnerProps {
  *                        (hooks/useMapInteractions.ts)
  *   wizard           -> Seeking's "Ask a question" form (factsV2/useDraftFactWizard.ts)
  *   answerFlow       -> Hiding's "Answer questions" form (factsV2/useAnswerQuestionsFlow.ts)
+ *   cardModule       -> Hiding's Draw/Hand/Discard cards (cards/useCardModule.ts) — no
+ *                        map layer of its own, purely a floating button group + two sheets
  * `pickResolverRef` is created here (not inside either hook) and shared with
  * `wizard`: `interactions`'s click handler resolves a pending pick through
  * it, `wizard` arms/clears it. That's also why `interactions` is constructed
@@ -146,6 +151,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     playArea: playAreaState.playArea,
     onAnswered: (fact) => setAnsweredFacts((prev) => [...prev, fact]),
   });
+  const cardModule = useCardModule();
 
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -189,6 +195,16 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
       />
 
+      {gameMode.mode === GAME_MODE.HIDING && (
+        <CardModule
+          handCount={cardModule.hand.length}
+          discardCount={cardModule.discardPile.length}
+          onDraw={cardModule.drawCard}
+          onOpenHand={cardModule.openHand}
+          onOpenDiscard={cardModule.openDiscard}
+        />
+      )}
+
       <LayersSheet isOpen={layersOpen} onClose={() => setLayersOpen(false)} />
 
       <FactPopup
@@ -198,7 +214,26 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
       />
 
       {gameMode.mode === GAME_MODE.SEEKING && <CreateDraftFactWizard {...wizard.props} />}
-      {gameMode.mode === GAME_MODE.HIDING && <AnswerQuestionsSheet {...answerFlow.props} />}
+      {gameMode.mode === GAME_MODE.HIDING && (
+        <>
+          <AnswerQuestionsSheet {...answerFlow.props} />
+          <CardsSheet
+            isOpen={cardModule.activeSheet === CARD_SHEET.HAND}
+            onClose={cardModule.closeSheet}
+            title="Your hand"
+            cards={cardModule.hand}
+            emptyText="No cards yet — draw one to get started."
+            onDiscard={cardModule.discardCard}
+          />
+          <CardsSheet
+            isOpen={cardModule.activeSheet === CARD_SHEET.DISCARD}
+            onClose={cardModule.closeSheet}
+            title="Discard pile"
+            cards={cardModule.discardPile}
+            emptyText="Nothing discarded yet."
+          />
+        </>
+      )}
     </div>
   );
 };
