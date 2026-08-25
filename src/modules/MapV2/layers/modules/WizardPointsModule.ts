@@ -15,14 +15,16 @@ const SOURCE_ID = 'wizard-points-source';
 /**
  * Marks the actual point(s) the draft-fact wizard is currently using — a
  * circle's center, or hotter/colder's two points — the moment each is
- * picked, not just the shaded region they produce. Lives in the
- * Measurement group (always on, per the current "measurement stays visible"
- * rule) rather than Facts, since these are picking aids, not facts
- * themselves, and shouldn't disappear if a user hides Facts mid-wizard.
+ * picked, not just the shaded region they produce. Lives in its own
+ * WIZARD_AIDS group rather than Measurement (which MapCanvas hides for the
+ * whole time a wizard/answer-sheet is open — these are the wizard's own
+ * feedback about what it just resolved, so they need to stay visible
+ * exactly then) or Facts (which the FactsChip eye toggle can hide
+ * independently of any wizard being open at all).
  */
 export class WizardPointsModule extends GeoJsonLayerModule<WizardPointItem> {
   readonly id = MODULE_ID;
-  readonly groupId = GROUP_ID.MEASUREMENT;
+  readonly groupId = GROUP_ID.WIZARD_AIDS;
   readonly label = 'Question points';
 
   sourceId(): string {

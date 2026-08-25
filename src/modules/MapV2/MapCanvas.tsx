@@ -78,9 +78,12 @@ interface MapCanvasInnerProps {
  */
 const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBack }) => {
   useEffect(() => {
-    // Measurement has no visibility toggle anywhere in the UI right now, so
-    // it stays permanently on — registering it is still required so
-    // PointsDistanceModule has a group to mount into.
+    // Measurement has no *manual* visibility toggle anywhere in the UI, so
+    // it stays on by default — registering it is still required so
+    // PointsDistanceModule has a group to mount into. It's still hidden
+    // automatically while a wizard/sheet is composing a question (see the
+    // effect below), so its crosshair/rings/points never compete with a
+    // flow's own live preview for attention.
     registry.registerGroup(GROUP_ID.MEASUREMENT, 'Measurement');
     // Registry Polygons' only visibility control is now the per-zone flat
     // list in LayersSheet (no group-level toggle exposed), so the group
@@ -88,6 +91,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     // fighting a group that's permanently hidden.
     registry.registerGroup(GROUP_ID.OVERLAYS, 'Overlays');
     registry.registerGroup(GROUP_ID.FACTS, 'Facts');
+    // No manual toggle either, same as Measurement — see WizardPointsModule.
+    registry.registerGroup(GROUP_ID.WIZARD_AIDS, 'Wizard aids');
   }, [registry]);
 
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
@@ -143,6 +148,20 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   });
 
   const [layersOpen, setLayersOpen] = useState(false);
+
+  // Measurement's crosshair/rings/points would otherwise sit underneath
+  // (and visually compete with) whichever flow is actively composing a
+  // question right now — hide the whole group while either is open,
+  // including the brief moment the wizard hides itself to await a map-pick
+  // (pickPrompt), since that's still part of the same composing flow.
+  // Placing a measurement point is exactly how a seeker seeds the wizard in
+  // the first place (see openWizard below), so this only ever hides layers
+  // already placed before the flow started, never blocks placing new ones.
+  const wizardActive = wizard.props.isOpen || wizard.pickPrompt !== null;
+  const answerFlowActive = answerFlow.props.isOpen;
+  useEffect(() => {
+    registry.setGroupVisible(GROUP_ID.MEASUREMENT, !(wizardActive || answerFlowActive));
+  }, [registry, wizardActive, answerFlowActive]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
