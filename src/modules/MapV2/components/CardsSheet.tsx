@@ -11,6 +11,9 @@ interface CardsSheetProps {
   cards: Card[];
   isLoading: boolean;
   emptyText: string;
+  /** Opens CardDetailModal for the tapped card — "click a card to see it
+   * properly" works the same way here as in the peek grid. */
+  onCardClick: (card: Card) => void;
   /** Present only for the hand sheet — the discard pile is a read-only
    * history, nothing moves out of it. */
   onDiscard?: (cardId: string) => void;
@@ -22,7 +25,7 @@ interface CardsSheetProps {
  * difference is whether a Discard action is offered per card. A grid
  * (not a list) to match DeckPage's own hand/discard layout.
  */
-export const CardsSheet: React.FC<CardsSheetProps> = ({ isOpen, onClose, title, cards, isLoading, emptyText, onDiscard }) => (
+export const CardsSheet: React.FC<CardsSheetProps> = ({ isOpen, onClose, title, cards, isLoading, emptyText, onCardClick, onDiscard }) => (
   <BottomSheet isOpen={isOpen} title={title} leftAction={{ label: 'Close', onClick: onClose }}>
     {isLoading ? (
       <div className="flex items-center gap-1.5 text-[11px] text-white/40">
@@ -33,7 +36,12 @@ export const CardsSheet: React.FC<CardsSheetProps> = ({ isOpen, onClose, title, 
     ) : (
       <div className="grid grid-cols-2 gap-2">
         {cards.map((card) => (
-          <CardTile key={card.card_id} card={card} onDiscard={onDiscard ? () => onDiscard(card.card_id) : undefined} />
+          <CardTile
+            key={card.card_id}
+            card={card}
+            onClick={() => onCardClick(card)}
+            onDiscard={onDiscard ? () => onDiscard(card.card_id) : undefined}
+          />
         ))}
       </div>
     )}

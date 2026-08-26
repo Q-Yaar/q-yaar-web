@@ -7,80 +7,98 @@ import { CardTile } from './CardTile';
 interface DrawCardModalProps {
   isOpen: boolean;
   peeking: boolean;
+  peekedCards: Card[];
+  selectedIds: Set<string>;
+  onToggleSelect: (cardId: string) => void;
+  onCardClick: (card: Card) => void;
   drawing: boolean;
-  card: Card | null;
-  onConfirm: () => void;
+  onDrawSelected: () => void;
+  onDrawAll: () => void;
   onClose: () => void;
 }
 
 /**
- * The "reveal, then confirm" dialog shown the moment Draw is tapped —
- * DeckPage shows a modal at this same point too (its peek/zoom flow); this
- * is a fresh, MapV2-local reimplementation of just the essential moment
- * (peek one card, show it, confirm or cancel) since CardModule draws one
- * card at a time rather than DeckPage's multi-select peek. A centered
- * overlay rather than a BottomSheet — this is a reveal moment to look at,
- * not a list to scroll.
+ * DeckPage's own "peek then draw" mechanic — peeks a handful of cards off
+ * the top of the deck and lets the player pick which ones (if any) to
+ * actually draw, rather than a single blind draw. Selecting a card (the
+ * corner checkbox) and inspecting it (tapping the card body, which opens
+ * CardDetailModal) are separate gestures, same reasoning as CardTile's own
+ * onClick/onToggleSelect split.
  */
-export const DrawCardModal: React.FC<DrawCardModalProps> = ({ isOpen, peeking, drawing, card, onConfirm, onClose }) => {
+export const DrawCardModal: React.FC<DrawCardModalProps> = ({
+  isOpen, peeking, peekedCards, selectedIds, onToggleSelect, onCardClick,
+  drawing, onDrawSelected, onDrawAll, onClose,
+}) => {
   if (!isOpen) return null;
 
   return createPortal(
-    <>
-      <style>{`
-        @keyframes mapv2-card-reveal {
-          from { transform: scale(0.85) rotateY(90deg); opacity: 0; }
-          to { transform: scale(1) rotateY(0deg); opacity: 1; }
-        }
-      `}</style>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 2100,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        padding: '20px',
+      }}
+      onClick={onClose}
+    >
       <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 2100,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'rgba(0,0,0,0.65)',
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
-          padding: '20px',
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[340px] rounded-3xl border-2 border-purple-400/40 bg-gradient-to-b from-[#2a1a4d] to-[#141414] p-4 shadow-2xl"
       >
-        <div className="w-full max-w-[260px] rounded-3xl border-2 border-purple-400/40 bg-gradient-to-b from-[#2a1a4d] to-[#141414] p-4 text-center shadow-2xl">
-          <div className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-purple-300">
-            {peeking || !card ? 'Drawing a card…' : 'You drew'}
-          </div>
+        <div className="mb-3 text-center text-[11px] font-extrabold uppercase tracking-wide text-purple-300">
+          Peeked {peekedCards.length || ''} cards — pick which to draw
+        </div>
 
-          {peeking || !card ? (
-            <div className="flex h-56 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-300" />
-            </div>
-          ) : (
-            <div style={{ animation: 'mapv2-card-reveal 0.35s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-              <CardTile card={card} />
-            </div>
-          )}
-
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={onClose}
-              disabled={drawing}
-              className="flex-1 rounded-full border border-white/20 py-2 text-xs font-semibold text-white/70 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={peeking || !card || drawing}
-              className="flex-1 rounded-full bg-gradient-to-b from-[#B78CFF] to-[#7C3AED] py-2 text-xs font-extrabold text-white disabled:opacity-50"
-            >
-              {drawing ? 'Drawing…' : 'Keep card'}
-            </button>
+        {peeking ? (
+          <div className="flex h-56 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-purple-300" />
           </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {peekedCards.map((card) => (
+              <CardTile
+                key={card.card_id}
+                card={card}
+                onClick={() => onCardClick(card)}
+                selectable
+                selected={selectedIds.has(card.card_id)}
+                onToggleSelect={() => onToggleSelect(card.card_id)}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2">
+          <button
+            onClick={onClose}
+            disabled={drawing}
+            className="flex-1 rounded-full border border-white/20 py-2 text-xs font-semibold text-white/70 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onDrawSelected}
+            disabled={peeking || drawing || selectedIds.size === 0}
+            className="flex-1 rounded-full border border-white/20 py-2 text-xs font-extrabold text-white disabled:opacity-40"
+          >
+            Draw ({selectedIds.size})
+          </button>
+          <button
+            onClick={onDrawAll}
+            disabled={peeking || drawing || peekedCards.length === 0}
+            className="flex-1 rounded-full bg-gradient-to-b from-[#B78CFF] to-[#7C3AED] py-2 text-xs font-extrabold text-white disabled:opacity-50"
+          >
+            {drawing ? 'Drawing…' : 'Draw all'}
+          </button>
         </div>
       </div>
-    </>,
+    </div>,
     document.body,
   );
 };

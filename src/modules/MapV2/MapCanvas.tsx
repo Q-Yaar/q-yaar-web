@@ -12,13 +12,14 @@ import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
 import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
 import { FactDto } from './factsV2/factTypes';
-import { CARD_SHEET, useCardModule } from './cards/useCardModule';
+import { CARD_SHEET, DETAIL_CONTEXT, useCardModule } from './cards/useCardModule';
 import { TopBar } from './components/TopBar';
 import { LayersSheet } from './components/LayersSheet';
 import { ModeActionButtons } from './components/ModeActionButtons';
 import { CardModule } from './components/CardModule';
 import { CardsSheet } from './components/CardsSheet';
 import { DrawCardModal } from './components/DrawCardModal';
+import { CardDetailModal } from './components/CardDetailModal';
 import { DraftQuestionsList } from './components/DraftQuestionsList';
 import { FactsChip } from './components/FactsChip';
 import { MapStatusBanner } from './components/MapStatusBanner';
@@ -227,6 +228,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             cards={cardModule.hand}
             isLoading={cardModule.handLoading}
             emptyText="No cards yet — draw one to get started."
+            onCardClick={(card) => cardModule.openDetail(card, DETAIL_CONTEXT.HAND)}
             onDiscard={cardModule.discardCard}
           />
           <CardsSheet
@@ -236,14 +238,31 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             cards={cardModule.discardPile}
             isLoading={cardModule.discardLoading}
             emptyText="Nothing discarded yet."
+            onCardClick={(card) => cardModule.openDetail(card, DETAIL_CONTEXT.DISCARD)}
           />
           <DrawCardModal
             isOpen={cardModule.isDrawModalOpen}
             peeking={cardModule.peeking}
+            peekedCards={cardModule.peekedCards}
+            selectedIds={cardModule.selectedIds}
+            onToggleSelect={cardModule.toggleSelect}
+            onCardClick={(card) => cardModule.openDetail(card, DETAIL_CONTEXT.DRAW)}
             drawing={cardModule.drawing}
-            card={cardModule.peekedCard}
-            onConfirm={cardModule.confirmDraw}
+            onDrawSelected={cardModule.drawSelected}
+            onDrawAll={cardModule.drawAll}
             onClose={cardModule.closeDrawModal}
+          />
+          <CardDetailModal
+            isOpen={cardModule.detailCard !== null}
+            card={cardModule.detailCard}
+            onClose={cardModule.closeDetail}
+            primaryAction={
+              cardModule.detailContext === DETAIL_CONTEXT.DRAW && cardModule.detailCard
+                ? { label: 'Draw this card', onClick: () => cardModule.drawOneAndClose(cardModule.detailCard!.card_id), loading: cardModule.drawing }
+                : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard
+                  ? { label: 'Discard', onClick: () => { cardModule.discardCard(cardModule.detailCard!.card_id); cardModule.closeDetail(); } }
+                  : undefined
+            }
           />
         </>
       )}

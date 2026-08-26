@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Card } from '../../../models/Deck';
 import {
   useDiscardCardMutation,
@@ -16,6 +16,20 @@ export const CARD_SHEET = {
 
 export type CardSheet = (typeof CARD_SHEET)[keyof typeof CARD_SHEET] | null;
 
+/** Which list a card being detail-viewed came from — decides what action
+ * (if any) CardDetailModal offers for it. */
+export const DETAIL_CONTEXT = {
+  DRAW: 'draw',
+  HAND: 'hand',
+  DISCARD: 'discard',
+} as const;
+
+export type DetailContext = (typeof DETAIL_CONTEXT)[keyof typeof DETAIL_CONTEXT];
+
+/** How many cards Draw peeks at once — DeckPage's own peek-then-draw
+ * mechanic, just a fixed count here instead of a "peek more" control. */
+const PEEK_COUNT = 3;
+
 export interface UseCardModuleResult {
   handCount: number;
   discardCount: number;
@@ -32,25 +46,39 @@ export interface UseCardModuleResult {
   discardCard: (cardId: string) => void;
 
   isDrawModalOpen: boolean;
-  peekedCard: Card | null;
+  peekedCards: Card[];
   peeking: boolean;
+  selectedIds: Set<string>;
+  toggleSelect: (cardId: string) => void;
   drawing: boolean;
   openDrawModal: () => void;
-  confirmDraw: () => void;
   closeDrawModal: () => void;
+  drawSelected: () => void;
+  drawAll: () => void;
+
+  detailCard: Card | null;
+  detailContext: DetailContext | null;
+  openDetail: (card: Card, context: DetailContext) => void;
+  closeDetail: () => void;
+  /** Used by the detail modal's "Draw this card" action (DETAIL_CONTEXT.DRAW) —
+   * draws just this one card and closes both the detail view and the peek
+   * modal behind it. */
+  drawOneAndClose: (cardId: string) => void;
 }
 
 /**
  * The hider's card system, wired to the real deck API (src/apis/deckApi.ts
- * — the same endpoints DeckPage.tsx uses for its own hand/discard/draw
- * flows) rather than mock data. Counts on the CardModule buttons come from
- * the dedicated stats endpoint, not derived from the full hand/discard
- * lists — those only fetch once their sheet is actually opened (`skip`
- * gated on `activeSheet`), since a badge number doesn't need the full card
- * payload. Drawing peeks exactly one card and waits for confirmation
- * before actually drawing it — DeckPage's own peek-then-draw mechanic,
- * simplified to one card at a time since this module has no multi-select
- * peek UI.
+ * — the same endpoints DeckPage.tsx uses) rather than mock data. Counts on
+ * the CardModule buttons come from the dedicated stats endpoint; the full
+ * hand/discard lists only fetch once their sheet is opened.
+ *
+ * Draw follows DeckPage's own "peek then draw" mechanic: opening the draw
+ * modal peeks PEEK_COUNT cards, the player selects zero or more (or draws
+ * all of them), and only the selected ids actually get drawn — never a
+ * blind single draw. A card can also be inspected via the detail modal
+ * (CardDetailModal) from any list it appears in (peek grid, hand, discard);
+ * from the peek grid specifically, the detail view's own action draws that
+ * one card directly.
  */
 export function useCardModule(teamId: string | null): UseCardModuleResult {
   const { data: stats } = useGetDeckStatsQuery(teamId ?? '', { skip: !teamId });
@@ -65,23 +93,59 @@ export function useCardModule(teamId: string | null): UseCardModuleResult {
   const [discardCardMutation] = useDiscardCardMutation();
 
   const [isDrawModalOpen, setIsDrawModalOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { data: peeked, isFetching: peeking } = usePeekDeckQuery(
-    { teamId: teamId ?? '', numberOfCards: 1 },
+    { teamId: teamId ?? '', numberOfCards: PEEK_COUNT },
     { skip: !teamId || !isDrawModalOpen },
   );
+  const peekedCards = useMemo(() => peeked ?? [], [peeked]);
   const [drawCardMutation, { isLoading: drawing }] = useDrawCardMutation();
-  const peekedCard = peeked?.[0] ?? null;
 
-  const openDrawModal = useCallback(() => setIsDrawModalOpen(true), []);
-  const closeDrawModal = useCallback(() => setIsDrawModalOpen(false), []);
+  const [detailCard, setDetailCard] = useState<Card | null>(null);
+  const [detailContext, setDetailContext] = useState<DetailContext | null>(null);
 
-  const confirmDraw = useCallback(() => {
-    if (!teamId || !peekedCard) return;
-    drawCardMutation({ cardId: peekedCard.card_id, teamId })
-      .unwrap()
-      .then(() => setIsDrawModalOpen(false))
-      .catch((err) => console.warn('[MapV2] Draw card failed', err));
-  }, [teamId, peekedCard, drawCardMutation]);
+  const openDrawModal = useCallback(() => {
+    setSelectedIds(new Set());
+    setIsDrawModalOpen(true);
+  }, []);
+  const closeDrawModal = useCallback(() => {
+    setIsDrawModalOpen(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelect = useCallback((cardId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }, []);
+
+  const drawCardIds = useCallback((cardIds: string[]): Promise<void> => {
+    if (!teamId || cardIds.length === 0) return Promise.resolve();
+    return Promise.all(cardIds.map((cardId) => drawCardMutation({ cardId, teamId }).unwrap()))
+      .then(() => undefined)
+      .catch((err) => {
+        console.warn('[MapV2] Draw card failed', err);
+      });
+  }, [teamId, drawCardMutation]);
+
+  const drawSelected = useCallback(() => {
+    drawCardIds(Array.from(selectedIds)).then(closeDrawModal);
+  }, [drawCardIds, selectedIds, closeDrawModal]);
+
+  const drawAll = useCallback(() => {
+    drawCardIds(peekedCards.map((c) => c.card_id)).then(closeDrawModal);
+  }, [drawCardIds, peekedCards, closeDrawModal]);
+
+  const drawOneAndClose = useCallback((cardId: string) => {
+    drawCardIds([cardId]).then(() => {
+      setDetailCard(null);
+      setDetailContext(null);
+      closeDrawModal();
+    });
+  }, [drawCardIds, closeDrawModal]);
 
   const discardCard = useCallback((cardId: string) => {
     if (!teamId) return;
@@ -89,6 +153,15 @@ export function useCardModule(teamId: string | null): UseCardModuleResult {
       .unwrap()
       .catch((err) => console.warn('[MapV2] Discard card failed', err));
   }, [teamId, discardCardMutation]);
+
+  const openDetail = useCallback((card: Card, context: DetailContext) => {
+    setDetailCard(card);
+    setDetailContext(context);
+  }, []);
+  const closeDetail = useCallback(() => {
+    setDetailCard(null);
+    setDetailContext(null);
+  }, []);
 
   return {
     handCount: stats?.hand_cards ?? 0,
@@ -103,11 +176,19 @@ export function useCardModule(teamId: string | null): UseCardModuleResult {
     discardLoading,
     discardCard,
     isDrawModalOpen,
-    peekedCard,
+    peekedCards,
     peeking,
+    selectedIds,
+    toggleSelect,
     drawing,
     openDrawModal,
-    confirmDraw,
     closeDrawModal,
+    drawSelected,
+    drawAll,
+    detailCard,
+    detailContext,
+    openDetail,
+    closeDetail,
+    drawOneAndClose,
   };
 }
