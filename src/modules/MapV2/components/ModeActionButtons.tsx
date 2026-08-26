@@ -20,11 +20,12 @@ interface ModeActionButtonsProps {
  * take the bottom, thumb-closest row instead — see MapCanvas.tsx — since
  * cards are the more frequent action). Seeking shows "Accept" (a stub,
  * same as before), "Cursed", and "Ask" (functional, the draft-fact
- * wizard). "Cursed" is always visible, but only turns red/animated
- * (GameButton's danger tone + pulse) while this team actually has an
- * active curse (curse/useCurseModule.ts); tapping it opens the seeker's
- * own curse-status sheet either way. Seeking has no card row, so it stays
- * in the bottom position there.
+ * wizard). "Cursed" always uses GameButton's danger (red) tone — it's a
+ * threat, not an ordinary action, so it should never read as just another
+ * blue button — and only *pulses* while this team actually has an active
+ * curse (curse/useCurseModule.ts); tapping it opens the seeker's own
+ * curse-status sheet either way. Seeking has no card row, so it stays in
+ * the bottom position there.
  */
 export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
   mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion, isCursed, onOpenCurseStatus,
@@ -56,7 +57,7 @@ export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
           label="Cursed"
           ariaLabel={isCursed ? 'You are cursed — view challenge' : 'Curse status'}
           onClick={onOpenCurseStatus}
-          tone={isCursed ? 'danger' : 'blue'}
+          tone="danger"
           pulse={isCursed}
         />
         <GameButton icon={<Plus size={20} />} label="Ask" ariaLabel="Ask a question" onClick={onAskQuestion} />

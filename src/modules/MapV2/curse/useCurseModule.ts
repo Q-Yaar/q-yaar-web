@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Card } from '../../../models/Deck';
 
 export interface CurseInfo {
+  targetTeamId: string;
   card: Card;
   castByTeamId: string;
   castAt: string;
@@ -11,6 +12,11 @@ export interface UseCurseModuleResult {
   /** Every team currently under a curse, keyed by the *cursed* team's id
    * (not the caster's). */
   curses: Record<string, CurseInfo>;
+  /** Same records, flattened — what the Seeking-mode sheet actually
+   * renders. See the DEMO SIMPLIFICATION note below for why this is every
+   * curse in play rather than just the viewer's own. */
+  allCurses: CurseInfo[];
+  hasAnyCurse: boolean;
   curseFor: (teamId: string | null) => CurseInfo | null;
   /** Hider action — casts a CURSE-type card on another team, from that
    * card's detail view (see MapCanvas.tsx's CardDetailModal wiring). */
@@ -37,15 +43,28 @@ export interface UseCurseModuleResult {
  * completed. Both sides read/write the same instance of this hook (owned
  * once in MapCanvas.tsx), so casting and completing stay in sync within
  * one session the same way answeredFacts does for the answer-questions flow.
+ *
+ * DEMO SIMPLIFICATION — TODO fix later: the Seeking-mode "Cursed" button
+ * and sheet show *every* active curse (allCurses/hasAnyCurse) rather than
+ * just the viewer's own team's, because there's no session/role linkage
+ * yet that would let a single browser tab know "which team am I actually
+ * playing as" independent of the manual Hiding/Seeking toggle (a hider can
+ * never curse their own team, so scoping strictly to
+ * teamFilter.myTeamId would mean this mock could never demo the seeker
+ * side at all in one session). Once there's a real per-player team
+ * identity (or a real backend endpoint that already scopes this
+ * correctly), curseFor(teamId) below is the right building block to
+ * switch back to — allCurses/hasAnyCurse should go away entirely.
  */
 export function useCurseModule(): UseCurseModuleResult {
   const [curses, setCurses] = useState<Record<string, CurseInfo>>({});
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const curseFor = useCallback((teamId: string | null) => (teamId ? curses[teamId] ?? null : null), [curses]);
+  const allCurses = useMemo(() => Object.values(curses), [curses]);
 
   const castCurse = useCallback((targetTeamId: string, card: Card, castByTeamId: string) => {
-    setCurses((prev) => ({ ...prev, [targetTeamId]: { card, castByTeamId, castAt: new Date().toISOString() } }));
+    setCurses((prev) => ({ ...prev, [targetTeamId]: { targetTeamId, card, castByTeamId, castAt: new Date().toISOString() } }));
   }, []);
 
   const completeCurse = useCallback((teamId: string) => {
@@ -59,6 +78,8 @@ export function useCurseModule(): UseCurseModuleResult {
 
   return {
     curses,
+    allCurses,
+    hasAnyCurse: allCurses.length > 0,
     curseFor,
     castCurse,
     completeCurse,

@@ -62,8 +62,10 @@ interface MapCanvasInnerProps {
  *                        purely a floating button group, two sheets, and a draw modal
  *   curseModule      -> mock curse status (curse/useCurseModule.ts) — there's no real
  *                        backend field for this yet. A CURSE-type card's detail view
- *                        (Hiding mode) casts a curse on the other team; that team's own
- *                        Seeking-mode "Cursed" button (ModeActionButtons) reflects it
+ *                        (Hiding mode) casts a curse on the other team; Seeking mode's
+ *                        "Cursed" button (ModeActionButtons) shows *every* active curse
+ *                        for now (a demo simplification — see that file's TODO) rather
+ *                        than just the viewer's own team's
  * `pickResolverRef` is created here (not inside either hook) and shared with
  * `wizard`: `interactions`'s click handler resolves a pending pick through
  * it, `wizard` arms/clears it. That's also why `interactions` is constructed
@@ -167,7 +169,6 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   // detail action ("Curse <team>") has somewhere to point without asking
   // the hider to pick one every time; see the CardDetailModal wiring below.
   const curseTargetTeam = teamFilter.playerTeams.find((t) => t.team_id !== teamFilter.myTeamId) ?? null;
-  const myCurse = curseModule.curseFor(teamFilter.myTeamId);
 
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -209,7 +210,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onAnswerQuestions={answerFlow.openSheet}
         pendingAnswerCount={answerFlow.pendingCount}
         onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
-        isCursed={myCurse !== null}
+        isCursed={curseModule.hasAnyCurse}
         onOpenCurseStatus={curseModule.openSheet}
       />
 
@@ -237,9 +238,9 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
           <CurseStatusSheet
             isOpen={curseModule.isSheetOpen}
             onClose={curseModule.closeSheet}
-            curse={myCurse}
-            onComplete={() => {
-              if (teamFilter.myTeamId) curseModule.completeCurse(teamFilter.myTeamId);
+            curses={curseModule.allCurses}
+            onComplete={(targetTeamId) => {
+              curseModule.completeCurse(targetTeamId);
               curseModule.closeSheet();
             }}
           />
