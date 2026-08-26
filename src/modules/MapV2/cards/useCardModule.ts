@@ -1,10 +1,13 @@
 import { useCallback, useState } from 'react';
-import { CardDto, MOCK_CARD_DECK } from './mockDeck';
-
-export interface HeldCard {
-  instance_id: string;
-  card: CardDto;
-}
+import { Card } from '../../../models/Deck';
+import {
+  useDiscardCardMutation,
+  useDrawCardMutation,
+  useGetDeckStatsQuery,
+  useGetDiscardPileQuery,
+  useGetHandQuery,
+  usePeekDeckQuery,
+} from '../../../apis/deckApi';
 
 export const CARD_SHEET = {
   HAND: 'hand',
@@ -13,88 +16,98 @@ export const CARD_SHEET = {
 
 export type CardSheet = (typeof CARD_SHEET)[keyof typeof CARD_SHEET] | null;
 
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-interface CardsState {
-  drawPile: CardDto[];
-  hand: HeldCard[];
-  discardPile: HeldCard[];
-}
-
-const initialCardsState = (): CardsState => ({ drawPile: shuffle(MOCK_CARD_DECK), hand: [], discardPile: [] });
-
 export interface UseCardModuleResult {
-  hand: HeldCard[];
-  discardPile: HeldCard[];
-  drawCard: () => void;
-  discardCard: (instanceId: string) => void;
+  handCount: number;
+  discardCount: number;
+
   activeSheet: CardSheet;
   openHand: () => void;
   openDiscard: () => void;
   closeSheet: () => void;
+
+  hand: Card[];
+  handLoading: boolean;
+  discardPile: Card[];
+  discardLoading: boolean;
+  discardCard: (cardId: string) => void;
+
+  isDrawModalOpen: boolean;
+  peekedCard: Card | null;
+  peeking: boolean;
+  drawing: boolean;
+  openDrawModal: () => void;
+  confirmDraw: () => void;
+  closeDrawModal: () => void;
 }
 
 /**
- * The hider's card system — mock and purely local, same reasoning as
- * useFactsLayers's draftQuestions: there's no backend concept of a deck to
- * fetch or mutate yet, so state just lives in this hook for the session. A
- * shuffled draw pile seeds from MOCK_CARD_DECK; drawing pops its next card
- * into the hand, reshuffling a fresh copy once the pile runs dry so drawing
- * never dead-ends. Discarding moves a held card from hand to the discard
- * pile — nothing removes a card from the game entirely (no "play" effect
- * exists to resolve yet), it just changes which pile it's sitting in.
- *
- * drawPile/hand/discardPile live in one combined state object rather than
- * three separate useState calls specifically so each mutation is a single,
- * pure updater — moving a card between piles needs to change two of them
- * atomically, and calling one piece's setState from inside another's
- * updater (the tempting alternative) is impure and gets double-invoked
- * under StrictMode in development, silently drawing or discarding twice
- * per click.
+ * The hider's card system, wired to the real deck API (src/apis/deckApi.ts
+ * — the same endpoints DeckPage.tsx uses for its own hand/discard/draw
+ * flows) rather than mock data. Counts on the CardModule buttons come from
+ * the dedicated stats endpoint, not derived from the full hand/discard
+ * lists — those only fetch once their sheet is actually opened (`skip`
+ * gated on `activeSheet`), since a badge number doesn't need the full card
+ * payload. Drawing peeks exactly one card and waits for confirmation
+ * before actually drawing it — DeckPage's own peek-then-draw mechanic,
+ * simplified to one card at a time since this module has no multi-select
+ * peek UI.
  */
-export function useCardModule(): UseCardModuleResult {
-  const [state, setState] = useState<CardsState>(initialCardsState);
+export function useCardModule(teamId: string | null): UseCardModuleResult {
+  const { data: stats } = useGetDeckStatsQuery(teamId ?? '', { skip: !teamId });
+
   const [activeSheet, setActiveSheet] = useState<CardSheet>(null);
+  const { data: hand, isFetching: handLoading } = useGetHandQuery(teamId ?? '', {
+    skip: !teamId || activeSheet !== CARD_SHEET.HAND,
+  });
+  const { data: discardPile, isFetching: discardLoading } = useGetDiscardPileQuery(teamId ?? '', {
+    skip: !teamId || activeSheet !== CARD_SHEET.DISCARD,
+  });
+  const [discardCardMutation] = useDiscardCardMutation();
 
-  const drawCard = useCallback(() => {
-    setState((prev) => {
-      const source = prev.drawPile.length > 0 ? prev.drawPile : shuffle(MOCK_CARD_DECK);
-      const [drawn, ...rest] = source;
-      const heldCard: HeldCard = {
-        instance_id: `card-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        card: drawn,
-      };
-      return { ...prev, drawPile: rest, hand: [...prev.hand, heldCard] };
-    });
-  }, []);
+  const [isDrawModalOpen, setIsDrawModalOpen] = useState(false);
+  const { data: peeked, isFetching: peeking } = usePeekDeckQuery(
+    { teamId: teamId ?? '', numberOfCards: 1 },
+    { skip: !teamId || !isDrawModalOpen },
+  );
+  const [drawCardMutation, { isLoading: drawing }] = useDrawCardMutation();
+  const peekedCard = peeked?.[0] ?? null;
 
-  const discardCard = useCallback((instanceId: string) => {
-    setState((prev) => {
-      const held = prev.hand.find((h) => h.instance_id === instanceId);
-      if (!held) return prev;
-      return {
-        ...prev,
-        hand: prev.hand.filter((h) => h.instance_id !== instanceId),
-        discardPile: [...prev.discardPile, held],
-      };
-    });
-  }, []);
+  const openDrawModal = useCallback(() => setIsDrawModalOpen(true), []);
+  const closeDrawModal = useCallback(() => setIsDrawModalOpen(false), []);
+
+  const confirmDraw = useCallback(() => {
+    if (!teamId || !peekedCard) return;
+    drawCardMutation({ cardId: peekedCard.card_id, teamId })
+      .unwrap()
+      .then(() => setIsDrawModalOpen(false))
+      .catch((err) => console.warn('[MapV2] Draw card failed', err));
+  }, [teamId, peekedCard, drawCardMutation]);
+
+  const discardCard = useCallback((cardId: string) => {
+    if (!teamId) return;
+    discardCardMutation({ cardId, teamId })
+      .unwrap()
+      .catch((err) => console.warn('[MapV2] Discard card failed', err));
+  }, [teamId, discardCardMutation]);
 
   return {
-    hand: state.hand,
-    discardPile: state.discardPile,
-    drawCard,
-    discardCard,
+    handCount: stats?.hand_cards ?? 0,
+    discardCount: stats?.discard_cards ?? 0,
     activeSheet,
     openHand: () => setActiveSheet(CARD_SHEET.HAND),
     openDiscard: () => setActiveSheet(CARD_SHEET.DISCARD),
     closeSheet: () => setActiveSheet(null),
+    hand: hand ?? [],
+    handLoading,
+    discardPile: discardPile ?? [],
+    discardLoading,
+    discardCard,
+    isDrawModalOpen,
+    peekedCard,
+    peeking,
+    drawing,
+    openDrawModal,
+    confirmDraw,
+    closeDrawModal,
   };
 }

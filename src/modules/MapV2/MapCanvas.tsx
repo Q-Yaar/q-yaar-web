@@ -18,6 +18,7 @@ import { LayersSheet } from './components/LayersSheet';
 import { ModeActionButtons } from './components/ModeActionButtons';
 import { CardModule } from './components/CardModule';
 import { CardsSheet } from './components/CardsSheet';
+import { DrawCardModal } from './components/DrawCardModal';
 import { DraftQuestionsList } from './components/DraftQuestionsList';
 import { FactsChip } from './components/FactsChip';
 import { MapStatusBanner } from './components/MapStatusBanner';
@@ -52,8 +53,10 @@ interface MapCanvasInnerProps {
  *                        (hooks/useMapInteractions.ts)
  *   wizard           -> Seeking's "Ask a question" form (factsV2/useDraftFactWizard.ts)
  *   answerFlow       -> Hiding's "Answer questions" form (factsV2/useAnswerQuestionsFlow.ts)
- *   cardModule       -> Hiding's Draw/Hand/Discard cards (cards/useCardModule.ts) — no
- *                        map layer of its own, purely a floating button group + two sheets
+ *   cardModule       -> Hiding's Draw/Hand/Discard cards (cards/useCardModule.ts) — wired
+ *                        to the real deck API (src/apis/deckApi.ts, the same endpoints
+ *                        DeckPage.tsx uses), not mock data. No map layer of its own,
+ *                        purely a floating button group, two sheets, and a draw modal
  * `pickResolverRef` is created here (not inside either hook) and shared with
  * `wizard`: `interactions`'s click handler resolves a pending pick through
  * it, `wizard` arms/clears it. That's also why `interactions` is constructed
@@ -151,7 +154,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     playArea: playAreaState.playArea,
     onAnswered: (fact) => setAnsweredFacts((prev) => [...prev, fact]),
   });
-  const cardModule = useCardModule();
+  const cardModule = useCardModule(teamFilter.myTeamId);
 
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -197,9 +200,9 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
 
       {gameMode.mode === GAME_MODE.HIDING && (
         <CardModule
-          handCount={cardModule.hand.length}
-          discardCount={cardModule.discardPile.length}
-          onDraw={cardModule.drawCard}
+          handCount={cardModule.handCount}
+          discardCount={cardModule.discardCount}
+          onOpenDraw={cardModule.openDrawModal}
           onOpenHand={cardModule.openHand}
           onOpenDiscard={cardModule.openDiscard}
         />
@@ -222,6 +225,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             onClose={cardModule.closeSheet}
             title="Your hand"
             cards={cardModule.hand}
+            isLoading={cardModule.handLoading}
             emptyText="No cards yet — draw one to get started."
             onDiscard={cardModule.discardCard}
           />
@@ -230,7 +234,16 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             onClose={cardModule.closeSheet}
             title="Discard pile"
             cards={cardModule.discardPile}
+            isLoading={cardModule.discardLoading}
             emptyText="Nothing discarded yet."
+          />
+          <DrawCardModal
+            isOpen={cardModule.isDrawModalOpen}
+            peeking={cardModule.peeking}
+            drawing={cardModule.drawing}
+            card={cardModule.peekedCard}
+            onConfirm={cardModule.confirmDraw}
+            onClose={cardModule.closeDrawModal}
           />
         </>
       )}

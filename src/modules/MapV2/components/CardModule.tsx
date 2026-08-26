@@ -6,7 +6,9 @@ import { CompactGameButton } from './CompactGameButton';
 interface CardModuleProps {
   handCount: number;
   discardCount: number;
-  onDraw: () => void;
+  /** Opens the draw-reveal modal (DrawCardModal) — Draw doesn't draw
+   * directly, it peeks one card first and waits for confirmation. */
+  onOpenDraw: () => void;
   onOpenHand: () => void;
   onOpenDiscard: () => void;
 }
@@ -25,7 +27,7 @@ interface CardModuleProps {
  * bottom, thumb-closest row in MapCanvas (ModeActionButtons moves up to
  * make room) since drawing/checking cards is the more frequent action.
  */
-export const CardModule: React.FC<CardModuleProps> = ({ handCount, discardCount, onDraw, onOpenHand, onOpenDiscard }) => (
+export const CardModule: React.FC<CardModuleProps> = ({ handCount, discardCount, onOpenDraw, onOpenHand, onOpenDiscard }) => (
   <div
     style={{
       position: 'absolute',
@@ -39,7 +41,7 @@ export const CardModule: React.FC<CardModuleProps> = ({ handCount, discardCount,
     }}
   >
     <CompactGameButton icon={<Hand size={20} />} ariaLabel="View your hand" badge={handCount} onClick={onOpenHand} tone="purple" />
-    <GameButton icon={<Club size={20} />} label="Draw" ariaLabel="Draw a card" onClick={onDraw} tone="purple" />
+    <GameButton icon={<Club size={20} />} label="Draw" ariaLabel="Draw a card" onClick={onOpenDraw} tone="purple" />
     <CompactGameButton icon={<Layers size={20} />} ariaLabel="View discard pile" badge={discardCount} onClick={onOpenDiscard} tone="purple" />
   </div>
 );
