@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { Card } from '../../../models/Deck';
 import { CardTile } from './CardTile';
 
@@ -8,6 +8,8 @@ interface DrawCardModalProps {
   isOpen: boolean;
   peeking: boolean;
   peekedCards: Card[];
+  canPeekMore: boolean;
+  onPeekMore: () => void;
   selectedIds: Set<string>;
   onToggleSelect: (cardId: string) => void;
   onCardClick: (card: Card) => void;
@@ -18,15 +20,16 @@ interface DrawCardModalProps {
 }
 
 /**
- * DeckPage's own "peek then draw" mechanic — peeks a handful of cards off
- * the top of the deck and lets the player pick which ones (if any) to
- * actually draw, rather than a single blind draw. Selecting a card (the
- * corner checkbox) and inspecting it (tapping the card body, which opens
- * CardDetailModal) are separate gestures, same reasoning as CardTile's own
- * onClick/onToggleSelect split.
+ * DeckPage's own "peek then draw" mechanic — peeks cards off the top of
+ * the deck one at a time (the "Peek more" tile, styled to sit in the grid
+ * alongside real cards) and lets the player pick which of what's revealed
+ * (if any) to actually draw, rather than a single blind draw. Selecting a
+ * card (the corner checkbox) and inspecting it (tapping the card body,
+ * which opens CardDetailModal) are separate gestures, same reasoning as
+ * CardTile's own onClick/onToggleSelect split.
  */
 export const DrawCardModal: React.FC<DrawCardModalProps> = ({
-  isOpen, peeking, peekedCards, selectedIds, onToggleSelect, onCardClick,
+  isOpen, peeking, peekedCards, canPeekMore, onPeekMore, selectedIds, onToggleSelect, onCardClick,
   drawing, onDrawSelected, onDrawAll, onClose,
 }) => {
   if (!isOpen) return null;
@@ -49,9 +52,9 @@ export const DrawCardModal: React.FC<DrawCardModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[340px] rounded-3xl border-2 border-purple-400/40 bg-gradient-to-b from-[#2a1a4d] to-[#141414] p-4 shadow-2xl"
+        className="flex max-h-[80dvh] w-full max-w-[340px] flex-col rounded-3xl border-2 border-purple-400/40 bg-gradient-to-b from-[#2a1a4d] to-[#141414] p-4 shadow-2xl"
       >
-        <div className="mb-3 text-center text-[11px] font-extrabold uppercase tracking-wide text-purple-300">
+        <div className="mb-3 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-wide text-purple-300">
           Peeked {peekedCards.length || ''} cards — pick which to draw
         </div>
 
@@ -60,7 +63,7 @@ export const DrawCardModal: React.FC<DrawCardModalProps> = ({
             <Loader2 className="h-8 w-8 animate-spin text-purple-300" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid flex-1 grid-cols-2 gap-2 overflow-y-auto">
             {peekedCards.map((card) => (
               <CardTile
                 key={card.card_id}
@@ -71,10 +74,19 @@ export const DrawCardModal: React.FC<DrawCardModalProps> = ({
                 onToggleSelect={() => onToggleSelect(card.card_id)}
               />
             ))}
+            {canPeekMore && (
+              <button
+                onClick={onPeekMore}
+                className="flex min-h-[164px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-purple-300/40 text-purple-300 transition-colors hover:border-purple-300/70 hover:text-purple-200"
+              >
+                <Plus size={28} />
+                <span className="text-[10px] font-bold uppercase tracking-wide">Peek more</span>
+              </button>
+            )}
           </div>
         )}
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex shrink-0 gap-2">
           <button
             onClick={onClose}
             disabled={drawing}

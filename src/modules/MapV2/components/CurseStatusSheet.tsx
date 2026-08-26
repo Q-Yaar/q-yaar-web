@@ -7,19 +7,23 @@ interface CurseStatusSheetProps {
   isOpen: boolean;
   onClose: () => void;
   /** Every active curse — see useCurseModule.ts's DEMO SIMPLIFICATION note
-   * for why this isn't scoped to just the viewer's own team yet. */
+   * for why this isn't scoped to just the viewer's own team yet. A team
+   * can carry more than one at once, so this can hold several entries for
+   * the same targetTeamId — each completed independently, in any order. */
   curses: CurseInfo[];
-  onComplete: (targetTeamId: string) => void;
+  onComplete: (curseId: string) => void;
 }
 
 /**
  * The seeker's "what's cursed right now" view — opened from
  * ModeActionButtons' Cursed button (Seeking mode). Shows each active
  * curse's card (same CardTile visual as everywhere else a card appears)
- * with a "Mark challenge completed" action that clears it — there's
- * nothing to verify server-side yet (no real curse API exists), so this
- * is an honor-system confirmation, same spirit as the real physical/verbal
- * challenges these cards describe.
+ * with its own "Mark challenge completed" action — stacked curses on the
+ * same team each get their own row and can be cleared in any order, since
+ * completing one has no bearing on the others. There's nothing to verify
+ * server-side yet (no real curse API exists), so this is an honor-system
+ * confirmation, same spirit as the real physical/verbal challenges these
+ * cards describe.
  */
 export const CurseStatusSheet: React.FC<CurseStatusSheetProps> = ({ isOpen, onClose, curses, onComplete }) => (
   <BottomSheet isOpen={isOpen} title="Cursed" leftAction={{ label: 'Close', onClick: onClose }}>
@@ -28,10 +32,10 @@ export const CurseStatusSheet: React.FC<CurseStatusSheetProps> = ({ isOpen, onCl
     ) : (
       <div className="space-y-3">
         {curses.map((curse) => (
-          <div key={curse.targetTeamId} className="space-y-1.5">
+          <div key={curse.id} className="space-y-1.5">
             <CardTile card={curse.card} />
             <button
-              onClick={() => onComplete(curse.targetTeamId)}
+              onClick={() => onComplete(curse.id)}
               className="w-full rounded-full bg-gradient-to-b from-[#FF6B6B] to-[#C81E1E] py-2.5 text-xs font-extrabold uppercase tracking-wide text-white"
             >
               Mark challenge completed

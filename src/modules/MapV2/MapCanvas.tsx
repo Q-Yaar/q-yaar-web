@@ -238,11 +238,11 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
           <CurseStatusSheet
             isOpen={curseModule.isSheetOpen}
             onClose={curseModule.closeSheet}
-            curses={curseModule.allCurses}
-            onComplete={(targetTeamId) => {
-              curseModule.completeCurse(targetTeamId);
-              curseModule.closeSheet();
-            }}
+            curses={curseModule.curses}
+            // Stays open after completing one — a team can be under
+            // several curses at once, cleared in any order, so closing
+            // here would force reopening the sheet after every single one.
+            onComplete={(curseId) => curseModule.completeCurse(curseId)}
           />
         </>
       )}
@@ -272,6 +272,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             isOpen={cardModule.isDrawModalOpen}
             peeking={cardModule.peeking}
             peekedCards={cardModule.peekedCards}
+            canPeekMore={cardModule.canPeekMore}
+            onPeekMore={cardModule.peekMore}
             selectedIds={cardModule.selectedIds}
             onToggleSelect={cardModule.toggleSelect}
             onCardClick={(card) => cardModule.openDetail(card, DETAIL_CONTEXT.DRAW)}

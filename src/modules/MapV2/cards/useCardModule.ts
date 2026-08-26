@@ -26,9 +26,10 @@ export const DETAIL_CONTEXT = {
 
 export type DetailContext = (typeof DETAIL_CONTEXT)[keyof typeof DETAIL_CONTEXT];
 
-/** How many cards Draw peeks at once — DeckPage's own peek-then-draw
- * mechanic, just a fixed count here instead of a "peek more" control. */
-const PEEK_COUNT = 3;
+/** How many cards the peek grid starts revealed — DeckPage's own default
+ * (handlePeekDeck sets peekCount = 1); a "Peek more" tile in the grid
+ * reveals one more at a time from there, up to however many are left. */
+const INITIAL_PEEK_COUNT = 1;
 
 export interface UseCardModuleResult {
   handCount: number;
@@ -47,6 +48,10 @@ export interface UseCardModuleResult {
 
   isDrawModalOpen: boolean;
   peekedCards: Card[];
+  /** Whether the deck has more cards beyond what's currently revealed —
+   * gates the peek grid's "Peek more" tile. */
+  canPeekMore: boolean;
+  peekMore: () => void;
   peeking: boolean;
   selectedIds: Set<string>;
   toggleSelect: (cardId: string) => void;
@@ -72,10 +77,15 @@ export interface UseCardModuleResult {
  * the CardModule buttons come from the dedicated stats endpoint; the full
  * hand/discard lists only fetch once their sheet is opened.
  *
- * Draw follows DeckPage's own "peek then draw" mechanic: opening the draw
- * modal peeks PEEK_COUNT cards, the player selects zero or more (or draws
- * all of them), and only the selected ids actually get drawn — never a
- * blind single draw. A card can also be inspected via the detail modal
+ * Draw follows DeckPage's own "peek then draw" mechanic exactly: opening
+ * the draw modal fetches the *entire* remaining deck in one request
+ * (numberOfCards: stats.deck_cards, same as DeckPage.tsx itself) but only
+ * *reveals* INITIAL_PEEK_COUNT of them — a "Peek more" tile in the grid
+ * reveals one more at a time from the already-fetched list (instant, no
+ * extra request), same progressive reveal DeckPage's own peekCount does.
+ * The player selects zero or more of what's revealed (or draws all of
+ * them), and only the selected ids actually get drawn — never a blind
+ * single draw. A card can also be inspected via the detail modal
  * (CardDetailModal) from any list it appears in (peek grid, hand, discard);
  * from the peek grid specifically, the detail view's own action draws that
  * one card directly.
@@ -94,11 +104,14 @@ export function useCardModule(teamId: string | null): UseCardModuleResult {
 
   const [isDrawModalOpen, setIsDrawModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [peekCount, setPeekCount] = useState(INITIAL_PEEK_COUNT);
   const { data: peeked, isFetching: peeking } = usePeekDeckQuery(
-    { teamId: teamId ?? '', numberOfCards: PEEK_COUNT },
-    { skip: !teamId || !isDrawModalOpen },
+    { teamId: teamId ?? '', numberOfCards: stats?.deck_cards ?? 0 },
+    { skip: !teamId || !isDrawModalOpen || !stats?.deck_cards },
   );
-  const peekedCards = useMemo(() => peeked ?? [], [peeked]);
+  const allPeeked = useMemo(() => peeked ?? [], [peeked]);
+  const peekedCards = useMemo(() => allPeeked.slice(0, peekCount), [allPeeked, peekCount]);
+  const canPeekMore = allPeeked.length > peekedCards.length;
   const [drawCardMutation, { isLoading: drawing }] = useDrawCardMutation();
 
   const [detailCard, setDetailCard] = useState<Card | null>(null);
@@ -106,12 +119,14 @@ export function useCardModule(teamId: string | null): UseCardModuleResult {
 
   const openDrawModal = useCallback(() => {
     setSelectedIds(new Set());
+    setPeekCount(INITIAL_PEEK_COUNT);
     setIsDrawModalOpen(true);
   }, []);
   const closeDrawModal = useCallback(() => {
     setIsDrawModalOpen(false);
     setSelectedIds(new Set());
   }, []);
+  const peekMore = useCallback(() => setPeekCount((prev) => prev + 1), []);
 
   const toggleSelect = useCallback((cardId: string) => {
     setSelectedIds((prev) => {
@@ -177,6 +192,8 @@ export function useCardModule(teamId: string | null): UseCardModuleResult {
     discardCard,
     isDrawModalOpen,
     peekedCards,
+    canPeekMore,
+    peekMore,
     peeking,
     selectedIds,
     toggleSelect,
