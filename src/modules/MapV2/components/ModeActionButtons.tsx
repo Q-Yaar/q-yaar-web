@@ -8,7 +8,7 @@ interface ModeActionButtonsProps {
   onAnswerQuestions: () => void;
   pendingAnswerCount: number;
   onAskQuestion: () => void;
-  isCursed: boolean;
+  curseCount: number;
   onOpenCurseStatus: () => void;
 }
 
@@ -23,12 +23,12 @@ interface ModeActionButtonsProps {
  * wizard). "Cursed" always uses GameButton's danger (red) tone — it's a
  * threat, not an ordinary action, so it should never read as just another
  * blue button — and only *pulses* while this team actually has an active
- * curse (curse/useCurseModule.ts); tapping it opens the seeker's own
- * curse-status sheet either way. Seeking has no card row, so it stays in
- * the bottom position there.
+ * curse (curse/useCurseModule.ts), with a badge showing how many; tapping
+ * it opens the seeker's own curse-status sheet either way. Seeking has no
+ * card row, so it stays in the bottom position there.
  */
 export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
-  mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion, isCursed, onOpenCurseStatus,
+  mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion, curseCount, onOpenCurseStatus,
 }) => (
   <div
     style={{
@@ -55,10 +55,11 @@ export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
         <GameButton
           icon={<Ghost size={20} />}
           label="Cursed"
-          ariaLabel={isCursed ? 'You are cursed — view challenge' : 'Curse status'}
+          ariaLabel={curseCount > 0 ? `You are cursed — ${curseCount} active challenge${curseCount === 1 ? '' : 's'}` : 'Curse status'}
+          badge={curseCount}
           onClick={onOpenCurseStatus}
           tone="danger"
-          pulse={isCursed}
+          pulse={curseCount > 0}
         />
         <GameButton icon={<Plus size={20} />} label="Ask" ariaLabel="Ask a question" onClick={onAskQuestion} />
       </>

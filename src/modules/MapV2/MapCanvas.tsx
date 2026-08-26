@@ -210,7 +210,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onAnswerQuestions={answerFlow.openSheet}
         pendingAnswerCount={answerFlow.pendingCount}
         onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
-        isCursed={curseModule.hasAnyCurse}
+        curseCount={curseModule.curses.length}
         onOpenCurseStatus={curseModule.openSheet}
       />
 
@@ -243,6 +243,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             // several curses at once, cleared in any order, so closing
             // here would force reopening the sheet after every single one.
             onComplete={(curseId) => curseModule.completeCurse(curseId)}
+            onCardClick={(card) => cardModule.openDetail(card, DETAIL_CONTEXT.CURSE)}
           />
         </>
       )}
@@ -282,29 +283,31 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             onDrawAll={cardModule.drawAll}
             onClose={cardModule.closeDrawModal}
           />
-          <CardDetailModal
-            isOpen={cardModule.detailCard !== null}
-            card={cardModule.detailCard}
-            onClose={cardModule.closeDetail}
-            primaryAction={
-              cardModule.detailContext === DETAIL_CONTEXT.DRAW && cardModule.detailCard
-                ? { label: 'Draw this card', onClick: () => cardModule.drawOneAndClose(cardModule.detailCard!.card_id), loading: cardModule.drawing }
-                : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard?.card_type === 'CURSE' && curseTargetTeam
-                  ? {
-                      label: `Curse ${curseTargetTeam.team_name}`,
-                      onClick: () => {
-                        curseModule.castCurse(curseTargetTeam.team_id, cardModule.detailCard!, teamFilter.myTeamId ?? '');
-                        cardModule.discardCard(cardModule.detailCard!.card_id);
-                        cardModule.closeDetail();
-                      },
-                    }
-                  : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard
-                    ? { label: 'Discard', onClick: () => { cardModule.discardCard(cardModule.detailCard!.card_id); cardModule.closeDetail(); } }
-                    : undefined
-            }
-          />
         </>
       )}
+      {/* Not gated by mode — reused from Seeking's Cursed sheet too (see
+          DETAIL_CONTEXT.CURSE), not just Hiding's hand/discard/peek grids. */}
+      <CardDetailModal
+        isOpen={cardModule.detailCard !== null}
+        card={cardModule.detailCard}
+        onClose={cardModule.closeDetail}
+        primaryAction={
+          cardModule.detailContext === DETAIL_CONTEXT.DRAW && cardModule.detailCard
+            ? { label: 'Draw this card', onClick: () => cardModule.drawOneAndClose(cardModule.detailCard!.card_id), loading: cardModule.drawing }
+            : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard?.card_type === 'CURSE' && curseTargetTeam
+              ? {
+                  label: `Curse ${curseTargetTeam.team_name}`,
+                  onClick: () => {
+                    curseModule.castCurse(curseTargetTeam.team_id, cardModule.detailCard!, teamFilter.myTeamId ?? '');
+                    cardModule.discardCard(cardModule.detailCard!.card_id);
+                    cardModule.closeDetail();
+                  },
+                }
+              : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard
+                ? { label: 'Discard', onClick: () => { cardModule.discardCard(cardModule.detailCard!.card_id); cardModule.closeDetail(); } }
+                : undefined
+        }
+      />
     </div>
   );
 };

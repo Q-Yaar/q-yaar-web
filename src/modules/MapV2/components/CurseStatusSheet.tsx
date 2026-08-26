@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card } from '../../../models/Deck';
 import { CurseInfo } from '../curse/useCurseModule';
 import { CardTile } from './CardTile';
 import { BottomSheet } from './BottomSheet';
@@ -12,6 +13,10 @@ interface CurseStatusSheetProps {
    * the same targetTeamId — each completed independently, in any order. */
   curses: CurseInfo[];
   onComplete: (curseId: string) => void;
+  /** Opens CardDetailModal for the tapped curse's card — "click a card to
+   * see it properly" works the same way here as everywhere else a card
+   * appears. */
+  onCardClick: (card: Card) => void;
 }
 
 /**
@@ -25,7 +30,7 @@ interface CurseStatusSheetProps {
  * confirmation, same spirit as the real physical/verbal challenges these
  * cards describe.
  */
-export const CurseStatusSheet: React.FC<CurseStatusSheetProps> = ({ isOpen, onClose, curses, onComplete }) => (
+export const CurseStatusSheet: React.FC<CurseStatusSheetProps> = ({ isOpen, onClose, curses, onComplete, onCardClick }) => (
   <BottomSheet isOpen={isOpen} title="Cursed" leftAction={{ label: 'Close', onClick: onClose }}>
     {curses.length === 0 ? (
       <p className="text-[11px] text-white/40">No active curse right now — you're in the clear.</p>
@@ -33,7 +38,7 @@ export const CurseStatusSheet: React.FC<CurseStatusSheetProps> = ({ isOpen, onCl
       <div className="space-y-3">
         {curses.map((curse) => (
           <div key={curse.id} className="space-y-1.5">
-            <CardTile card={curse.card} />
+            <CardTile card={curse.card} onClick={() => onCardClick(curse.card)} />
             <button
               onClick={() => onComplete(curse.id)}
               className="w-full rounded-full bg-gradient-to-b from-[#FF6B6B] to-[#C81E1E] py-2.5 text-xs font-extrabold uppercase tracking-wide text-white"

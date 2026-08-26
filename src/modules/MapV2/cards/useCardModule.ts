@@ -17,11 +17,16 @@ export const CARD_SHEET = {
 export type CardSheet = (typeof CARD_SHEET)[keyof typeof CARD_SHEET] | null;
 
 /** Which list a card being detail-viewed came from — decides what action
- * (if any) CardDetailModal offers for it. */
+ * (if any) CardDetailModal offers for it. CURSE is the odd one out: it's
+ * not one of this hook's own lists (see curse/useCurseModule.ts), but the
+ * detail-view plumbing here is generic enough to reuse for "show me this
+ * curse's card properly" from the Seeking-mode Cursed sheet too — no
+ * action, view only. */
 export const DETAIL_CONTEXT = {
   DRAW: 'draw',
   HAND: 'hand',
   DISCARD: 'discard',
+  CURSE: 'curse',
 } as const;
 
 export type DetailContext = (typeof DETAIL_CONTEXT)[keyof typeof DETAIL_CONTEXT];

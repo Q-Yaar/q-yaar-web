@@ -17,7 +17,6 @@ export interface UseCurseModuleResult {
    * team can carry more than one at once (a hider can stack curses), so
    * this is a flat list rather than one-per-team. */
   curses: CurseInfo[];
-  hasAnyCurse: boolean;
   curseFor: (teamId: string | null) => CurseInfo[];
   /** Hider action — casts a CURSE-type card on another team, from that
    * card's detail view (see MapCanvas.tsx's CardDetailModal wiring). Adds
@@ -86,7 +85,6 @@ export function useCurseModule(): UseCurseModuleResult {
 
   return {
     curses,
-    hasAnyCurse: curses.length > 0,
     curseFor,
     castCurse,
     completeCurse,
