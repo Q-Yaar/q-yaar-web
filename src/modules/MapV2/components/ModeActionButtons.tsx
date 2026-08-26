@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, MessageCircleQuestion, Plus } from 'lucide-react';
+import { CheckCircle2, Ghost, MessageCircleQuestion, Plus } from 'lucide-react';
 import { GAME_MODE, GameMode } from '../hooks/useGameMode';
 import { GameButton } from './GameButton';
 
@@ -8,6 +8,8 @@ interface ModeActionButtonsProps {
   onAnswerQuestions: () => void;
   pendingAnswerCount: number;
   onAskQuestion: () => void;
+  isCursed: boolean;
+  onOpenCurseStatus: () => void;
 }
 
 /**
@@ -16,13 +18,17 @@ interface ModeActionButtonsProps {
  * functional, useAnswerQuestionsFlow, with a live pending-count badge; it
  * sits in the *upper* row in Hiding mode (CardModule's Draw/Hand/Discard
  * take the bottom, thumb-closest row instead — see MapCanvas.tsx — since
- * cards are the more frequent action). Seeking shows "Ask" — functional,
- * the draft-fact wizard — next to an "Accept" stub, deliberately
- * visible-but-disabled rather than hidden so the mode still reads as "two
- * actions available here" even before it's wired up; Seeking has no card
- * row, so it stays in the bottom position there.
+ * cards are the more frequent action). Seeking shows "Accept" (a stub,
+ * same as before), "Cursed", and "Ask" (functional, the draft-fact
+ * wizard). "Cursed" is always visible, but only turns red/animated
+ * (GameButton's danger tone + pulse) while this team actually has an
+ * active curse (curse/useCurseModule.ts); tapping it opens the seeker's
+ * own curse-status sheet either way. Seeking has no card row, so it stays
+ * in the bottom position there.
  */
-export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({ mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion }) => (
+export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
+  mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion, isCursed, onOpenCurseStatus,
+}) => (
   <div
     style={{
       position: 'absolute',
@@ -45,6 +51,14 @@ export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({ mode, onAn
     ) : (
       <>
         <GameButton icon={<CheckCircle2 size={20} />} label="Accept" ariaLabel="Accept answers (coming soon)" disabled />
+        <GameButton
+          icon={<Ghost size={20} />}
+          label="Cursed"
+          ariaLabel={isCursed ? 'You are cursed — view challenge' : 'Curse status'}
+          onClick={onOpenCurseStatus}
+          tone={isCursed ? 'danger' : 'blue'}
+          pulse={isCursed}
+        />
         <GameButton icon={<Plus size={20} />} label="Ask" ariaLabel="Ask a question" onClick={onAskQuestion} />
       </>
     )}

@@ -13,6 +13,7 @@ import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
 import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
 import { FactDto } from './factsV2/factTypes';
 import { CARD_SHEET, DETAIL_CONTEXT, useCardModule } from './cards/useCardModule';
+import { useCurseModule } from './curse/useCurseModule';
 import { TopBar } from './components/TopBar';
 import { LayersSheet } from './components/LayersSheet';
 import { ModeActionButtons } from './components/ModeActionButtons';
@@ -20,6 +21,7 @@ import { CardModule } from './components/CardModule';
 import { CardsSheet } from './components/CardsSheet';
 import { DrawCardModal } from './components/DrawCardModal';
 import { CardDetailModal } from './components/CardDetailModal';
+import { CurseStatusSheet } from './components/CurseStatusSheet';
 import { DraftQuestionsList } from './components/DraftQuestionsList';
 import { FactsChip } from './components/FactsChip';
 import { MapStatusBanner } from './components/MapStatusBanner';
@@ -58,6 +60,10 @@ interface MapCanvasInnerProps {
  *                        to the real deck API (src/apis/deckApi.ts, the same endpoints
  *                        DeckPage.tsx uses), not mock data. No map layer of its own,
  *                        purely a floating button group, two sheets, and a draw modal
+ *   curseModule      -> mock curse status (curse/useCurseModule.ts) — there's no real
+ *                        backend field for this yet. A CURSE-type card's detail view
+ *                        (Hiding mode) casts a curse on the other team; that team's own
+ *                        Seeking-mode "Cursed" button (ModeActionButtons) reflects it
  * `pickResolverRef` is created here (not inside either hook) and shared with
  * `wizard`: `interactions`'s click handler resolves a pending pick through
  * it, `wizard` arms/clears it. That's also why `interactions` is constructed
@@ -156,6 +162,12 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     onAnswered: (fact) => setAnsweredFacts((prev) => [...prev, fact]),
   });
   const cardModule = useCardModule(teamFilter.myTeamId);
+  const curseModule = useCurseModule();
+  // The hider's curse target — the other player team, so a CURSE card's
+  // detail action ("Curse <team>") has somewhere to point without asking
+  // the hider to pick one every time; see the CardDetailModal wiring below.
+  const curseTargetTeam = teamFilter.playerTeams.find((t) => t.team_id !== teamFilter.myTeamId) ?? null;
+  const myCurse = curseModule.curseFor(teamFilter.myTeamId);
 
   const [layersOpen, setLayersOpen] = useState(false);
 
@@ -197,6 +209,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onAnswerQuestions={answerFlow.openSheet}
         pendingAnswerCount={answerFlow.pendingCount}
         onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
+        isCursed={myCurse !== null}
+        onOpenCurseStatus={curseModule.openSheet}
       />
 
       {gameMode.mode === GAME_MODE.HIDING && (
@@ -217,7 +231,20 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onClose={interactions.clearSelectedFact}
       />
 
-      {gameMode.mode === GAME_MODE.SEEKING && <CreateDraftFactWizard {...wizard.props} />}
+      {gameMode.mode === GAME_MODE.SEEKING && (
+        <>
+          <CreateDraftFactWizard {...wizard.props} />
+          <CurseStatusSheet
+            isOpen={curseModule.isSheetOpen}
+            onClose={curseModule.closeSheet}
+            curse={myCurse}
+            onComplete={() => {
+              if (teamFilter.myTeamId) curseModule.completeCurse(teamFilter.myTeamId);
+              curseModule.closeSheet();
+            }}
+          />
+        </>
+      )}
       {gameMode.mode === GAME_MODE.HIDING && (
         <>
           <AnswerQuestionsSheet {...answerFlow.props} />
@@ -259,9 +286,18 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             primaryAction={
               cardModule.detailContext === DETAIL_CONTEXT.DRAW && cardModule.detailCard
                 ? { label: 'Draw this card', onClick: () => cardModule.drawOneAndClose(cardModule.detailCard!.card_id), loading: cardModule.drawing }
-                : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard
-                  ? { label: 'Discard', onClick: () => { cardModule.discardCard(cardModule.detailCard!.card_id); cardModule.closeDetail(); } }
-                  : undefined
+                : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard?.card_type === 'CURSE' && curseTargetTeam
+                  ? {
+                      label: `Curse ${curseTargetTeam.team_name}`,
+                      onClick: () => {
+                        curseModule.castCurse(curseTargetTeam.team_id, cardModule.detailCard!, teamFilter.myTeamId ?? '');
+                        cardModule.discardCard(cardModule.detailCard!.card_id);
+                        cardModule.closeDetail();
+                      },
+                    }
+                  : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard
+                    ? { label: 'Discard', onClick: () => { cardModule.discardCard(cardModule.detailCard!.card_id); cardModule.closeDetail(); } }
+                    : undefined
             }
           />
         </>
