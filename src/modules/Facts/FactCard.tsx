@@ -108,7 +108,24 @@ export function FactCard({
               <Calendar className="w-3 h-3" /> {formatDate(fact.created)}
             </span>
           </div>
-          {fact.fact_info.op_meta.player_id === currentUserId && (
+          {v2Fact ? (
+            // A FactsV2 fact has no free-text to edit and no player
+            // attribution to gate ownership on (it's a confirmed answer,
+            // not an authored note) — just a delete button, available to
+            // anyone viewing this team's facts.
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                onClick={() => onDelete(fact.fact_id)}
+                disabled={isDeleting}
+                title="Delete fact"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : fact.fact_info.op_meta.player_id === currentUserId && (
             <div className="flex gap-1">
               {editingFactId === fact.fact_id ? (
                 <>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useLayerTree } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
-import { MAP_HEADER_HEIGHT_PX, uberDark } from '../theme';
+import { uberDark } from '../theme';
 
 interface FactsChipProps {
   count: number;
@@ -14,11 +14,12 @@ interface FactsChipProps {
 }
 
 /**
- * A floating chip over the map's top-left corner reporting how many
- * confirmed facts are loaded — tapping the count opens the full Facts page
- * for this game — with a quick eye toggle for the whole Facts group (Facts
- * + Draft Facts together) — faster than opening a sheet just to hide
- * shading while you're eyeballing the map underneath it.
+ * A chip reporting how many confirmed facts are loaded — tapping the count
+ * opens the full Facts page for this game — with a quick eye toggle for
+ * the whole Facts group (Facts + Draft Facts together) — faster than
+ * opening a sheet just to hide shading while you're eyeballing the map
+ * underneath it. Unpositioned — the caller (MapCanvas.tsx) stacks this in
+ * a floating top-left column alongside the Zones button.
  */
 export const FactsChip: React.FC<FactsChipProps> = ({ count, gameId }) => {
   const navigate = useNavigate();
@@ -29,9 +30,6 @@ export const FactsChip: React.FC<FactsChipProps> = ({ count, gameId }) => {
   return (
     <div
       style={{
-        position: 'absolute',
-        top: `calc(${MAP_HEADER_HEIGHT_PX}px + env(safe-area-inset-top) + 8px)`,
-        left: '12px', zIndex: 15,
         display: 'flex', alignItems: 'center', gap: '8px',
         padding: '6px 8px 6px 14px', borderRadius: '20px',
         backgroundColor: 'rgba(255,255,255,0.12)',

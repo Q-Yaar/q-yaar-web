@@ -1,6 +1,17 @@
 import { useCallback, useState } from 'react';
 import { Card } from '../../../models/Deck';
 
+/**
+ * TEMPORARY — there's no real curse API yet (see this file's own doc
+ * comment below), so the whole feature is hidden from the UI for now
+ * rather than shipped as a working-looking button that does nothing real:
+ * ModeActionButtons.tsx skips the "Cursed" button, and MapCanvas.tsx's
+ * CardDetailModal falls back to a plain "Discard" action for a CURSE-type
+ * card instead of offering to cast it. Flip this back on the moment the
+ * real endpoint exists — nothing else needs to change.
+ */
+export const CURSE_FEATURE_ENABLED = false;
+
 export interface CurseInfo {
   /** Unique per cast, not per team — a team can be under several curses at
    * once, so this (not targetTeamId) is what identifies one to complete. */

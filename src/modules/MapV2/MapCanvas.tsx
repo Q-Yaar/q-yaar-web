@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Layers } from 'lucide-react';
 import { MapLayerRegistry } from './layers/MapLayerRegistry';
 import { MapLayerRegistryProvider, useMapLayerModule, EMPTY_ITEMS } from './layers/hooks';
 import { GROUP_ID } from './layers/groupIds';
@@ -11,6 +12,7 @@ import { useGameMode, GAME_MODE } from './hooks/useGameMode';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { usePlayerLocations } from './hooks/usePlayerLocations';
 import { useHidingZoneFlow } from './hooks/useHidingZoneFlow';
+import { useNotifications } from './hooks/useNotifications';
 import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
@@ -18,8 +20,10 @@ import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
 import { useAcceptAnswersFlow } from './factsV2/useAcceptAnswersFlow';
 import { FactDto } from './factsV2/factTypes';
 import { CARD_SHEET, DETAIL_CONTEXT, useCardModule } from './cards/useCardModule';
-import { useCurseModule } from './curse/useCurseModule';
+import { CURSE_FEATURE_ENABLED, useCurseModule } from './curse/useCurseModule';
 import { TopBar } from './components/TopBar';
+import { CompactGameButton } from './components/CompactGameButton';
+import { MAP_HEADER_HEIGHT_PX } from './theme';
 import { LayersSheet } from './components/LayersSheet';
 import { ModeActionButtons } from './components/ModeActionButtons';
 import { CardModule } from './components/CardModule';
@@ -35,6 +39,7 @@ import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
 import { AnswerQuestionsSheet } from './components/AnswerQuestionsSheet';
 import { AcceptAnswersSheet } from './components/AcceptAnswersSheet';
 import { HidingZoneSheet } from './components/HidingZoneSheet';
+import { NotificationsSheet } from './components/NotificationsSheet';
 
 interface MapCanvasInnerProps {
   registry: MapLayerRegistry;
@@ -55,6 +60,10 @@ interface MapCanvasInnerProps {
  *                        Seeking exactly like v1, since there's no client-side
  *                        concept of which pings the backend should or shouldn't
  *                        be returning to a given viewer
+ *   notifications    -> TopBar's bell (hooks/useNotifications.ts) — the same real
+ *                        API the game home page's own bell uses
+ *                        (src/components/ui/NotificationBell.tsx), just opening a
+ *                        BottomSheet here instead of an anchored dropdown
  *   gameMode         -> Hiding/Seeking toggle, manual (hooks/useGameMode.ts —
  *                        there's no real hider/seeker field anywhere in the
  *                        data model yet)
@@ -147,6 +156,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const polygonCatalog = usePolygonCatalog();
   const gameMode = useGameMode(gameId);
   const teamFilter = useTeamFilter(gameId);
+  const notifications = useNotifications();
 
   // Hiding always shows the player's own team's facts; Seeking shows
   // whichever team the dropdown has selected (see TopBar — the dropdown
@@ -250,10 +260,25 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         mode={gameMode.mode}
         onSetMode={gameMode.setMode}
         teamFilter={teamFilter}
-        onOpenLayers={() => setLayersOpen(true)}
+        onOpenNotifications={notifications.openSheet}
+        unreadNotificationCount={notifications.unreadCount}
       />
+      <NotificationsSheet {...notifications.props} />
 
-      <FactsChip count={facts.factsCount} gameId={gameId} />
+      {/* FactsChip + Zones stacked as one floating top-left column — Zones
+          used to live in TopBar's own row (see that file's doc comment);
+          it reads better grouped with the other map-content control. */}
+      <div
+        style={{
+          position: 'absolute',
+          top: `calc(${MAP_HEADER_HEIGHT_PX}px + env(safe-area-inset-top) + 8px)`,
+          left: '12px', zIndex: 15,
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px',
+        }}
+      >
+        <FactsChip count={facts.factsCount} gameId={gameId} />
+        <CompactGameButton icon={<Layers size={18} />} ariaLabel="Zones" onClick={() => setLayersOpen(true)} size="sm" />
+      </div>
       <MapStatusBanner
         pickPrompt={wizard.pickPrompt ?? hidingZone.pickPrompt}
         onCancelPick={wizard.pickPrompt ? wizard.cancelPick : hidingZone.cancelPick}
@@ -273,6 +298,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onOpenHidingZone={hidingZone.openSheet}
         hasSavedHidingZone={hidingZone.hasSavedZone}
         hidingZoneVisible={hidingZone.props.isVisible}
+        curseEnabled={CURSE_FEATURE_ENABLED}
         curseCount={curseModule.curses.length}
         onOpenCurseStatus={curseModule.openSheet}
       />
@@ -359,7 +385,10 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         primaryAction={
           cardModule.detailContext === DETAIL_CONTEXT.DRAW && cardModule.detailCard
             ? { label: 'Draw this card', onClick: () => cardModule.drawOneAndClose(cardModule.detailCard!.card_id), loading: cardModule.drawing }
-            : cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard?.card_type === 'CURSE' && curseTargetTeam
+            // TEMPORARY — CURSE_FEATURE_ENABLED is off (no real curse API
+            // yet), so a CURSE-type card falls through to the plain
+            // "Discard" branch below instead of offering to cast it.
+            : CURSE_FEATURE_ENABLED && cardModule.detailContext === DETAIL_CONTEXT.HAND && cardModule.detailCard?.card_type === 'CURSE' && curseTargetTeam
               ? {
                   label: `Curse ${curseTargetTeam.team_name}`,
                   onClick: () => {

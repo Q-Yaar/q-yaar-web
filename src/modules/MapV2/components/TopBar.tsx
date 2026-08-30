@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, Layers } from 'lucide-react';
+import { Bell, ChevronLeft } from 'lucide-react';
 import { TeamFilterResult } from '../hooks/useTeamFilter';
 import { GAME_MODE, GameMode } from '../hooks/useGameMode';
 import { CompactGameButton } from './CompactGameButton';
@@ -10,7 +10,8 @@ interface TopBarProps {
   mode: GameMode;
   onSetMode: (mode: GameMode) => void;
   teamFilter: TeamFilterResult;
-  onOpenLayers: () => void;
+  onOpenNotifications: () => void;
+  unreadNotificationCount: number;
 }
 
 const MODE_OPTIONS: { mode: GameMode; label: string }[] = [
@@ -78,12 +79,19 @@ const ModeToggle: React.FC<{ mode: GameMode; onSetMode: (mode: GameMode) => void
  * manual per-device choice) always shows; the team filter dropdown only
  * makes sense in Seeking mode (a hider already sees their own team's facts
  * by definition), so it's only rendered there, otherwise leaving that
- * flexible middle slot empty. The zones button is fixed on the right. See
- * useMapInstance.ts for the matching push-down of MapLibre's own top-right
- * zoom/geolocate controls, and theme.ts's MAP_HEADER_HEIGHT_PX for what
- * everything else positioned near the top of the map clears this row by.
+ * flexible middle slot empty. The bell is fixed on the right — it mirrors
+ * the game home page's notification bell
+ * (src/components/ui/NotificationBell.tsx), same real API
+ * (hooks/useNotifications.ts), just opening a BottomSheet instead of an
+ * anchored dropdown to match every other MapV2 flow. The Zones button
+ * lives below the FactsChip instead of here now (see MapCanvas.tsx's
+ * top-left column) — grouped with the other map-content toggle rather
+ * than this app-bar row. See useMapInstance.ts for the matching push-down
+ * of MapLibre's own top-right zoom/geolocate controls, and theme.ts's
+ * MAP_HEADER_HEIGHT_PX for what everything else positioned near the top of
+ * the map clears this row by.
  */
-export const TopBar: React.FC<TopBarProps> = ({ onBack, mode, onSetMode, teamFilter, onOpenLayers }) => (
+export const TopBar: React.FC<TopBarProps> = ({ onBack, mode, onSetMode, teamFilter, onOpenNotifications, unreadNotificationCount }) => (
   <div
     style={{
       position: 'absolute',
@@ -113,6 +121,6 @@ export const TopBar: React.FC<TopBarProps> = ({ onBack, mode, onSetMode, teamFil
       )}
     </div>
 
-    <CompactGameButton icon={<Layers size={18} />} ariaLabel="Zones" onClick={onOpenLayers} size="sm" />
+    <CompactGameButton icon={<Bell size={18} />} ariaLabel="Notifications" badge={unreadNotificationCount} onClick={onOpenNotifications} size="sm" />
   </div>
 );
