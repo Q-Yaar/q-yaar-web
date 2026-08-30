@@ -312,7 +312,7 @@ export interface ClassifiedQuestionTemplates {
  * The real list endpoint returns one mixed collection — v2 rows with an
  * answer plan alongside pre-v2 legacy rows with none (§2.03) — split here
  * into the two shapes the wizard actually renders as separate sections
- * (mockQnaApi.ts's useGetQuestionTemplatesQuery / useGetNonGeoQuestionTemplatesQuery).
+ * (qnaPipelineApi.ts's useGetQuestionTemplatesQuery / useGetNonGeoQuestionTemplatesQuery).
  * A row with neither a resolvable id nor an answer plan is dropped
  * entirely — there's nothing either shape can represent for it.
  */

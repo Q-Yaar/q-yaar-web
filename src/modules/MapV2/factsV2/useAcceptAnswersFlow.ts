@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { FACT_TYPE } from './factTypes';
 import { AskedQuestionV2 } from './questionPipelineTypes';
-import { useGetAnsweredQuestionsQuery } from '../apis/mockQnaApi';
+import { useGetAnsweredQuestionsQuery } from '../apis/qnaPipelineApi';
 import { useAcceptAnswerMutation } from '../../../apis/qnaApi';
 import { useCreateFactMutation } from '../../../apis/api';
 import { AcceptAnswersSheetProps } from '../components/AcceptAnswersSheet';
@@ -29,7 +29,7 @@ export interface UseAcceptAnswersFlowResult {
 
 /**
  * The Seeker's "Accept answers" flow as one hook — fetching this team's
- * answered-but-unaccepted questions (apis/mockQnaApi.ts's
+ * answered-but-unaccepted questions (apis/qnaPipelineApi.ts's
  * useGetAnsweredQuestionsQuery) and accepting one, which does two real
  * writes: createFact (src/apis/api.ts) persists the question's already-
  * resolved slots/asserted answer/hider's value as a real FactsV2-shaped

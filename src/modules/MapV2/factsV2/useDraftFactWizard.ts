@@ -14,7 +14,7 @@ import {
 } from './templateQuestionBuilder';
 import { resolveCurrentLocation } from '../utils/geolocation';
 import { PolygonOverlayItemData } from './geometryAssets';
-import { draftQuestionToFact } from './mockData';
+import { draftQuestionToFact } from './draftFactConverter';
 import { foldFactsAreaInWorker } from './geoWorkerClient';
 import { GROUP_ID } from '../layers/groupIds';
 import { useMapLayerModule } from '../layers/hooks';
@@ -23,7 +23,7 @@ import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
 import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/WizardShapePreviewModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
-import { useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
+import { useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/qnaPipelineApi';
 import { useAskQuestionMutation } from '../../../apis/qnaApi';
 import { QuestionTemplateDto } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
@@ -83,7 +83,7 @@ export interface UseDraftFactWizardResult {
 
 /**
  * The whole "Ask a question" wizard as one hook: fetching real question
- * templates (apis/mockQnaApi.ts), every piece of the generic slot-filling
+ * templates (apis/qnaPipelineApi.ts), every piece of the generic slot-filling
  * form state, the map-pick handshake (hide the wizard, wait for a click,
  * refill the field, reopen), a live on-map preview of the shape while
  * composing and reviewing it, and the final submit — which calls the real

@@ -5,9 +5,9 @@ import { uberDark } from './theme';
 
 /**
  * Entry point for the revamped map — the group/module/item layer
- * architecture, loading real Facts for this game (converted from the
- * legacy op_type shape by factsV2/legacyFactConverter.ts until the backend
- * serves FactsV2-shaped facts directly). Lives entirely under
+ * architecture, loading real Facts for this game (factsV2/factV2Converter.ts
+ * reads only the FactsV2-shaped ones — a fact from before this pipeline
+ * existed doesn't convert and is dropped). Lives entirely under
  * src/modules/MapV2 so the existing Map page (src/modules/Map) is
  * untouched.
  *

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { FACT_TYPE, FactDto } from './factTypes';
 import { AnswerRecordDto, AskedQuestionRecordDto, toFactRecord } from './questionPipelineTypes';
-import { useGetPendingQuestionsQuery } from '../apis/mockQnaApi';
+import { useGetPendingQuestionsQuery } from '../apis/qnaPipelineApi';
 import { useAnswerQuestionMutation } from '../../../apis/qnaApi';
 import { GROUP_ID } from '../layers/groupIds';
 import { useMapLayerModule } from '../layers/hooks';
@@ -25,9 +25,10 @@ export interface UseAnswerQuestionsFlowOptions {
    * ask-question wizard's details step: at that point the question isn't
    * "what stays possible," just "what does this shape look like." */
   playArea: Feature<Polygon | MultiPolygon>;
-  /** Called once the mock answer call resolves — the caller (MapCanvas)
+  /** Called once the real answer call resolves — the caller (MapCanvas)
    * merges this into useFactsLayers's extraFacts so it renders as a real
-   * fact immediately. */
+   * (though not yet backend-persisted — see useAcceptAnswersFlow.ts's
+   * createFact call for that) fact immediately. */
   onAnswered: (fact: FactDto) => void;
 }
 
@@ -40,8 +41,8 @@ export interface UseAnswerQuestionsFlowResult {
 
 /**
  * The Hider's "Answer questions" flow as one hook — fetching pending
- * questions (apis/mockQnaApi.ts's useGetPendingQuestionsQuery, wired to the
- * real asked-questions endpoint), picking one, a shape step showing the
+ * questions (apis/qnaPipelineApi.ts's useGetPendingQuestionsQuery, wired to
+ * the real asked-questions endpoint), picking one, a shape step showing the
  * question's raw geometry bounded only by the game zone, a Yes/No toggle
  * with a live on-map preview, and the final submit, which calls the real
  * answerQuestion mutation (src/apis/qnaApi.ts) then hands the resulting

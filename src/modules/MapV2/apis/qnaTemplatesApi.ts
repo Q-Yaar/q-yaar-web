@@ -6,8 +6,8 @@
  * existing src/apis/qnaApi.ts's fetchQuestionTemplates
  * (`categories/{categoryId}/questions/`). The *detail* endpoint, by
  * contrast, is identical to that file's fetchQuestionTemplateDetails — see
- * mockQnaApi.ts, which calls that one directly rather than duplicating it
- * here.
+ * qnaPipelineApi.ts, which calls that one directly rather than duplicating
+ * it here.
  *
  * Injects into the same shared `api` slice qnaApi.ts and deckApi.ts do
  * (RTK Query's injectEndpoints is designed for exactly this — adding

@@ -1,5 +1,5 @@
 /**
- * Turns a real QuestionTemplateDto (fetched via apis/mockQnaApi.ts) plus
+ * Turns a real QuestionTemplateDto (fetched via apis/qnaPipelineApi.ts) plus
  * whatever the asker has filled in — resolved points, chosen placeholder
  * values — into an AskedQuestionDto, generically across every op_type: one
  * slot_bindings entry -> one resolved_slots entry, driven entirely by each

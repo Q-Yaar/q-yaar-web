@@ -1,12 +1,10 @@
 /**
- * Reads a raw /facts/ row that's already shaped like FactsV2 (op_type/
- * op_meta) straight through — the counterpart to legacyFactConverter.ts,
- * which maps the *old* per-tool op_types (draw-circle, split-by-direction,
- * ...) onto FactsV2. useAcceptAnswersFlow.ts's createFact call is the one
- * place that writes a fact in this shape today; useFactsLayers.ts tries
- * this converter first and only falls back to the legacy one when a row
- * isn't FactsV2-shaped, since the real /facts/ endpoint still serves a mix
- * of both until every legacy fact is migrated.
+ * Reads a raw /facts/ row that's shaped like FactsV2 (op_type/op_meta)
+ * straight through. useAcceptAnswersFlow.ts's createFact call is the one
+ * place that writes a fact in this shape; a row from before this pipeline
+ * existed (a different op_type vocabulary entirely — draw-circle,
+ * split-by-direction, ...) doesn't match isOpType and is dropped by
+ * useFactsLayers.ts's filter rather than converted.
  */
 import { Fact } from '../../../models/Fact';
 import { FACT_TYPE, FactDto, isOpType } from './factTypes';

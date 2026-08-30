@@ -33,7 +33,7 @@ export interface AnswerQuestionsSheetProps {
 
 /**
  * The Hider's "Answer questions" flow — step 1 lists every question this
- * team hasn't answered yet (apis/mockQnaApi.ts's useGetPendingQuestionsQuery),
+ * team hasn't answered yet (apis/qnaPipelineApi.ts's useGetPendingQuestionsQuery),
  * step 2 is a Yes/No toggle with a live amber map preview (same
  * FactsLayerModule pattern the Ask a Question wizard's review step uses —
  * see useAnswerQuestionsFlow.ts) before committing. Renders as a

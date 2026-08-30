@@ -183,8 +183,8 @@ const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
   if (slotKind === 'LENGTH') {
     // A template can curate its own distance options (allowed_values of
     // type 'number', e.g. the worked "100/200 metres" example) — fall back
-    // to the fixed choice set only when it hasn't (every mock-converted
-    // legacy template, which has no such curation of its own).
+    // to the fixed choice set only when it hasn't (every template with no
+    // such curation of its own).
     const numberChoices = allowedValues?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'number' }> => v.type === 'number');
     const choices = numberChoices && numberChoices.length > 0
       ? numberChoices.map((v) => ({ value: v.value, label: v.display_name }))
@@ -285,7 +285,7 @@ export interface CreateDraftFactWizardProps {
 
 /**
  * The "Ask a question" wizard — step 1 lists every real question template
- * from apis/mockQnaApi.ts (map-answerable ones first), step 2 is a generic
+ * from apis/qnaPipelineApi.ts (map-answerable ones first), step 2 is a generic
  * form built entirely from the selected template's slot_bindings (one
  * block per slot, driven by each binding's source/kind — no per-category
  * branch), step 3 reviews the rendered question with a live map preview

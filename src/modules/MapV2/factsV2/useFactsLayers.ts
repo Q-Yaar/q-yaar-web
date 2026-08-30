@@ -7,8 +7,7 @@ import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
 import { PlayAreaResult } from './geometryAssets';
 import { AskedQuestionDto, FactDto } from './factTypes';
 import { foldFactsAreaInWorker } from './geoWorkerClient';
-import { draftQuestionToFact } from './mockData';
-import { convertLegacyFact } from './legacyFactConverter';
+import { draftQuestionToFact } from './draftFactConverter';
 import { fromFactV2 } from './factV2Converter';
 import { FACTS_MODULE_ID, DRAFT_FACTS_MODULE_ID } from './factsLayerIds';
 
@@ -20,7 +19,9 @@ export interface UseFactsLayersOptions {
    * doesn't know about yet — currently just the Hider's Answer Questions
    * flow (useAnswerQuestionsFlow.ts), so a just-answered question shows up
    * as a real (non-dashed) fact immediately instead of waiting on a refetch
-   * the mock backend will never actually push. Folded in alongside
+   * that will never surface it: answering alone doesn't create a fact
+   * server-side, only the Seeker's later Accept step does (see
+   * useAcceptAnswersFlow.ts's createFact call). Folded in alongside
    * realFacts, same as any other confirmed fact. */
   extraFacts?: FactDto[];
 }
@@ -42,8 +43,9 @@ export interface UseFactsLayersResult {
 
 /**
  * Owns the whole "Facts" and "Draft Facts" capability: fetching this
- * team's real facts (through the TEMPORARY legacyFactConverter — see that
- * file), the cumulative-reduction fold each starts from (game zone ->
+ * team's real facts (factV2Converter.ts reads back only the FactsV2-shaped
+ * ones — a fact from before this pipeline existed doesn't convert and is
+ * dropped), the cumulative-reduction fold each starts from (game zone ->
  * confirmed facts -> drafts, run in geoWorker.ts off the main thread), and
  * the two FactsLayerModule instances themselves. Nothing outside this hook
  * needs to know any of that; it just needs the two module instances (for
@@ -57,7 +59,7 @@ export function useFactsLayers({ gameId, teamId, playAreaState, extraFacts = [] 
   const realFacts = useMemo(
     () => [
       ...(factsResponse?.results ?? [])
-        .map((raw) => fromFactV2(raw) ?? convertLegacyFact(raw))
+        .map(fromFactV2)
         .filter((f): f is FactDto => f !== null),
       ...extraFacts,
     ],

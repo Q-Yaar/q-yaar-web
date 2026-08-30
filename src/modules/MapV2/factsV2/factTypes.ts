@@ -104,8 +104,9 @@ export type FactType = (typeof FACT_TYPE)[keyof typeof FACT_TYPE];
 /**
  * Stage 4 of "Ask to Fact" — the durable record. op_meta is the question's
  * resolved slots, plus the asserted pole, plus the hider's boolean; nothing
- * geometric is stored. Backend isn't wired up yet, so every FactDto in this
- * folder is mock data shaped to this contract (see mockData.ts).
+ * geometric is stored. The real /facts/ endpoint now serves and accepts
+ * this shape directly (see factV2Converter.ts and
+ * useAcceptAnswersFlow.ts's createFact call).
  */
 export interface FactDto {
   fact_id: string;
@@ -143,7 +144,7 @@ export interface Region {
  * A question the asker has sent but the hider hasn't answered yet. Rendered
  * as a "Draft Fact" — same factToRegion path as a confirmed Fact, just with
  * an assumed value (assumed_value, picked in the wizard's review step — see
- * draftQuestionToFact in mockData.ts) and dashed styling so it reads as
+ * draftQuestionToFact in draftFactConverter.ts) and dashed styling so it reads as
  * unconfirmed.
  */
 export interface AskedQuestionDto {
