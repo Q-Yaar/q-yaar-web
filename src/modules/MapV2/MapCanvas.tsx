@@ -253,7 +253,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onOpenLayers={() => setLayersOpen(true)}
       />
 
-      <FactsChip count={facts.factsCount} />
+      <FactsChip count={facts.factsCount} gameId={gameId} />
       <MapStatusBanner
         pickPrompt={wizard.pickPrompt ?? hidingZone.pickPrompt}
         onCancelPick={wizard.pickPrompt ? wizard.cancelPick : hidingZone.cancelPick}

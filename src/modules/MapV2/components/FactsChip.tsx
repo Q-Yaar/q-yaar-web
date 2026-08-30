@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useLayerTree } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
@@ -6,15 +7,21 @@ import { MAP_HEADER_HEIGHT_PX, uberDark } from '../theme';
 
 interface FactsChipProps {
   count: number;
+  /** Lets the "N facts loaded" text link through to the full Facts page
+   * (src/modules/Facts/FactsModule.tsx, /games/:gameId/facts) — omitted
+   * (no navigation) if the game id isn't known yet. */
+  gameId?: string;
 }
 
 /**
  * A floating chip over the map's top-left corner reporting how many
- * confirmed facts are loaded, with a quick eye toggle for the whole Facts
- * group (Facts + Draft Facts together) — faster than opening a sheet just
- * to hide shading while you're eyeballing the map underneath it.
+ * confirmed facts are loaded — tapping the count opens the full Facts page
+ * for this game — with a quick eye toggle for the whole Facts group (Facts
+ * + Draft Facts together) — faster than opening a sheet just to hide
+ * shading while you're eyeballing the map underneath it.
  */
-export const FactsChip: React.FC<FactsChipProps> = ({ count }) => {
+export const FactsChip: React.FC<FactsChipProps> = ({ count, gameId }) => {
+  const navigate = useNavigate();
   const { tree, setGroupVisible } = useLayerTree();
   const factsGroup = tree.groups.find((g) => g.id === GROUP_ID.FACTS);
   const visible = factsGroup?.visible ?? true;
@@ -35,7 +42,16 @@ export const FactsChip: React.FC<FactsChipProps> = ({ count }) => {
         fontSize: '12px', color: uberDark.textPrimary,
       }}
     >
-      <span>{count} {count === 1 ? 'fact' : 'facts'} loaded</span>
+      {gameId ? (
+        <button
+          onClick={() => navigate(`/games/${gameId}/facts`)}
+          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+        >
+          {count} {count === 1 ? 'fact' : 'facts'} loaded
+        </button>
+      ) : (
+        <span>{count} {count === 1 ? 'fact' : 'facts'} loaded</span>
+      )}
       <button
         onClick={() => setGroupVisible(GROUP_ID.FACTS, !visible)}
         aria-label={visible ? 'Hide facts' : 'Show facts'}

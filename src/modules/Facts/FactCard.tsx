@@ -10,6 +10,8 @@ import {
 } from '../../components/ui/card';
 import { Fact } from '../../models/Fact';
 import { TeamAvatar } from 'components/TeamAvatar';
+import { fromFactV2 } from '../MapV2/factsV2/factV2Converter';
+import { factV2Description, factV2Title } from './factV2Description';
 
 interface FactCardProps {
   fact: Fact;
@@ -60,6 +62,12 @@ export function FactCard({
   onDelete,
   setEditFactText,
 }: FactCardProps) {
+  // Only a FactsV2-shaped fact (op_type is one of the seven real op types —
+  // see isOpType) converts; a still-legacy fact (draw-circle,
+  // split-by-direction, ...) returns null and falls back to
+  // renderOperationDetails below, unchanged.
+  const v2Fact = fact.fact_type === 'GEO' ? fromFactV2(fact) : null;
+
   return (
     <div className="relative flex items-start gap-6 group">
       {/* Timeline Icon/Dot with Time */}
@@ -163,42 +171,16 @@ export function FactCard({
               {fact.fact_type === 'GEO' ? (
                 <div>
                   <p className="text-gray-800 text-base leading-relaxed text-left font-medium">
-                    {fact.fact_info.op_type 
-                      ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
-                      : 'Map Operation'}
-                  </p>
-                  <p className="text-gray-800 text-base leading-relaxed text-left mt-1 font-normal">
-                    {renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {})}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-gray-800 text-base leading-relaxed text-left">
-                  {fact.fact_info.op_meta.text}
-                </p>
-              )}
-            </div>
-          )}
-        </CardContent>
-=======
-        <CardContent className="py-4 px-4">
-          {editingFactId === fact.fact_id ? (
-            <Input
-              value={editFactText}
-              onChange={(e) => setEditFactText(e.target.value)}
-              className="w-full"
-              autoFocus
-            />
-          ) : (
-            <div>
-              {fact.fact_type === 'GEO' ? (
-                <div>
-                  <p className="text-gray-800 text-base leading-relaxed text-left font-medium">
-                    {fact.fact_info.op_meta?.op_type 
-                      ? fact.fact_info.op_meta.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
-                      : 'Map Operation'}
+                    {v2Fact
+                      ? factV2Title(v2Fact)
+                      : fact.fact_info.op_type
+                        ? fact.fact_info.op_type.replace(/-/g, ' ').replace(/\b\w/g, (char: string) => char.toUpperCase())
+                        : 'Map Operation'}
                   </p>
                   <p className="text-gray-600 text-sm leading-relaxed text-left mt-1">
-                    {renderOperationDetails(fact.fact_info.op_meta?.op_type || '', fact.fact_info.op_meta || {})}
+                    {v2Fact
+                      ? factV2Description(v2Fact)
+                      : renderOperationDetails(fact.fact_info.op_type || '', fact.fact_info.op_meta || {})}
                   </p>
                 </div>
               ) : (
@@ -209,16 +191,22 @@ export function FactCard({
             </div>
           )}
         </CardContent>
-        <CardFooter className="py-2 px-4 bg-gray-50/30 border-t flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-              {fact.fact_info.op_meta.player_name?.charAt(0) || '?'}
+        {/* A FactsV2 fact carries no player identity at all (it's a
+            confirmed answer, not an attributed note) — the footer is
+            skipped entirely rather than showing a misleading "Unknown
+            Player". */}
+        {!v2Fact && (
+          <CardFooter className="py-2 px-4 bg-gray-50/30 border-t flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
+                {fact.fact_info.op_meta.player_name?.charAt(0) || '?'}
+              </div>
+              <span className="text-xs font-medium text-gray-600">
+                {fact.fact_info.op_meta.player_name || 'Unknown Player'}
+              </span>
             </div>
-            <span className="text-xs font-medium text-gray-600">
-              {fact.fact_info.op_meta.player_name || 'Unknown Player'}
-            </span>
-          </div>
-        </CardFooter>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );
