@@ -40,6 +40,7 @@ import { AnswerQuestionsSheet } from './components/AnswerQuestionsSheet';
 import { AcceptAnswersSheet } from './components/AcceptAnswersSheet';
 import { HidingZoneSheet } from './components/HidingZoneSheet';
 import { NotificationsSheet } from './components/NotificationsSheet';
+import { LocationPusher } from './components/LocationPusher';
 
 interface MapCanvasInnerProps {
   registry: MapLayerRegistry;
@@ -60,6 +61,11 @@ interface MapCanvasInnerProps {
  *                        Seeking exactly like v1, since there's no client-side
  *                        concept of which pings the backend should or shouldn't
  *                        be returning to a given viewer
+ *   <LocationPusher/>   -> the other half of playerLocations — pushes *this*
+ *                        device's own position to the real live-location webhook
+ *                        every 30s (components/LocationPusher.tsx), only while
+ *                        location sharing is enabled. Renders nothing; mounted
+ *                        for its effect alone, not wired to any other capability
  *   notifications    -> TopBar's bell (hooks/useNotifications.ts) — the same real
  *                        API the game home page's own bell uses
  *                        (src/components/ui/NotificationBell.tsx), just opening a
@@ -253,6 +259,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <LocationPusher />
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
       <TopBar
