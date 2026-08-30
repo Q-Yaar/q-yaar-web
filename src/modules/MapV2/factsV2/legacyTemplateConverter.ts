@@ -28,7 +28,7 @@
  */
 import { QuestionTemplate } from '../../../models/QnA';
 import { OP_TYPE, OpType } from './factTypes';
-import { AssertedAnswerBinding, NonGeoQuestionTemplateDto, PlaceholderSpec, QuestionTemplateDto, SlotBinding } from './questionPipelineTypes';
+import { AssertedAnswerBinding, NonGeoQuestionTemplateDto, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SlotBinding } from './questionPipelineTypes';
 
 /** Every placeholder key CATEGORY_REGISTRY's placeholderMap ever routes to
  * the given legacy fact_meta field, across every category that might use
@@ -142,11 +142,21 @@ const LEGACY_CATEGORY_SHAPES: Record<string, TemplateShape> = {
 };
 
 function toPlaceholderSpec(spec: { required: boolean; allowed_values: string[] }): PlaceholderSpec {
+  const hasOptions = spec.allowed_values && spec.allowed_values.length > 0;
   return {
     required: spec.required,
-    // Legacy always sends an array (possibly empty); the new contract
-    // omits allowed_values entirely to mean free text.
-    allowed_values: spec.allowed_values && spec.allowed_values.length > 0 ? spec.allowed_values : undefined,
+    // Legacy has no allow_free_text concept of its own — a curated list
+    // means pick-only (matches how the wizard already treated one), no
+    // list means the only way to fill it in is typing something.
+    allow_free_text: !hasOptions,
+    // Legacy allowed_values are always flat strings with no type/geometry
+    // tag of their own; 'text' is a safe uniform default here since the
+    // real tagging (e.g. a zone's own geometry reference) only exists for
+    // placeholders mockQnaApi.ts's withPlaceholderAllowedValues synthesizes
+    // separately, downstream of this converter.
+    allowed_values: hasOptions
+      ? spec.allowed_values.map((v): PlaceholderAllowedValue => ({ type: 'text', value: v, display_name: v }))
+      : undefined,
   };
 }
 
@@ -169,7 +179,7 @@ export function convertLegacyTemplate(template: QuestionTemplate): QuestionTempl
     // point at. required:true is a guess (the real allow-list only exists
     // behind the detail endpoint), but every token seen in practice is one.
     for (const token of tokensInProse(template.template)) {
-      placeholders[token] = { required: true };
+      placeholders[token] = { required: true, allow_free_text: true };
     }
   }
 

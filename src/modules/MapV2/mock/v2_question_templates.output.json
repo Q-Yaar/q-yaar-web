@@ -20,7 +20,8 @@
     },
     "placeholders": {
       "metro_line": {
-        "required": true
+        "required": true,
+        "allow_free_text": true
       }
     },
     "created": "2026-05-23T14:04:22.603953Z",
@@ -47,7 +48,8 @@
     },
     "placeholders": {
       "gba_corporation": {
-        "required": true
+        "required": true,
+        "allow_free_text": true
       }
     },
     "created": "2026-05-23T14:07:44.199524Z",
@@ -78,7 +80,8 @@
     },
     "placeholders": {
       "landmark_name": {
-        "required": true
+        "required": true,
+        "allow_free_text": true
       }
     },
     "created": "2026-05-23T14:09:54.141560Z",
@@ -108,7 +111,8 @@
     },
     "placeholders": {
       "distance": {
-        "required": true
+        "required": true,
+        "allow_free_text": true
       }
     },
     "created": "2026-05-23T14:15:41.621701Z",
@@ -134,7 +138,8 @@
     },
     "placeholders": {
       "direction": {
-        "required": true
+        "required": true,
+        "allow_free_text": true
       }
     },
     "created": "2026-05-23T14:20:21.138123Z",
@@ -163,7 +168,8 @@
     },
     "placeholders": {
       "distance": {
-        "required": true
+        "required": true,
+        "allow_free_text": true
       }
     },
     "created": "2026-05-23T14:30:51.430856Z",

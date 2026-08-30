@@ -207,12 +207,12 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
 
   const renderedQuestionPreview = useMemo(() => {
     if (!selectedTemplate || !canContinue) return null;
-    return buildRenderedQuestion(selectedTemplate, points, placeholderValues, zoneOptions);
-  }, [selectedTemplate, points, placeholderValues, zoneOptions, canContinue]);
+    return buildRenderedQuestion(selectedTemplate, points, placeholderValues);
+  }, [selectedTemplate, points, placeholderValues, canContinue]);
 
   const handleSubmit = useCallback(() => {
     if (!selectedTemplate) return;
-    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, zoneOptions, newQuestionId());
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, newQuestionId());
     if (!question) return;
 
     askQuestion({
@@ -229,16 +229,16 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
       .catch((err) => {
         console.warn('[MapV2] Mock ask-question call failed', err);
       });
-  }, [selectedTemplate, points, placeholderValues, assumedValue, zoneOptions, askQuestion, onSubmit, closeWizard]);
+  }, [selectedTemplate, points, placeholderValues, assumedValue, askQuestion, onSubmit, closeWizard]);
 
   // Live "what would this look like" preview — only while reviewing, so the
   // shape the user is about to commit to shows on the map before they add
   // it, reacting instantly to the Yes/No toggle.
   const previewFact = useMemo<FactDto | null>(() => {
     if (step !== WIZARD_STEP.REVIEW || !selectedTemplate) return null;
-    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, zoneOptions, 'wizard-review-preview');
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, 'wizard-review-preview');
     return question ? draftQuestionToFact(question) : null;
-  }, [step, selectedTemplate, points, placeholderValues, assumedValue, zoneOptions]);
+  }, [step, selectedTemplate, points, placeholderValues, assumedValue]);
 
   const [previewModule] = useState(() => new FactsLayerModule(
     { id: WIZARD_PREVIEW_MODULE_ID, groupId: GROUP_ID.FACTS, label: 'Question preview', fillColor: '#FFC043', fillOpacity: 0.3, dashed: true },
@@ -260,9 +260,9 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
   // instead.
   const detailsShapeFact = useMemo<FactDto | null>(() => {
     if (step !== WIZARD_STEP.DETAILS || !selectedTemplate || !canContinue) return null;
-    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, true, zoneOptions, 'wizard-shape-preview');
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, true, 'wizard-shape-preview');
     return question ? draftQuestionToFact(question) : null;
-  }, [step, selectedTemplate, canContinue, points, placeholderValues, zoneOptions]);
+  }, [step, selectedTemplate, canContinue, points, placeholderValues]);
 
   const [shapeModule] = useState(() => new WizardShapePreviewModule({ id: 'wizard-shape-preview', label: 'Question shape preview', color: '#22D3EE' }));
   const [detailsShapeArea, setDetailsShapeArea] = useState<Feature<Polygon | MultiPolygon> | null>(null);

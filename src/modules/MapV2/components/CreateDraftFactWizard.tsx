@@ -4,7 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Answer, OP_TYPE, OpType, ResolvedLatLon } from '../factsV2/factTypes';
 import { ANSWER_WORD, describeResolvedPoint, formatDistance, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
 import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/geometryAssets';
-import { NonGeoQuestionTemplateDto, QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { NonGeoQuestionTemplateDto, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
 import { BottomSheet } from './BottomSheet';
 
 export const WIZARD_STEP = {
@@ -99,10 +99,10 @@ interface PlaceholderSlotFieldProps {
   slotName: string;
   binding: Extract<SlotBinding, { source: 'PLACEHOLDER' }>;
   slotKind: 'POINT' | 'LINE' | 'POLYGON' | 'LENGTH';
-  /** This placeholder's own allowed_values from the template — undefined
-   * only in the brief window before the template detail call resolves
-   * (see useDraftFactWizard's selectTemplate). */
-  allowedValues: (string | number)[] | undefined;
+  /** This placeholder's own spec from the template — undefined only in the
+   * brief window before the template detail call resolves (see
+   * useDraftFactWizard's selectTemplate). */
+  spec: PlaceholderSpec | undefined;
   placeholderValues: PlaceholderValues;
   onSetPlaceholderValue: (key: string, value: string | number) => void;
   zoneOptions: PolygonOverlayItemData[];
@@ -110,16 +110,20 @@ interface PlaceholderSlotFieldProps {
 }
 
 const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
-  slotName, binding, slotKind, allowedValues, placeholderValues, onSetPlaceholderValue, zoneOptions, zoneOptionsLoading,
+  slotName, binding, slotKind, spec, placeholderValues, onSetPlaceholderValue, zoneOptions, zoneOptionsLoading,
 }) => {
   const selected = placeholderValues[binding.placeholder];
+  const allowedValues = spec?.allowed_values;
 
   if (slotKind === 'POLYGON') {
     // Only ever the zones this specific template allows — never the whole
     // catalog. allowedValues is undefined only until the template detail
     // call resolves (the list endpoint never carries it), in which case
     // every zone is shown briefly rather than none.
-    const allowedZones = allowedValues ? zoneOptions.filter((z) => allowedValues.includes(z.id)) : zoneOptions;
+    const allowedKeys = allowedValues
+      ?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'geometry' }> => v.type === 'geometry')
+      .map((v) => v.value.key);
+    const allowedZones = allowedKeys ? zoneOptions.filter((z) => allowedKeys.includes(z.id)) : zoneOptions;
     return (
       <div>
         <div className="text-xs font-semibold text-white mb-1.5">Which zone?</div>
@@ -146,16 +150,35 @@ const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
   }
 
   if (slotKind === 'LENGTH') {
+    // A template can curate its own distance options (allowed_values of
+    // type 'number', e.g. the worked "100/200 metres" example) — fall back
+    // to the fixed choice set only when it hasn't (every mock-converted
+    // legacy template, which has no such curation of its own).
+    const numberChoices = allowedValues?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'number' }> => v.type === 'number');
+    const choices = numberChoices && numberChoices.length > 0
+      ? numberChoices.map((v) => ({ value: v.value, label: v.display_name }))
+      : RADIUS_CHOICES_M.map((m) => ({ value: m, label: formatDistance(m) }));
     return (
       <div>
         <div className="text-xs font-semibold text-white mb-1.5">How far?</div>
         <div className="flex flex-wrap gap-1.5">
-          {RADIUS_CHOICES_M.map((m) => (
-            <button key={m} onClick={() => onSetPlaceholderValue(binding.placeholder, m)} className={chipStyle(selected === m)}>
-              {formatDistance(m)}
+          {choices.map((choice) => (
+            <button key={choice.value} onClick={() => onSetPlaceholderValue(binding.placeholder, choice.value)} className={chipStyle(selected === choice.value)}>
+              {choice.label}
             </button>
           ))}
         </div>
+        {spec?.allow_free_text && (
+          <input
+            type="number"
+            placeholder="Or type your own (metres)…"
+            className="mt-1.5 w-full rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/30"
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw) onSetPlaceholderValue(binding.placeholder, Number(raw));
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -333,7 +356,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
                 slotName={slotName}
                 binding={binding}
                 slotKind={slotKind}
-                allowedValues={selectedTemplate.placeholders[binding.placeholder]?.allowed_values}
+                spec={selectedTemplate.placeholders[binding.placeholder]}
                 placeholderValues={placeholderValues}
                 onSetPlaceholderValue={onSetPlaceholderValue}
                 zoneOptions={zoneOptions}
@@ -345,9 +368,16 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
           {(() => {
             const { asserted_answer: assertedAnswer } = selectedTemplate;
             if (assertedAnswer.source !== 'PLACEHOLDER') return null;
+            // A template can curate which of the op_type's legal answers it
+            // actually offers (e.g. only N/S, not the full compass) via the
+            // same placeholder's allowed_values — fall back to every legal
+            // answer for the op_type when it hasn't.
+            const curated = selectedTemplate.placeholders[assertedAnswer.placeholder]?.allowed_values
+              ?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'text' }> => v.type === 'text')
+              .map((v) => v.value as Answer);
             return (
               <AnswerChips
-                answers={SUBOP_CONTRACT[selectedTemplate.answer_instruction_type].answers}
+                answers={curated && curated.length > 0 ? curated : SUBOP_CONTRACT[selectedTemplate.answer_instruction_type].answers}
                 selected={placeholderValues[assertedAnswer.placeholder]}
                 onSelect={(value) => onSetPlaceholderValue(assertedAnswer.placeholder, value)}
               />

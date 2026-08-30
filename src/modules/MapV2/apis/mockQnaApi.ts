@@ -12,8 +12,8 @@ import { useCallback, useEffect, useState } from 'react';
 import templatesJson from '../mock/v2_question_templates.output.json';
 import nonGeoTemplatesJson from '../mock/v2_non_geo_templates.output.json';
 import { Answer, OpType } from '../factsV2/factTypes';
-import { AnswerRecordDto, AskedQuestionRecordDto, NonGeoQuestionTemplateDto, PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
-import { POLYGON_CATALOG, REGION_KIND, RegionKind } from '../factsV2/geometryAssets';
+import { AnswerRecordDto, AskedQuestionRecordDto, NonGeoQuestionTemplateDto, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { POLYGON_CATALOG, REGION_KIND, RegionKind, getCachedRegistriesSnapshot } from '../factsV2/geometryAssets';
 import { MOCK_PENDING_QUESTIONS } from '../factsV2/mockPendingQuestions';
 
 const MOCK_LATENCY_MS = 350;
@@ -108,6 +108,16 @@ function polygonPlaceholderKeys(template: QuestionTemplateDto): Set<string> {
   return keys;
 }
 
+/** Best-effort display name for a catalog key without an async fetch —
+ * usePolygonCatalog() resolves every key's real name in the background
+ * from mount, so by the time an asker reaches a zone picker it's normally
+ * already cached; falling back to the bare key covers the rare case where
+ * it isn't yet, same "best effort snapshot" reasoning
+ * getCachedRegistriesSnapshot's own doc comment describes. */
+function cachedDisplayName(key: string): string {
+  return getCachedRegistriesSnapshot().polygons[key]?.display_name ?? key;
+}
+
 function withPlaceholderAllowedValues(template: QuestionTemplateDto): QuestionTemplateDto {
   const polygonKeys = polygonPlaceholderKeys(template);
   const placeholders: Record<string, PlaceholderSpec> = {};
@@ -118,8 +128,22 @@ function withPlaceholderAllowedValues(template: QuestionTemplateDto): QuestionTe
       continue;
     }
     const kind = catalogKindForPlaceholder(key);
-    const allowed = POLYGON_CATALOG.filter((entry) => !kind || entry.kind === kind).map((entry) => entry.key);
-    placeholders[key] = { ...spec, allowed_values: allowed };
+    const allowed: PlaceholderAllowedValue[] = POLYGON_CATALOG
+      .filter((entry) => !kind || entry.kind === kind)
+      .map((entry) => ({
+        type: 'geometry',
+        display_name: cachedDisplayName(entry.key),
+        value: {
+          geometry_id: entry.key,
+          key: entry.key,
+          display_name: cachedDisplayName(entry.key),
+          kind: 'POLYGON',
+          source: 'NAMED_CONSTANT',
+        },
+      }));
+    // A curated pick-list of real zones — same reasoning as before ("options
+    // are from asset content only") — so free typing isn't offered here.
+    placeholders[key] = { ...spec, allow_free_text: false, allowed_values: allowed };
   }
   return { ...template, placeholders };
 }

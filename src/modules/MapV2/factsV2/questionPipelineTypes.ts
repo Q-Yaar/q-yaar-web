@@ -12,7 +12,17 @@
  * existed implicitly (split across each resolver's constructor signature in
  * resolvers/*.ts). Written out explicitly here so template conversion has
  * something concrete to validate slot_bindings against.
+ *
+ * This file's shapes (QuestionTemplateDto and friends) are the *client's*
+ * flat spec, not the wire shape the real Qonsole console API actually
+ * sends — see fromQuestionTemplateV2() at the bottom for the adapter
+ * between the two, and its doc comment for the three ways they differ
+ * (nested answer plan, compass-direction spelling, an optional answer
+ * plan on legacy rows). Nothing that already consumes QuestionTemplateDto
+ * (templateQuestionBuilder.ts, resolveClue.ts, the wizard) needs to change
+ * for this — they only ever see the already-adapted flat shape.
  */
+import { LineString, MultiPolygon, Point, Polygon } from 'geojson';
 import { Answer, FACT_TYPE, FactDto, OpType, ResolvedLatLon } from './factTypes';
 
 export type SlotKind = 'POINT' | 'LINE' | 'POLYGON' | 'LENGTH';
@@ -35,10 +45,38 @@ export type SlotBinding =
   | { source: 'PLACEHOLDER'; placeholder: string }
   | { source: 'TEMPLATE_CONSTANT'; value: string | number };
 
+/** A named geometry the console's asset catalog manages — what a
+ * PlaceholderAllowedValue of type 'geometry' carries as its `value`.
+ * Points never appear here (a POINT slot always carries its own
+ * coordinates, never a registry reference) — only POLYGON/LINE. */
+export interface GeometryRecord {
+  geometry_id: string;
+  /** Only NAMED_CONSTANT entries carry one — this is what op_meta
+   * (`polygon`/`line` fields) actually references. */
+  key?: string;
+  display_name: string;
+  kind: 'POLYGON' | 'LINE' | 'POINT';
+  source: 'NAMED_CONSTANT' | 'ASSET' | 'GEOJSON';
+  geometry?: Polygon | MultiPolygon | LineString | Point;
+  asset_url?: string;
+}
+
+/** One curated option for a placeholder — tagged by type so a numeric
+ * placeholder round-trips as a real number and a zone pick carries its own
+ * geometry reference, not just a string that happens to look like one.
+ * `display_name` is what the picker shows; `value` is what actually gets
+ * stored (in PlaceholderValues, then resolved_slots) once chosen. */
+export type PlaceholderAllowedValue =
+  | { type: 'geometry'; value: GeometryRecord; display_name: string }
+  | { type: 'text'; value: string; display_name: string }
+  | { type: 'number'; value: number; display_name: string };
+
 export interface PlaceholderSpec {
   required: boolean;
-  /** Omitted -> free text. */
-  allowed_values?: (string | number)[];
+  /** Asker can type a value outside allowed_values, not just pick one. */
+  allow_free_text: boolean;
+  /** Omitted -> nothing curated, free text only. */
+  allowed_values?: PlaceholderAllowedValue[];
 }
 
 export type AssertedAnswerBinding =
@@ -143,4 +181,107 @@ export function toFactRecord(question: AskedQuestionRecordDto, answer: AnswerRec
     created: answer.answered_at,
     modified: answer.answered_at,
   };
+}
+
+// ============================================================================
+// Wire adapter — QuestionTemplateV2 (Qonsole/console API shape) -> the flat
+// QuestionTemplateDto above. See "Ask to Fact — Templates v2 Contract" §2 for
+// the three mismatches this resolves; nothing downstream of the adapter
+// needs to know the wire shape ever differed.
+// ============================================================================
+
+/** The console's own Answer spelling for the four compass points —
+ * everywhere else (INSIDE/OUTSIDE, HOTTER/COLDER) already matches the
+ * client's ANSWER byte-for-byte. Left untranslated, POINT_SPLIT resolves
+ * nothing (PointSplitResolver.contains() falls through to false). */
+const WIRE_ANSWER_ALIASES: Record<string, Answer> = {
+  NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W',
+};
+
+/** Any wire Answer spelling -> the client's. Passes through unchanged for
+ * every answer that already matches (INSIDE/OUTSIDE/HOTTER/COLDER/N/S/E/W). */
+export function normalizeWireAnswer(value: string): Answer {
+  return (WIRE_ANSWER_ALIASES[value] ?? value) as Answer;
+}
+
+function normalizeAllowedValue(value: PlaceholderAllowedValue): PlaceholderAllowedValue {
+  if (value.type !== 'text') return value;
+  const normalized = WIRE_ANSWER_ALIASES[value.value];
+  return normalized ? { ...value, value: normalized } : value;
+}
+
+/** The console's nested answer plan — §2.01. Note operation_type where the
+ * client says answer_instruction_type; that rename happens in the adapter,
+ * not by aliasing the field here, so a reader can't mistake this for
+ * already being the client shape. */
+interface AnswerInstructionMetaV2 {
+  operation_type: OpType;
+  slot_bindings: Record<string, SlotBinding>;
+  asserted_answer: AssertedAnswerBinding;
+  placeholders: Record<string, PlaceholderSpec>;
+}
+
+/**
+ * The shape GET/POST /api/v1/qna/... actually returns. `question_id` and
+ * `answer_instruction_meta` are both optional per §2.03/§2.04 — a row
+ * created before this pipeline existed has neither a
+ * `question_template_id` nor an answer plan, only the legacy `question_id`.
+ * Qonsole's own API layer normalizes the id before its frontend ever sees
+ * one of these; since q-yaar-web talks to the API directly rather than
+ * through Qonsole's code, fromQuestionTemplateV2() below repeats that same
+ * fallback rather than assuming it's already been done upstream.
+ */
+export interface QuestionTemplateV2 {
+  question_template_id?: string;
+  question_id?: string;
+  template: string;
+  category: PipelineCategory;
+  answer_instruction_meta?: AnswerInstructionMetaV2;
+  created: string;
+  modified: string;
+}
+
+/**
+ * Returns null for a pre-v2 row (no answer_instruction_meta — §2.03) or one
+ * with no resolvable id at all — there's nothing a QuestionTemplateDto can
+ * represent for either. Otherwise: unwraps the nested answer plan flat
+ * (§2.01), renames operation_type -> answer_instruction_type, and
+ * translates every NORTH/SOUTH/EAST/WEST spelling to N/S/E/W (§2.02) —
+ * both in a TEMPLATE_CONSTANT asserted_answer and in any 'text'-type
+ * allowed_value a PLACEHOLDER-sourced asserted_answer might offer to pick
+ * from (e.g. "Are you {{ direction }} of me?").
+ */
+export function fromQuestionTemplateV2(wire: QuestionTemplateV2): QuestionTemplateDto | null {
+  const questionTemplateId = wire.question_template_id ?? wire.question_id;
+  if (!questionTemplateId || !wire.answer_instruction_meta) return null;
+
+  const { operation_type, slot_bindings, asserted_answer, placeholders } = wire.answer_instruction_meta;
+
+  const normalizedAssertedAnswer: AssertedAnswerBinding = asserted_answer.source === 'TEMPLATE_CONSTANT'
+    ? { source: 'TEMPLATE_CONSTANT', value: normalizeWireAnswer(asserted_answer.value) }
+    : asserted_answer;
+
+  const normalizedPlaceholders: Record<string, PlaceholderSpec> = {};
+  for (const [key, spec] of Object.entries(placeholders)) {
+    normalizedPlaceholders[key] = {
+      ...spec,
+      allowed_values: spec.allowed_values?.map(normalizeAllowedValue),
+    };
+  }
+
+  return {
+    question_template_id: questionTemplateId,
+    template: wire.template,
+    category: wire.category,
+    answer_instruction_type: operation_type,
+    slot_bindings,
+    asserted_answer: normalizedAssertedAnswer,
+    placeholders: normalizedPlaceholders,
+    created: wire.created,
+    modified: wire.modified,
+  };
+}
+
+export function fromQuestionTemplateV2List(wire: QuestionTemplateV2[]): QuestionTemplateDto[] {
+  return wire.map(fromQuestionTemplateV2).filter((t): t is QuestionTemplateDto => t !== null);
 }

@@ -8,9 +8,8 @@
  * hand-picked "wizard kinds" (circle/zone/hotter-colder) instead of
  * whatever templates the API actually returns.
  */
-import { PolygonOverlayItemData } from './geometryAssets';
 import { Answer, AskedQuestionDto, ResolvedLatLon } from './factTypes';
-import { QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
+import { PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
 
 export const formatDistance = (metres: number): string => (
   metres >= 1000 ? `${(metres / 1000).toFixed(metres % 1000 === 0 ? 0 : 1)} km` : `${metres} m`
@@ -90,15 +89,23 @@ export function isTemplateComplete(template: QuestionTemplateDto, points: PointV
     && resolveAssertedAnswer(template, placeholders) !== null;
 }
 
-function slotDisplayText(binding: SlotBinding, value: SlotValue, zoneOptions: PolygonOverlayItemData[]): string {
+/** The curated display name for whichever value the asker picked, if it
+ * came from allowed_values — a geometry entry matches by its own `key`
+ * (the actual stored/resolved value), text/number entries match by value
+ * directly. Null for a free-typed value with nothing to match against. */
+function allowedValueDisplayName(allowedValues: PlaceholderAllowedValue[] | undefined, value: string | number): string | null {
+  const match = allowedValues?.find((v) => (v.type === 'geometry' ? v.value.key === value : v.value === value));
+  return match ? match.display_name : null;
+}
+
+function slotDisplayText(binding: SlotBinding, value: SlotValue, placeholderSpec: PlaceholderSpec | undefined): string {
   if (binding.source === 'ASKER_LOCATION') return 'your location';
   if (binding.source === 'MAP_POINT') return describeResolvedPoint(value as ResolvedLatLon, 'the point you picked');
-  // A bare number, not formatDistance's "3 km" — every template's own
-  // prose already supplies the unit word next to {{ the placeholder }}
-  // ("...within {{ distance }} metres..."), so adding one here doubles up.
-  if (typeof value === 'number') return String(value);
-  const zone = zoneOptions.find((z) => z.id === value);
-  return zone ? zone.displayName : String(value);
+  if (typeof value !== 'string' && typeof value !== 'number') return String(value);
+  // A bare number when nothing's curated — every template's own prose
+  // already supplies the unit word next to {{ the placeholder }} ("...within
+  // {{ distance }} metres..."), so adding one here doubles up.
+  return allowedValueDisplayName(placeholderSpec?.allowed_values, value) ?? String(value);
 }
 
 /** Substitutes every {{ token }} in the template's prose with a
@@ -112,7 +119,6 @@ export function buildRenderedQuestion(
   template: QuestionTemplateDto,
   points: PointValues,
   placeholders: PlaceholderValues,
-  zoneOptions: PolygonOverlayItemData[],
 ): string {
   const placeholderText: Record<string, string> = {};
 
@@ -120,9 +126,9 @@ export function buildRenderedQuestion(
     const value = resolveSlotValue(binding, slotName, points, placeholders);
     if (value === undefined) continue;
     if (binding.source === 'PLACEHOLDER') {
-      placeholderText[binding.placeholder] = slotDisplayText(binding, value, zoneOptions);
+      placeholderText[binding.placeholder] = slotDisplayText(binding, value, template.placeholders[binding.placeholder]);
     } else if (binding.source === 'MAP_POINT' && binding.label_placeholder) {
-      placeholderText[binding.label_placeholder] = slotDisplayText(binding, value, zoneOptions);
+      placeholderText[binding.label_placeholder] = slotDisplayText(binding, value, template.placeholders[binding.label_placeholder]);
     }
   }
 
@@ -194,7 +200,6 @@ export function buildAskedQuestion(
   points: PointValues,
   placeholders: PlaceholderValues,
   assumedValue: boolean,
-  zoneOptions: PolygonOverlayItemData[],
   questionId: string,
 ): AskedQuestionDto | null {
   const resolvedSlots = resolveTemplateSlots(template, points, placeholders);
@@ -203,7 +208,7 @@ export function buildAskedQuestion(
 
   return {
     question_id: questionId,
-    rendered_question: buildRenderedQuestion(template, points, placeholders, zoneOptions),
+    rendered_question: buildRenderedQuestion(template, points, placeholders),
     answer_instruction_type: template.answer_instruction_type,
     question_meta: {
       resolved_slots: resolvedSlots,
