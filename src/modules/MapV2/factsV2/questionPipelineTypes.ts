@@ -194,6 +194,13 @@ export interface AskedQuestionV2 {
     answer_instruction_type: OpType;
     asserted_answer: Answer;
     resolved_slots: Record<string, ResolvedLatLon | string | number>;
+    /** The same tagged {type, value, display_name} triples the ask request
+     * sent (models/QnA.ts's AskQuestionRequestV2.question_meta.resolved_placeholders)
+     * — echoed back here so a display can substitute a PLACEHOLDER-bound
+     * token with its curated display_name instead of the raw stored value
+     * (a zone's geometry key, an unlabelled number). Optional since a
+     * pre-v2 or template-less record has nothing to echo. */
+    resolved_placeholders?: Record<string, PlaceholderAllowedValue>;
   };
   /** Populated once the hider has answered (see the real answerQuestion
    * mutation's body, models/QnA.ts's AnswerQuestionRequest) — empty ({})

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { AskedQuestionV2 } from '../factsV2/questionPipelineTypes';
+import { renderAskedQuestionText } from '../factsV2/templateQuestionBuilder';
 import { BottomSheet } from './BottomSheet';
 
 export interface AcceptAnswersSheetProps {
@@ -43,7 +44,7 @@ export const AcceptAnswersSheet: React.FC<AcceptAnswersSheetProps> = ({
               className="w-full flex items-center gap-2.5 rounded-lg border border-white/10 px-3 py-2.5 text-left transition-colors hover:border-white/30 hover:bg-white/5 active:bg-white/10 disabled:opacity-50"
             >
               <span className="flex-1 min-w-0">
-                <span className="block text-xs font-semibold text-white">{q.rendered_question}</span>
+                <span className="block text-xs font-semibold text-white">{renderAskedQuestionText(q)}</span>
                 <span className="block text-[11px] text-white/40">
                   {q.category.category_name} — answered {q.answer_meta?.result ? 'Yes' : 'No'}
                 </span>

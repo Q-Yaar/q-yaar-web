@@ -1,6 +1,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { AskedQuestionV2 } from '../factsV2/questionPipelineTypes';
+import { renderAskedQuestionText } from '../factsV2/templateQuestionBuilder';
 import { BottomSheet } from './BottomSheet';
 
 export const ANSWER_STEP = {
@@ -73,7 +74,7 @@ export const AnswerQuestionsSheet: React.FC<AnswerQuestionsSheetProps> = ({
                 onClick={() => onSelectQuestion(q)}
                 className="w-full rounded-lg border border-white/10 px-3 py-2.5 text-left transition-colors hover:border-white/30 hover:bg-white/5 active:bg-white/10"
               >
-                <span className="block text-xs font-semibold text-white">{q.rendered_question}</span>
+                <span className="block text-xs font-semibold text-white">{renderAskedQuestionText(q)}</span>
                 <span className="block text-[11px] text-white/40">{q.category.category_name}</span>
               </button>
             ))}
@@ -84,7 +85,7 @@ export const AnswerQuestionsSheet: React.FC<AnswerQuestionsSheetProps> = ({
       {step === ANSWER_STEP.SHAPE && selectedQuestion && (
         <div className="space-y-3">
           <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white">
-            {selectedQuestion.rendered_question}
+            {renderAskedQuestionText(selectedQuestion)}
           </div>
           <p className="text-[11px] text-white/40">
             The cyan shape on the map is exactly what this question is asking about, bounded by the game area — take a look before you answer.
@@ -95,7 +96,7 @@ export const AnswerQuestionsSheet: React.FC<AnswerQuestionsSheetProps> = ({
       {step === ANSWER_STEP.ANSWER && selectedQuestion && (
         <div className="space-y-3">
           <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white">
-            {selectedQuestion.rendered_question}
+            {renderAskedQuestionText(selectedQuestion)}
           </div>
 
           <div>

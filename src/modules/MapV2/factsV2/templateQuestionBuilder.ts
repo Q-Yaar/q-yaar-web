@@ -9,7 +9,7 @@
  * whatever templates the API actually returns.
  */
 import { Answer, AskedQuestionDto, ResolvedLatLon } from './factTypes';
-import { GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
+import { AskedQuestionV2, GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
 
 export const formatDistance = (metres: number): string => (
   metres >= 1000 ? `${(metres / 1000).toFixed(metres % 1000 === 0 ? 0 : 1)} km` : `${metres} m`
@@ -173,6 +173,30 @@ export function buildRenderedQuestion(
   }
 
   return template.template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, token) => placeholderText[token] ?? token);
+}
+
+/** Same {{ token }} substitution as buildRenderedQuestion, but for an
+ * already-asked question fetched from the API (AnswerQuestionsSheet,
+ * AcceptAnswersSheet) rather than one still being composed — those sheets
+ * never fetch the full template, so this is driven entirely by
+ * question_meta.resolved_placeholders, the same tagged {type, value,
+ * display_name} triples the ask request sent, echoed back by every
+ * asked-question response. A token whose resolved value happens to be a
+ * legal Answer word (almost always the asserted_answer's own placeholder)
+ * renders as that word (e.g. "north"), same as buildRenderedQuestion's
+ * asserted_answer special-case, rather than whatever display_name the
+ * template curated for the chip. A token with no resolved_placeholders
+ * entry — unresolved, or a MAP_POINT label_placeholder, which
+ * resolved_placeholders never carries — is left as its bare name, same
+ * fallback buildRenderedQuestion uses. */
+export function renderAskedQuestionText(question: AskedQuestionV2): string {
+  const resolvedPlaceholders = question.question_meta.resolved_placeholders ?? {};
+  return question.template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, token) => {
+    const resolved = resolvedPlaceholders[token];
+    if (!resolved) return token;
+    if (resolved.type === 'text' && resolved.value in ANSWER_WORD) return ANSWER_WORD[resolved.value as Answer];
+    return resolved.display_name;
+  });
 }
 
 /** The slot kinds this wizard can actually render a picker for. A LINE
