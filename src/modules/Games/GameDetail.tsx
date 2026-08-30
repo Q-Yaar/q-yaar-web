@@ -158,7 +158,7 @@ export default function GameDetail() {
           />
         )}
 
-        <QuestionsCard />
+        <QuestionsCard gameId={gameId!} />
 
         {!isSpectator && team && <DecksCard gameId={gameId!} team={team} />}
       </div>
