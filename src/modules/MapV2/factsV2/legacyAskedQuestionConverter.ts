@@ -1,7 +1,7 @@
 /**
  * ============================================================================
- * TEMPORARY FILE — mirrors legacyFactConverter.ts and legacyTemplateConverter.ts,
- * the last hop before a real Fact: converts a legacy AskedQuestion
+ * TEMPORARY FILE — mirrors legacyFactConverter.ts, the last hop before a
+ * real Fact: converts a legacy AskedQuestion
  * (src/models/QnA.ts — what GET /qna/game/:id/asked-questions actually
  * returns today) into the AskedQuestionRecordDto stage 2 describes, and —
  * since the legacy response conflates stages 2 and 3 in one object — also
@@ -12,13 +12,13 @@
  *
  * The legacy payload carries the resolved values for each category's
  * mechanism spread across two places: question_meta.location_points (an
- * ordered, unlabelled array — see legacyTemplateConverter.ts's per-category
- * slot_bindings for what each index means) and fact_meta (the placeholder's
- * resolved value: radius, split_direction, feature_name — populated by
- * CATEGORY_REGISTRY's ask.placeholderMap at ask time). Re-deriving
- * resolved_slots means re-applying that same per-category knowledge one
- * more time, branch for branch, matching legacyTemplateConverter.ts exactly
- * — a template and its asked questions must resolve to the same op_type.
+ * ordered, unlabelled array — which index means what is per-category
+ * knowledge, the same knowledge a template's own slot_bindings encode) and
+ * fact_meta (the placeholder's resolved value: radius, split_direction,
+ * feature_name — populated by CATEGORY_REGISTRY's ask.placeholderMap at ask
+ * time). Re-deriving resolved_slots means re-applying that same
+ * per-category knowledge one more time, branch for branch — a template and
+ * its asked questions must resolve to the same op_type.
  *
  * Only the same five categories convert (Matching, Measuring, Thermometer/
  * "Hotter / Colder", Radar, Relative/"Relative Heading"); anything else, or

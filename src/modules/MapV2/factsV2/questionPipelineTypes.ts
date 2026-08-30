@@ -106,12 +106,12 @@ export interface QuestionTemplateDto {
 }
 
 /**
- * A template whose legacy category has no geo mechanism at all (Photos,
- * ...) — no op_type, no slots, nothing SUBOP_CONTRACT can describe. Kept
- * as its own minimal shape (not a QuestionTemplateDto with a fake op_type)
- * so the type system can't accidentally treat one as map-answerable
- * anywhere downstream. The wizard lists these purely for visibility — see
- * legacyTemplateConverter.ts's convertLegacyNonGeoTemplates.
+ * A pre-v2 row with no answer_instruction_meta at all (§2.03) — no
+ * op_type, no slots, nothing SUBOP_CONTRACT can describe. Kept as its own
+ * minimal shape (not a QuestionTemplateDto with a fake op_type) so the
+ * type system can't accidentally treat one as map-answerable anywhere
+ * downstream. The wizard lists these purely for visibility — see
+ * classifyQuestionTemplatesV2 below.
  */
 export interface NonGeoQuestionTemplateDto {
   question_template_id: string;
@@ -252,4 +252,41 @@ export function fromQuestionTemplateV2(wire: QuestionTemplateV2): QuestionTempla
 
 export function fromQuestionTemplateV2List(wire: QuestionTemplateV2[]): QuestionTemplateDto[] {
   return wire.map(fromQuestionTemplateV2).filter((t): t is QuestionTemplateDto => t !== null);
+}
+
+export interface ClassifiedQuestionTemplates {
+  geo: QuestionTemplateDto[];
+  nonGeo: NonGeoQuestionTemplateDto[];
+}
+
+/**
+ * The real list endpoint returns one mixed collection — v2 rows with an
+ * answer plan alongside pre-v2 legacy rows with none (§2.03) — split here
+ * into the two shapes the wizard actually renders as separate sections
+ * (mockQnaApi.ts's useGetQuestionTemplatesQuery / useGetNonGeoQuestionTemplatesQuery).
+ * A row with neither a resolvable id nor an answer plan is dropped
+ * entirely — there's nothing either shape can represent for it.
+ */
+export function classifyQuestionTemplatesV2(wire: QuestionTemplateV2[]): ClassifiedQuestionTemplates {
+  const geo: QuestionTemplateDto[] = [];
+  const nonGeo: NonGeoQuestionTemplateDto[] = [];
+
+  for (const row of wire) {
+    const converted = fromQuestionTemplateV2(row);
+    if (converted) {
+      geo.push(converted);
+      continue;
+    }
+    const questionTemplateId = row.question_template_id ?? row.question_id;
+    if (!questionTemplateId) continue;
+    nonGeo.push({
+      question_template_id: questionTemplateId,
+      template: row.template,
+      category: row.category,
+      created: row.created,
+      modified: row.modified,
+    });
+  }
+
+  return { geo, nonGeo };
 }

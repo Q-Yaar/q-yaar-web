@@ -1,19 +1,29 @@
 /**
- * Mock API layer for the FactsV2 question pipeline — everything the wizard
- * needs to fetch templates and submit a question, shaped exactly like a
- * real API would return it, so the UI layer only ever sees QuestionTemplateDto
- * (and the ask-question ack), never the mock JSON or converters directly.
- * Swapping this for a real RTK Query endpoint later is a one-file change:
- * the hook names and shapes are deliberately RTK-Query-flavored
- * ({data, isLoading} / [trigger, {isLoading}]) even though the "network"
- * here is just a setTimeout over static JSON.
+ * The FactsV2 question pipeline's API layer. Question templates (stage 1)
+ * are now real — the backend supports the v2 contract — wired through
+ * qnaTemplatesApi.ts (list) and src/apis/qnaApi.ts's own detail endpoint
+ * (identical URL, reused rather than duplicated). Asking a question,
+ * answering one, and listing pending questions (stages 2-3) stay mocked
+ * below: there's no contract for those endpoints yet, so wiring them would
+ * mean guessing shapes rather than building against something real. Their
+ * hook names/shapes are deliberately RTK-Query-flavored
+ * ({data, isLoading} / [trigger, {isLoading}]) so swapping them for real
+ * endpoints later, once there's a contract for them too, is a one-file
+ * change the same way the template hooks just were.
  */
-import { useCallback, useEffect, useState } from 'react';
-import templatesJson from '../mock/v2_question_templates.output.json';
-import nonGeoTemplatesJson from '../mock/v2_non_geo_templates.output.json';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { qnaApi } from '../../../apis/qnaApi';
+import { useFetchQuestionTemplatesV2Query } from './qnaTemplatesApi';
 import { Answer, OpType } from '../factsV2/factTypes';
-import { AnswerRecordDto, AskedQuestionRecordDto, NonGeoQuestionTemplateDto, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
-import { POLYGON_CATALOG, REGION_KIND, RegionKind, getCachedRegistriesSnapshot } from '../factsV2/geometryAssets';
+import {
+  AnswerRecordDto,
+  AskedQuestionRecordDto,
+  NonGeoQuestionTemplateDto,
+  QuestionTemplateDto,
+  QuestionTemplateV2,
+  classifyQuestionTemplatesV2,
+  fromQuestionTemplateV2,
+} from '../factsV2/questionPipelineTypes';
 import { MOCK_PENDING_QUESTIONS } from '../factsV2/mockPendingQuestions';
 
 const MOCK_LATENCY_MS = 350;
@@ -23,28 +33,12 @@ export interface UseGetQuestionTemplatesResult {
   isLoading: boolean;
 }
 
-/** Stand-in for GET /qna/v2/questions/ — the pre-converted output of
- * legacyTemplateConverter.ts (see mock/v2_question_templates.output.json),
- * served back after a simulated round trip. */
+/** GET /api/v1/qna/questions/ (qnaTemplatesApi.ts) — the map-answerable
+ * half of the response: every row with a real answer_instruction_meta. */
 export function useGetQuestionTemplatesQuery(): UseGetQuestionTemplatesResult {
-  const [data, setData] = useState<QuestionTemplateDto[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      setData(templatesJson as unknown as QuestionTemplateDto[]);
-      setIsLoading(false);
-    }, MOCK_LATENCY_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, []);
-
-  return { data, isLoading };
+  const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query();
+  const templates = useMemo(() => (data ? classifyQuestionTemplatesV2(data).geo : undefined), [data]);
+  return { data: templates, isLoading: isLoading || isFetching };
 }
 
 export interface UseGetNonGeoQuestionTemplatesResult {
@@ -52,131 +46,48 @@ export interface UseGetNonGeoQuestionTemplatesResult {
   isLoading: boolean;
 }
 
-/** Stand-in for GET /qna/v2/questions/?geo=false — question types with no
- * geo mechanism (Photos, ...), listed separately from
- * useGetQuestionTemplatesQuery since a NonGeoQuestionTemplateDto isn't
- * map-answerable at all (see questionPipelineTypes.ts). The wizard shows
- * these below the real question list purely for visibility. */
+/** Same GET /api/v1/qna/questions/ call — RTK Query dedupes the identical
+ * request with useGetQuestionTemplatesQuery's, one network round trip
+ * either way. The other half of the split: pre-v2 rows with no answer plan
+ * at all (§2.03), listed separately since a NonGeoQuestionTemplateDto
+ * isn't map-answerable. */
 export function useGetNonGeoQuestionTemplatesQuery(): UseGetNonGeoQuestionTemplatesResult {
-  const [data, setData] = useState<NonGeoQuestionTemplateDto[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      setData(nonGeoTemplatesJson as unknown as NonGeoQuestionTemplateDto[]);
-      setIsLoading(false);
-    }, MOCK_LATENCY_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, []);
-
-  return { data, isLoading };
-}
-
-/** Which polygon catalog kind a POLYGON placeholder's own name implies —
- * "metro_line" clearly wants metro catchments, "gba_corporation"/"region"
- * clearly want corporations. A placeholder name this doesn't recognise
- * falls back to the whole catalog rather than guessing wrong. This whole
- * function is a mock-only stand-in for whatever curation a real detail
- * endpoint would already have done — the point isn't the heuristic, it's
- * that every value it returns is a real POLYGON_CATALOG key ("options are
- * from asset content only"), never an arbitrary string. */
-function catalogKindForPlaceholder(placeholderKey: string): RegionKind | null {
-  const key = placeholderKey.toLowerCase();
-  if (key.includes('metro') || key.includes('line')) return REGION_KIND.METRO_CATCHMENT;
-  if (key.includes('corp') || key.includes('gba') || key.includes('region')) return REGION_KIND.CORPORATION;
-  return null;
-}
-
-/** Every placeholder key bound to a POLYGON-kind slot in this template —
- * derived from SUBOP_CONTRACT, not the slot's name, so this stays correct
- * even for an op_type that names its polygon slot something other than
- * "polygon". */
-function polygonPlaceholderKeys(template: QuestionTemplateDto): Set<string> {
-  const contract = SUBOP_CONTRACT[template.answer_instruction_type];
-  const keys = new Set<string>();
-  for (const [slotName, binding] of Object.entries(template.slot_bindings)) {
-    if (binding.source === 'PLACEHOLDER' && contract.slots[slotName] === 'POLYGON') {
-      keys.add(binding.placeholder);
-    }
-  }
-  return keys;
-}
-
-/** Best-effort display name for a catalog key without an async fetch —
- * usePolygonCatalog() resolves every key's real name in the background
- * from mount, so by the time an asker reaches a zone picker it's normally
- * already cached; falling back to the bare key covers the rare case where
- * it isn't yet, same "best effort snapshot" reasoning
- * getCachedRegistriesSnapshot's own doc comment describes. */
-function cachedDisplayName(key: string): string {
-  return getCachedRegistriesSnapshot().polygons[key]?.display_name ?? key;
-}
-
-function withPlaceholderAllowedValues(template: QuestionTemplateDto): QuestionTemplateDto {
-  const polygonKeys = polygonPlaceholderKeys(template);
-  const placeholders: Record<string, PlaceholderSpec> = {};
-  for (const [key, spec] of Object.entries(template.placeholders)) {
-    const alreadyHasOptions = spec.allowed_values && spec.allowed_values.length > 0;
-    if (alreadyHasOptions || !polygonKeys.has(key)) {
-      placeholders[key] = spec;
-      continue;
-    }
-    const kind = catalogKindForPlaceholder(key);
-    const allowed: PlaceholderAllowedValue[] = POLYGON_CATALOG
-      .filter((entry) => !kind || entry.kind === kind)
-      .map((entry) => ({
-        type: 'geometry',
-        display_name: cachedDisplayName(entry.key),
-        value: {
-          geometry_id: entry.key,
-          key: entry.key,
-          display_name: cachedDisplayName(entry.key),
-          kind: 'POLYGON',
-          source: 'NAMED_CONSTANT',
-        },
-      }));
-    // A curated pick-list of real zones — same reasoning as before ("options
-    // are from asset content only") — so free typing isn't offered here.
-    placeholders[key] = { ...spec, allow_free_text: false, allowed_values: allowed };
-  }
-  return { ...template, placeholders };
+  const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query();
+  const templates = useMemo(() => (data ? classifyQuestionTemplatesV2(data).nonGeo : undefined), [data]);
+  return { data: templates, isLoading: isLoading || isFetching };
 }
 
 export interface UseGetQuestionTemplateDetailResult {
   isLoading: boolean;
 }
 
-/** Stand-in for GET /qna/v2/questions/:id — the one endpoint that actually
- * carries a placeholder's allowed_values (the list endpoint above never
- * does, matching the real legacy API this whole pipeline mirrors — see
- * legacyTemplateConverter.ts's tokensInProse fallback). The wizard calls
- * this once a template is picked, so the zone picker can scope itself to
- * exactly what the template allows instead of every zone that exists. */
+/** GET /api/v1/qna/categories/{category_id}/questions/{question_template_id}
+ * — the exact URL src/apis/qnaApi.ts's fetchQuestionTemplateDetails already
+ * calls, reused here via its auto-generated lazy hook (RTK Query generates
+ * one for every builder.query endpoint whether or not the defining file
+ * re-exports it) rather than duplicated. That endpoint's legacy TypeScript
+ * return type doesn't declare the v2 answer_instruction_meta field a real
+ * response now also carries, so the raw result is cast before adapting.
+ * The wizard calls this once a template is picked, so the zone picker can
+ * scope itself to exactly what the template allows instead of every zone
+ * that exists. */
 export function useGetQuestionTemplateDetail(): [
-  (templateId: string) => Promise<QuestionTemplateDto | undefined>,
+  (categoryId: string, questionTemplateId: string) => Promise<QuestionTemplateDto | undefined>,
   UseGetQuestionTemplateDetailResult,
 ] {
-  const [isLoading, setIsLoading] = useState(false);
+  const [trigger, { isLoading }] = qnaApi.useLazyFetchQuestionTemplateDetailsQuery();
 
-  const trigger = useCallback((templateId: string): Promise<QuestionTemplateDto | undefined> => {
-    setIsLoading(true);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        const templates = templatesJson as unknown as QuestionTemplateDto[];
-        const base = templates.find((t) => t.question_template_id === templateId);
-        resolve(base ? withPlaceholderAllowedValues(base) : undefined);
-      }, MOCK_LATENCY_MS);
-    });
-  }, []);
+  const fetchDetail = useCallback((categoryId: string, questionTemplateId: string): Promise<QuestionTemplateDto | undefined> => {
+    return trigger({ categoryId, questionId: questionTemplateId })
+      .unwrap()
+      .then((wire) => fromQuestionTemplateV2(wire as unknown as QuestionTemplateV2) ?? undefined)
+      .catch((err) => {
+        console.warn('[MapV2] Failed to fetch question template detail', err);
+        return undefined;
+      });
+  }, [trigger]);
 
-  return [trigger, { isLoading }];
+  return [fetchDetail, { isLoading }];
 }
 
 export interface AskQuestionInput {

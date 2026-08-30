@@ -171,12 +171,12 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
    * per point-slot) — or, failing that, an automatic device fix for the
    * first ASKER_LOCATION-bound slot, since "device GPS, automatically" is
    * exactly what that binding means. Also fetches the template's detail —
-   * the list endpoint never carries a placeholder's allowed_values (see
-   * legacyTemplateConverter.ts), only the detail one does — so a polygon
-   * picker starts against the list-sourced template (all slots except the
-   * zone list itself already usable) and swaps to the enriched one the
-   * moment the detail call resolves, scoping the zone picker to exactly
-   * what this template allows instead of every zone that exists. */
+   * the list endpoint's own allowed_values may be less complete than the
+   * per-template detail endpoint's — so a polygon picker starts against
+   * the list-sourced template (all slots except the zone list itself
+   * already usable) and swaps to the enriched one the moment the detail
+   * call resolves, scoping the zone picker to exactly what this template
+   * allows instead of every zone that exists. */
   const selectTemplate = useCallback((template: QuestionTemplateDto) => {
     setSelectedTemplate(template);
     setPlaceholderValues({});
@@ -196,7 +196,7 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
       if (autoSlot) locateMeFor((p) => setPointForSlot(autoSlot, p));
     }
 
-    getTemplateDetail(template.question_template_id).then((detail) => {
+    getTemplateDetail(template.category.category_id, template.question_template_id).then((detail) => {
       if (detail) setSelectedTemplate((current) => (current?.question_template_id === detail.question_template_id ? detail : current));
     });
 
