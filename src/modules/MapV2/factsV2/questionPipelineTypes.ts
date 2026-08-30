@@ -110,18 +110,20 @@ export interface AnswerInstructionMetaV2 {
  * `answer_instruction_meta` are both optional per §2.03/§2.04 — a row
  * created before this pipeline existed (no map mechanism at all) has
  * neither a `question_template_id` nor an answer plan, only the legacy
- * `question_id`. Qonsole's own API layer normalizes the id before its
- * frontend ever sees one of these; since q-yaar-web talks to the API
- * directly rather than through Qonsole's code, questionTemplateId() below
- * repeats that same fallback rather than assuming it's already been done
- * upstream.
+ * `question_id`. `answer_instruction_meta` itself comes through as an
+ * explicit `null` on such a row, not an omitted key, hence `| null` here
+ * rather than just optional. Qonsole's own API layer normalizes the id
+ * before its frontend ever sees one of these; since q-yaar-web talks to the
+ * API directly rather than through Qonsole's code, questionTemplateId()
+ * below repeats that same fallback rather than assuming it's already been
+ * done upstream.
  */
 export interface QuestionTemplateV2 {
   question_template_id?: string;
   question_id?: string;
   template: string;
   category: PipelineCategory;
-  answer_instruction_meta?: AnswerInstructionMetaV2;
+  answer_instruction_meta?: AnswerInstructionMetaV2 | null;
   created: string;
   modified: string;
 }
@@ -139,9 +141,10 @@ export function questionTemplateId(t: QuestionTemplateV2): string | undefined {
 }
 
 /** True for a row with a real answer plan (§2.01) — the map-answerable
- * half of the list endpoint's mixed response. */
+ * half of the list endpoint's mixed response. A pre-v2 row's plan comes
+ * through as `null`, not just an omitted key, so this checks both. */
 export function isGeoTemplate(t: QuestionTemplateV2): t is GeoQuestionTemplate {
-  return t.answer_instruction_meta !== undefined;
+  return t.answer_instruction_meta != null;
 }
 
 export interface ClassifiedQuestionTemplates {
