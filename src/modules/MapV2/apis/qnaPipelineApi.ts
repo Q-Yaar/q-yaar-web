@@ -13,18 +13,15 @@ import { useCallback, useMemo } from 'react';
 import { qnaApi, useFetchAskedQuestionsQuery } from '../../../apis/qnaApi';
 import { useFetchQuestionTemplatesV2Query } from './qnaTemplatesApi';
 import {
-  AskedQuestionRecordDto,
   AskedQuestionV2,
-  NonGeoQuestionTemplateDto,
-  QuestionTemplateDto,
+  GeoQuestionTemplate,
   QuestionTemplateV2,
   classifyQuestionTemplatesV2,
-  fromAskedQuestionV2List,
-  fromQuestionTemplateV2,
+  isGeoTemplate,
 } from '../factsV2/questionPipelineTypes';
 
 export interface UseGetQuestionTemplatesResult {
-  data: QuestionTemplateDto[] | undefined;
+  data: GeoQuestionTemplate[] | undefined;
   isLoading: boolean;
 }
 
@@ -37,15 +34,14 @@ export function useGetQuestionTemplatesQuery(): UseGetQuestionTemplatesResult {
 }
 
 export interface UseGetNonGeoQuestionTemplatesResult {
-  data: NonGeoQuestionTemplateDto[] | undefined;
+  data: QuestionTemplateV2[] | undefined;
   isLoading: boolean;
 }
 
 /** Same GET /api/v1/qna/questions/ call — RTK Query dedupes the identical
  * request with useGetQuestionTemplatesQuery's, one network round trip
  * either way. The other half of the split: pre-v2 rows with no answer plan
- * at all (§2.03), listed separately since a NonGeoQuestionTemplateDto
- * isn't map-answerable. */
+ * at all (§2.03), listed separately since they aren't map-answerable. */
 export function useGetNonGeoQuestionTemplatesQuery(): UseGetNonGeoQuestionTemplatesResult {
   const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query();
   const templates = useMemo(() => (data ? classifyQuestionTemplatesV2(data).nonGeo : undefined), [data]);
@@ -62,20 +58,23 @@ export interface UseGetQuestionTemplateDetailResult {
  * one for every builder.query endpoint whether or not the defining file
  * re-exports it) rather than duplicated. That endpoint's legacy TypeScript
  * return type doesn't declare the v2 answer_instruction_meta field a real
- * response now also carries, so the raw result is cast before adapting.
+ * response now also carries, so the raw result is cast before narrowing.
  * The wizard calls this once a template is picked, so the zone picker can
  * scope itself to exactly what the template allows instead of every zone
  * that exists. */
 export function useGetQuestionTemplateDetail(): [
-  (categoryId: string, questionTemplateId: string) => Promise<QuestionTemplateDto | undefined>,
+  (categoryId: string, questionTemplateId: string) => Promise<GeoQuestionTemplate | undefined>,
   UseGetQuestionTemplateDetailResult,
 ] {
   const [trigger, { isLoading }] = qnaApi.useLazyFetchQuestionTemplateDetailsQuery();
 
-  const fetchDetail = useCallback((categoryId: string, questionTemplateId: string): Promise<QuestionTemplateDto | undefined> => {
+  const fetchDetail = useCallback((categoryId: string, questionTemplateId: string): Promise<GeoQuestionTemplate | undefined> => {
     return trigger({ categoryId, questionId: questionTemplateId })
       .unwrap()
-      .then((wire) => fromQuestionTemplateV2(wire as unknown as QuestionTemplateV2) ?? undefined)
+      .then((wire) => {
+        const template = wire as unknown as QuestionTemplateV2;
+        return isGeoTemplate(template) ? template : undefined;
+      })
       .catch((err) => {
         console.warn('[MapV2] Failed to fetch question template detail', err);
         return undefined;
@@ -86,19 +85,16 @@ export function useGetQuestionTemplateDetail(): [
 }
 
 export interface UseGetPendingQuestionsResult {
-  data: AskedQuestionRecordDto[] | undefined;
+  data: AskedQuestionV2[] | undefined;
   isLoading: boolean;
 }
 
 /** GET /api/v1/qna/game/{game_id}/asked-questions?target_team_id=... —
- * src/apis/qnaApi.ts's own hook, reused directly; only the wire→DTO
- * adaptation (question_meta's nested answer_instruction_type unwrapped
- * flat, same as fromQuestionTemplateV2 does for templates) lives here.
- * Filtered client-side to unanswered rows — the real endpoint has no
- * answered= filter param of its own. That endpoint's legacy TypeScript
- * return type doesn't declare the v2 question_meta shape a real response
- * now carries, so the raw result is cast before adapting, same as
- * useGetQuestionTemplateDetail does above. */
+ * src/apis/qnaApi.ts's own hook, reused directly, filtered client-side to
+ * unanswered rows since the real endpoint has no answered= filter param of
+ * its own. That endpoint's legacy TypeScript return type doesn't declare
+ * the v2 question_meta shape a real response now carries, so the raw
+ * result is cast, same as useGetAnsweredQuestionsQuery does below. */
 export function useGetPendingQuestionsQuery(gameId: string | undefined, teamId: string | null): UseGetPendingQuestionsResult {
   const { data, isLoading, isFetching } = useFetchAskedQuestionsQuery(
     { gameId: gameId ?? '', targetTeamId: teamId ?? '' },
@@ -107,7 +103,7 @@ export function useGetPendingQuestionsQuery(gameId: string | undefined, teamId: 
 
   const questions = useMemo(() => {
     if (!data) return undefined;
-    return fromAskedQuestionV2List(data.results as unknown as AskedQuestionV2[]).filter((q) => !q.answered);
+    return (data.results as unknown as AskedQuestionV2[]).filter((q) => !q.answered);
   }, [data]);
 
   return { data: questions, isLoading: isLoading || isFetching };
@@ -121,10 +117,9 @@ export interface UseGetAnsweredQuestionsResult {
 /** Same GET /api/v1/qna/game/{game_id}/asked-questions call
  * useGetPendingQuestionsQuery makes (RTK Query dedupes identical args, one
  * network round trip either way) — the Seeker's side: rows this team has
- * been asked that are answered but not yet accepted. Kept in the raw wire
- * shape rather than adapted to AskedQuestionRecordDto, since accepting
- * needs the hider's actual answer_meta.result, which that DTO deliberately
- * drops (the hider-side pending list has no answer yet to carry). */
+ * been asked that are answered but not yet accepted. Accepting needs the
+ * hider's actual answer_meta.result, which is why this stays filtered by
+ * answered/accepted rather than by the pending list's own !answered. */
 export function useGetAnsweredQuestionsQuery(gameId: string | undefined, teamId: string | null): UseGetAnsweredQuestionsResult {
   const { data, isLoading, isFetching } = useFetchAskedQuestionsQuery(
     { gameId: gameId ?? '', targetTeamId: teamId ?? '' },

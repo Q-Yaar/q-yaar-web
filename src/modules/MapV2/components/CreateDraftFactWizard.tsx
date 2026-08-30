@@ -4,7 +4,7 @@ import { Button } from '../../../components/ui/button';
 import { Answer, OP_TYPE, OpType, ResolvedLatLon } from '../factsV2/factTypes';
 import { ANSWER_WORD, describeResolvedPoint, formatDistance, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
 import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/geometryAssets';
-import { NonGeoQuestionTemplateDto, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from '../factsV2/questionPipelineTypes';
+import { GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateV2, SlotBinding, SUBOP_CONTRACT, questionTemplateId } from '../factsV2/questionPipelineTypes';
 import { BottomSheet } from './BottomSheet';
 
 export const WIZARD_STEP = {
@@ -245,16 +245,16 @@ export interface CreateDraftFactWizardProps {
   onClose: () => void;
   step: WizardStep;
 
-  templates: QuestionTemplateDto[];
+  templates: GeoQuestionTemplate[];
   templatesLoading: boolean;
   /** Question types with no geo mechanism at all (Photos, ...) — listed
    * below the real (map-answerable) templates purely so askers can see
    * they exist too; always rendered disabled, same as an unsupported geo
    * template, since there's no flow behind them yet. */
-  nonGeoTemplates: NonGeoQuestionTemplateDto[];
+  nonGeoTemplates: QuestionTemplateV2[];
   nonGeoTemplatesLoading: boolean;
-  selectedTemplate: QuestionTemplateDto | null;
-  onSelectTemplate: (template: QuestionTemplateDto) => void;
+  selectedTemplate: GeoQuestionTemplate | null;
+  onSelectTemplate: (template: GeoQuestionTemplate) => void;
   onBack: () => void;
 
   locating: boolean;
@@ -369,7 +369,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
 
       {step === WIZARD_STEP.DETAILS && selectedTemplate && (
         <div className="space-y-3">
-          {Object.entries(selectedTemplate.slot_bindings).map(([slotName, binding]) => {
+          {Object.entries(selectedTemplate.answer_instruction_meta.slot_bindings).map(([slotName, binding]) => {
             if (binding.source === 'TEMPLATE_CONSTANT') return null;
 
             if (binding.source === 'ASKER_LOCATION' || binding.source === 'MAP_POINT') {
@@ -387,14 +387,14 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
               );
             }
 
-            const slotKind = SUBOP_CONTRACT[selectedTemplate.answer_instruction_type].slots[slotName];
+            const slotKind = SUBOP_CONTRACT[selectedTemplate.answer_instruction_meta.operation_type].slots[slotName];
             return (
               <PlaceholderSlotField
                 key={slotName}
                 slotName={slotName}
                 binding={binding}
                 slotKind={slotKind}
-                spec={selectedTemplate.placeholders[binding.placeholder]}
+                spec={selectedTemplate.answer_instruction_meta.placeholders[binding.placeholder]}
                 placeholderValues={placeholderValues}
                 onSetPlaceholderValue={onSetPlaceholderValue}
                 zoneOptions={zoneOptions}
@@ -404,18 +404,18 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
           })}
 
           {(() => {
-            const { asserted_answer: assertedAnswer } = selectedTemplate;
+            const { asserted_answer: assertedAnswer, placeholders, operation_type: operationType } = selectedTemplate.answer_instruction_meta;
             if (assertedAnswer.source !== 'PLACEHOLDER') return null;
             // A template can curate which of the op_type's legal answers it
             // actually offers (e.g. only N/S, not the full compass) via the
             // same placeholder's allowed_values — fall back to every legal
             // answer for the op_type when it hasn't.
-            const curated = selectedTemplate.placeholders[assertedAnswer.placeholder]?.allowed_values
+            const curated = placeholders[assertedAnswer.placeholder]?.allowed_values
               ?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'text' }> => v.type === 'text')
               .map((v) => v.value as Answer);
             return (
               <AnswerChips
-                answers={curated && curated.length > 0 ? curated : SUBOP_CONTRACT[selectedTemplate.answer_instruction_type].answers}
+                answers={curated && curated.length > 0 ? curated : SUBOP_CONTRACT[operationType].answers}
                 selected={placeholderValues[assertedAnswer.placeholder]}
                 onSelect={(value) => onSetPlaceholderValue(assertedAnswer.placeholder, value)}
               />
@@ -476,8 +476,8 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
 };
 
 interface TemplateListProps {
-  templates: QuestionTemplateDto[];
-  onSelect: (template: QuestionTemplateDto) => void;
+  templates: GeoQuestionTemplate[];
+  onSelect: (template: GeoQuestionTemplate) => void;
   disabled?: boolean;
 }
 
@@ -487,7 +487,7 @@ const TemplateList: React.FC<TemplateListProps> = ({ templates, onSelect, disabl
     <div className="space-y-1.5">
       {templates.map((template) => (
         <button
-          key={template.question_template_id}
+          key={questionTemplateId(template)}
           onClick={() => !disabled && onSelect(template)}
           disabled={disabled}
           className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
@@ -496,7 +496,7 @@ const TemplateList: React.FC<TemplateListProps> = ({ templates, onSelect, disabl
               : 'border-white/10 hover:border-white/30 hover:bg-white/5 active:bg-white/10'
           }`}
         >
-          <span className="text-white/60">{OP_TYPE_ICON[template.answer_instruction_type] ?? <MapPinned className="w-5 h-5" />}</span>
+          <span className="text-white/60">{OP_TYPE_ICON[template.answer_instruction_meta.operation_type] ?? <MapPinned className="w-5 h-5" />}</span>
           <span>
             <span className="block text-xs font-semibold text-white">{template.template}</span>
             <span className="block text-[11px] text-white/40">{template.category.category_name}{disabled ? ' — not yet supported' : ''}</span>
@@ -508,19 +508,18 @@ const TemplateList: React.FC<TemplateListProps> = ({ templates, onSelect, disabl
 };
 
 interface NonGeoTemplateListProps {
-  templates: NonGeoQuestionTemplateDto[];
+  templates: QuestionTemplateV2[];
 }
 
 /** The "Non-map questions" section — question types with no geo mechanism
  * at all (Photos, ...), always disabled since there's no flow behind them
- * yet. A separate component from TemplateList because
- * NonGeoQuestionTemplateDto has no answer_instruction_type to pick an icon
- * from. */
+ * yet. A separate component from TemplateList because a non-geo row has no
+ * answer_instruction_meta to pick an icon from. */
 const NonGeoTemplateList: React.FC<NonGeoTemplateListProps> = ({ templates }) => (
   <div className="space-y-1.5">
     {templates.map((template) => (
       <button
-        key={template.question_template_id}
+        key={questionTemplateId(template)}
         disabled
         className="w-full flex items-center gap-2.5 rounded-lg border border-white/5 px-3 py-2.5 text-left opacity-40 cursor-not-allowed"
       >

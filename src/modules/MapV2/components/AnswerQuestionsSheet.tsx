@@ -1,6 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { AskedQuestionRecordDto } from '../factsV2/questionPipelineTypes';
+import { AskedQuestionV2 } from '../factsV2/questionPipelineTypes';
 import { BottomSheet } from './BottomSheet';
 
 export const ANSWER_STEP = {
@@ -17,11 +17,11 @@ export interface AnswerQuestionsSheetProps {
   step: AnswerStep;
   onBack: () => void;
 
-  questions: AskedQuestionRecordDto[];
+  questions: AskedQuestionV2[];
   questionsLoading: boolean;
-  onSelectQuestion: (question: AskedQuestionRecordDto) => void;
+  onSelectQuestion: (question: AskedQuestionV2) => void;
 
-  selectedQuestion: AskedQuestionRecordDto | null;
+  selectedQuestion: AskedQuestionV2 | null;
   /** SHAPE -> ANSWER — once the hider has seen what the question is
    * actually asking about. */
   onContinueToAnswer: () => void;

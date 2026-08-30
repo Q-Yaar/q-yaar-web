@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { Modal } from '../../components/ui/modal';
 import { useFetchQuestionTemplatesQuery } from '../../apis/qnaApi';
 import { Category } from '../../models/QnA';
-import { fromQuestionTemplateV2, QuestionTemplateDto, QuestionTemplateV2 } from '../MapV2/factsV2/questionPipelineTypes';
+import { isGeoTemplate, questionTemplateId, QuestionTemplateV2 } from '../MapV2/factsV2/questionPipelineTypes';
 
 interface CategoryQuestionsModalProps {
   /** Null closes the modal (also passed straight through as Modal's
@@ -22,10 +22,9 @@ interface CategoryQuestionsModalProps {
  * answer_instruction_meta (see MapV2's "Ask to Fact — Templates v2
  * Contract"); this endpoint's legacy TypeScript return type
  * (models/QnA.ts's QuestionTemplate) doesn't declare that field, so the
- * raw result is cast before adapting through fromQuestionTemplateV2 — the
- * same adapter and cast MapV2's own useGetQuestionTemplateDetail uses. A
- * pre-v2 row (no answer_instruction_meta) converts to null and is dropped
- * — there's nothing to preview for one.
+ * raw result is cast before filtering — the same cast MapV2's own
+ * useGetQuestionTemplateDetail uses. A pre-v2 row (no
+ * answer_instruction_meta) is dropped — there's nothing to preview for one.
  */
 export function CategoryQuestionsModal({ category, gameId, onClose }: CategoryQuestionsModalProps) {
   const { data, isFetching } = useFetchQuestionTemplatesQuery(
@@ -34,8 +33,8 @@ export function CategoryQuestionsModal({ category, gameId, onClose }: CategoryQu
   );
 
   const templates = (data?.results ?? [])
-    .map((wire) => fromQuestionTemplateV2(wire as unknown as QuestionTemplateV2))
-    .filter((t): t is QuestionTemplateDto => t !== null);
+    .map((wire) => wire as unknown as QuestionTemplateV2)
+    .filter(isGeoTemplate);
 
   return (
     <Modal
@@ -53,9 +52,9 @@ export function CategoryQuestionsModal({ category, gameId, onClose }: CategoryQu
       ) : (
         <div className="space-y-3">
           {templates.map((template) => {
-            const placeholders = Object.entries(template.placeholders);
+            const placeholders = Object.entries(template.answer_instruction_meta.placeholders);
             return (
-              <div key={template.question_template_id} className="p-3.5 rounded-xl border border-gray-200 bg-gray-50">
+              <div key={questionTemplateId(template)} className="p-3.5 rounded-xl border border-gray-200 bg-gray-50">
                 <p className="text-sm font-semibold text-gray-800">{template.template}</p>
                 {placeholders.length > 0 && (
                   <div className="mt-2.5 space-y-2">

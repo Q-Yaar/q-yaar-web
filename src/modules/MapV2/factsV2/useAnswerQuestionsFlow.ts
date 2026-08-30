@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { FACT_TYPE, FactDto } from './factTypes';
-import { AnswerRecordDto, AskedQuestionRecordDto, toFactRecord } from './questionPipelineTypes';
+import { AnswerRecordDto, AskedQuestionV2, toFactRecord } from './questionPipelineTypes';
 import { useGetPendingQuestionsQuery } from '../apis/qnaPipelineApi';
 import { useAnswerQuestionMutation } from '../../../apis/qnaApi';
 import { GROUP_ID } from '../layers/groupIds';
@@ -57,7 +57,7 @@ export function useAnswerQuestionsFlow({ gameId, teamId, previewUniverse, playAr
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<AnswerStep>(ANSWER_STEP.LIST);
-  const [selectedQuestion, setSelectedQuestion] = useState<AskedQuestionRecordDto | null>(null);
+  const [selectedQuestion, setSelectedQuestion] = useState<AskedQuestionV2 | null>(null);
   const [value, setValue] = useState(true);
 
   const questions = useMemo(
@@ -78,7 +78,7 @@ export function useAnswerQuestionsFlow({ gameId, teamId, previewUniverse, playAr
     setSelectedQuestion(null);
   }, []);
 
-  const selectQuestion = useCallback((question: AskedQuestionRecordDto) => {
+  const selectQuestion = useCallback((question: AskedQuestionV2) => {
     setSelectedQuestion(question);
     setValue(true);
     setStep(ANSWER_STEP.SHAPE);
@@ -119,14 +119,14 @@ export function useAnswerQuestionsFlow({ gameId, teamId, previewUniverse, playAr
   // is actually asking about before committing to an answer.
   const shapeFact = useMemo<FactDto | null>(() => {
     if (step !== ANSWER_STEP.SHAPE || !selectedQuestion) return null;
-    const { resolved_slots, asserted_answer } = selectedQuestion.question_meta;
+    const { answer_instruction_type, resolved_slots, asserted_answer } = selectedQuestion.question_meta;
     return {
       fact_id: `answer-shape-${selectedQuestion.question_id}`,
       fact_type: FACT_TYPE.GEO,
       question_id: selectedQuestion.question_id,
       answer_id: 'shape-preview',
       fact_info: {
-        op_type: selectedQuestion.answer_instruction_type,
+        op_type: answer_instruction_type,
         op_meta: { ...resolved_slots, assertedAnswer: asserted_answer, value: true },
       },
       created: selectedQuestion.created,
@@ -167,14 +167,14 @@ export function useAnswerQuestionsFlow({ gameId, teamId, previewUniverse, playAr
   // previewUniverse exactly like a real answer would be once added.
   const previewFact = useMemo<FactDto | null>(() => {
     if (step !== ANSWER_STEP.ANSWER || !selectedQuestion) return null;
-    const { resolved_slots, asserted_answer } = selectedQuestion.question_meta;
+    const { answer_instruction_type, resolved_slots, asserted_answer } = selectedQuestion.question_meta;
     return {
       fact_id: `answer-preview-${selectedQuestion.question_id}`,
       fact_type: FACT_TYPE.GEO,
       question_id: selectedQuestion.question_id,
       answer_id: 'preview',
       fact_info: {
-        op_type: selectedQuestion.answer_instruction_type,
+        op_type: answer_instruction_type,
         op_meta: { ...resolved_slots, assertedAnswer: asserted_answer, value },
       },
       created: selectedQuestion.created,

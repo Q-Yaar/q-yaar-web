@@ -26,7 +26,7 @@ import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
 import { useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/qnaPipelineApi';
 import { useAskQuestionMutation } from '../../../apis/qnaApi';
 import { useCreateFactMutation } from '../../../apis/api';
-import { QuestionTemplateDto } from './questionPipelineTypes';
+import { GeoQuestionTemplate, questionTemplateId } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
 const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
@@ -103,7 +103,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
 
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<WizardStep>(WIZARD_STEP.KIND);
-  const [selectedTemplate, setSelectedTemplate] = useState<QuestionTemplateDto | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<GeoQuestionTemplate | null>(null);
   const [points, setPoints] = useState<PointValues>({});
   const [placeholderValues, setPlaceholderValues] = useState<PlaceholderValues>({});
   const [locating, setLocating] = useState(false);
@@ -187,7 +187,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
    * already usable) and swaps to the enriched one the moment the detail
    * call resolves, scoping the zone picker to exactly what this template
    * allows instead of every zone that exists. */
-  const selectTemplate = useCallback((template: QuestionTemplateDto) => {
+  const selectTemplate = useCallback((template: GeoQuestionTemplate) => {
     setSelectedTemplate(template);
     setPlaceholderValues({});
     setLocationError(null);
@@ -206,8 +206,9 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
       if (autoSlot) locateMeFor((p) => setPointForSlot(autoSlot, p));
     }
 
-    getTemplateDetail(template.category.category_id, template.question_template_id).then((detail) => {
-      if (detail) setSelectedTemplate((current) => (current?.question_template_id === detail.question_template_id ? detail : current));
+    const templateId = questionTemplateId(template);
+    getTemplateDetail(template.category.category_id, templateId ?? '').then((detail) => {
+      if (detail) setSelectedTemplate((current) => (current && questionTemplateId(current) === questionTemplateId(detail) ? detail : current));
     });
 
     setStep(WIZARD_STEP.DETAILS);
@@ -227,7 +228,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
 
     askQuestion({
       gameId,
-      questionId: selectedTemplate.question_template_id,
+      questionId: questionTemplateId(selectedTemplate) ?? '',
       body: {
         target_team_id: targetTeamId,
         question_meta: {
@@ -350,7 +351,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
       .map((slotName) => ({
         id: slotName,
         coordinates: toCoordinates(points[slotName]),
-        label: pointSlotLabel(slotName, selectedTemplate.slot_bindings[slotName]),
+        label: pointSlotLabel(slotName, selectedTemplate.answer_instruction_meta.slot_bindings[slotName]),
       }));
   }, [selectedTemplate, points]);
   useMapLayerModule(pointsModule, wizardPointItems);

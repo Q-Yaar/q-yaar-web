@@ -1,5 +1,5 @@
 /**
- * Turns a real QuestionTemplateDto (fetched via apis/qnaPipelineApi.ts) plus
+ * Turns a real GeoQuestionTemplate (fetched via apis/qnaPipelineApi.ts) plus
  * whatever the asker has filled in — resolved points, chosen placeholder
  * values — into an AskedQuestionDto, generically across every op_type: one
  * slot_bindings entry -> one resolved_slots entry, driven entirely by each
@@ -9,7 +9,7 @@
  * whatever templates the API actually returns.
  */
 import { Answer, AskedQuestionDto, ResolvedLatLon } from './factTypes';
-import { PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateDto, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
+import { GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
 
 export const formatDistance = (metres: number): string => (
   metres >= 1000 ? `${(metres / 1000).toFixed(metres % 1000 === 0 ? 0 : 1)} km` : `${metres} m`
@@ -60,12 +60,12 @@ function resolveSlotValue(binding: SlotBinding, slotName: string, points: PointV
 
 /** Null unless every slot the template declares has a value yet. */
 export function resolveTemplateSlots(
-  template: QuestionTemplateDto,
+  template: GeoQuestionTemplate,
   points: PointValues,
   placeholders: PlaceholderValues,
 ): Record<string, SlotValue> | null {
   const resolved: Record<string, SlotValue> = {};
-  for (const [slotName, binding] of Object.entries(template.slot_bindings)) {
+  for (const [slotName, binding] of Object.entries(template.answer_instruction_meta.slot_bindings)) {
     const value = resolveSlotValue(binding, slotName, points, placeholders);
     if (value === undefined) return null;
     resolved[slotName] = value;
@@ -75,16 +75,17 @@ export function resolveTemplateSlots(
 
 /** Null unless the asserted answer is resolvable yet (a TEMPLATE_CONSTANT
  * always is; a PLACEHOLDER one needs the asker to have picked it). */
-export function resolveAssertedAnswer(template: QuestionTemplateDto, placeholders: PlaceholderValues): Answer | null {
-  if (template.asserted_answer.source === 'TEMPLATE_CONSTANT') return template.asserted_answer.value;
-  const value = placeholders[template.asserted_answer.placeholder];
+export function resolveAssertedAnswer(template: GeoQuestionTemplate, placeholders: PlaceholderValues): Answer | null {
+  const assertedAnswer = template.answer_instruction_meta.asserted_answer;
+  if (assertedAnswer.source === 'TEMPLATE_CONSTANT') return assertedAnswer.value;
+  const value = placeholders[assertedAnswer.placeholder];
   return typeof value === 'string' ? (value as Answer) : null;
 }
 
 /** True once every slot and the asserted answer both have a value — the
  * wizard's Continue button reads this directly instead of re-deriving it
  * per op_type. */
-export function isTemplateComplete(template: QuestionTemplateDto, points: PointValues, placeholders: PlaceholderValues): boolean {
+export function isTemplateComplete(template: GeoQuestionTemplate, points: PointValues, placeholders: PlaceholderValues): boolean {
   return resolveTemplateSlots(template, points, placeholders) !== null
     && resolveAssertedAnswer(template, placeholders) !== null;
 }
@@ -107,18 +108,19 @@ function allowedValueDisplayName(allowedValues: PlaceholderAllowedValue[] | unde
  * both a slot's own placeholder and the asserted_answer's placeholder,
  * same two sources resolveTemplateSlots/resolveAssertedAnswer draw from
  * separately. */
-export function resolvePlaceholders(template: QuestionTemplateDto, placeholders: PlaceholderValues): Record<string, PlaceholderAllowedValue> {
+export function resolvePlaceholders(template: GeoQuestionTemplate, placeholders: PlaceholderValues): Record<string, PlaceholderAllowedValue> {
+  const { slot_bindings, asserted_answer, placeholders: placeholderSpecs } = template.answer_instruction_meta;
   const keys = new Set<string>();
-  for (const binding of Object.values(template.slot_bindings)) {
+  for (const binding of Object.values(slot_bindings)) {
     if (binding.source === 'PLACEHOLDER') keys.add(binding.placeholder);
   }
-  if (template.asserted_answer.source === 'PLACEHOLDER') keys.add(template.asserted_answer.placeholder);
+  if (asserted_answer.source === 'PLACEHOLDER') keys.add(asserted_answer.placeholder);
 
   const resolved: Record<string, PlaceholderAllowedValue> = {};
   for (const key of Array.from(keys)) {
     const value = placeholders[key];
     if (value === undefined) continue;
-    const spec = template.placeholders[key];
+    const spec = placeholderSpecs[key];
     const match = spec?.allowed_values?.find((v) => (v.type === 'geometry' ? v.value.key === value : v.value === value));
     resolved[key] = match ?? (typeof value === 'number'
       ? { type: 'number', value, display_name: String(value) }
@@ -145,24 +147,25 @@ function slotDisplayText(binding: SlotBinding, value: SlotValue, placeholderSpec
  * "distance" placeholder isn't bound to any slot at all) is left as its
  * bare name so the sheet never shows a stray "{{ }}" while composing. */
 export function buildRenderedQuestion(
-  template: QuestionTemplateDto,
+  template: GeoQuestionTemplate,
   points: PointValues,
   placeholders: PlaceholderValues,
 ): string {
+  const { slot_bindings, asserted_answer, placeholders: placeholderSpecs } = template.answer_instruction_meta;
   const placeholderText: Record<string, string> = {};
 
-  for (const [slotName, binding] of Object.entries(template.slot_bindings)) {
+  for (const [slotName, binding] of Object.entries(slot_bindings)) {
     const value = resolveSlotValue(binding, slotName, points, placeholders);
     if (value === undefined) continue;
     if (binding.source === 'PLACEHOLDER') {
-      placeholderText[binding.placeholder] = slotDisplayText(binding, value, template.placeholders[binding.placeholder]);
+      placeholderText[binding.placeholder] = slotDisplayText(binding, value, placeholderSpecs[binding.placeholder]);
     } else if (binding.source === 'MAP_POINT' && binding.label_placeholder) {
-      placeholderText[binding.label_placeholder] = slotDisplayText(binding, value, template.placeholders[binding.label_placeholder]);
+      placeholderText[binding.label_placeholder] = slotDisplayText(binding, value, placeholderSpecs[binding.label_placeholder]);
     }
   }
 
-  if (template.asserted_answer.source === 'PLACEHOLDER') {
-    const key = template.asserted_answer.placeholder;
+  if (asserted_answer.source === 'PLACEHOLDER') {
+    const key = asserted_answer.placeholder;
     const chosen = placeholders[key];
     if (typeof chosen === 'string' && chosen in ANSWER_WORD) {
       placeholderText[key] = ANSWER_WORD[chosen as Answer];
@@ -182,10 +185,11 @@ const SUPPORTED_PLACEHOLDER_SLOT_KINDS = new Set(['POLYGON', 'LINE', 'LENGTH']);
  * when MapV2 knows how to render every slot it declares — every
  * PLACEHOLDER-bound slot's kind is one there's a picker for. Point slots
  * (ASKER_LOCATION/MAP_POINT) and TEMPLATE_CONSTANT slots are always fine. */
-export function isTemplateSupported(template: QuestionTemplateDto): boolean {
-  const contract = SUBOP_CONTRACT[template.answer_instruction_type];
+export function isTemplateSupported(template: GeoQuestionTemplate): boolean {
+  const { operation_type, slot_bindings } = template.answer_instruction_meta;
+  const contract = SUBOP_CONTRACT[operation_type];
   if (!contract) return false;
-  return Object.entries(template.slot_bindings).every(([slotName, binding]) => {
+  return Object.entries(slot_bindings).every(([slotName, binding]) => {
     if (binding.source !== 'PLACEHOLDER') return true;
     const kind = contract.slots[slotName];
     return SUPPORTED_PLACEHOLDER_SLOT_KINDS.has(kind);
@@ -195,8 +199,8 @@ export function isTemplateSupported(template: QuestionTemplateDto): boolean {
 /** Every slot name in a template bound to a device/pin point, in
  * declaration order — used both to render one point picker per slot and
  * to seed them from the Points & Distance tool's already-placed points. */
-export function pointSlotNames(template: QuestionTemplateDto): string[] {
-  return Object.entries(template.slot_bindings)
+export function pointSlotNames(template: GeoQuestionTemplate): string[] {
+  return Object.entries(template.answer_instruction_meta.slot_bindings)
     .filter(([, binding]) => binding.source === 'ASKER_LOCATION' || binding.source === 'MAP_POINT')
     .map(([slotName]) => slotName);
 }
@@ -206,8 +210,8 @@ export function pointSlotNames(template: QuestionTemplateDto): string[] {
  * automatically" is what that binding means. Any second ASKER_LOCATION
  * slot (Thermometer's pointFinal — a later, deliberately separate capture)
  * stays a manual "Use my location" tap like every MAP_POINT slot. */
-export function firstAskerLocationSlot(template: QuestionTemplateDto): string | null {
-  const entry = Object.entries(template.slot_bindings).find(([, binding]) => binding.source === 'ASKER_LOCATION');
+export function firstAskerLocationSlot(template: GeoQuestionTemplate): string | null {
+  const entry = Object.entries(template.answer_instruction_meta.slot_bindings).find(([, binding]) => binding.source === 'ASKER_LOCATION');
   return entry ? entry[0] : null;
 }
 
@@ -225,7 +229,7 @@ export function pointSlotLabel(slotName: string, binding: SlotBinding): string {
 }
 
 export function buildAskedQuestion(
-  template: QuestionTemplateDto,
+  template: GeoQuestionTemplate,
   points: PointValues,
   placeholders: PlaceholderValues,
   assumedValue: boolean,
@@ -238,7 +242,7 @@ export function buildAskedQuestion(
   return {
     question_id: questionId,
     rendered_question: buildRenderedQuestion(template, points, placeholders),
-    answer_instruction_type: template.answer_instruction_type,
+    answer_instruction_type: template.answer_instruction_meta.operation_type,
     question_meta: {
       resolved_slots: resolvedSlots,
       asserted_answer: assertedAnswer,
