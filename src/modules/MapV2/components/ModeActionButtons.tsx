@@ -8,6 +8,8 @@ interface ModeActionButtonsProps {
   onAnswerQuestions: () => void;
   pendingAnswerCount: number;
   onAskQuestion: () => void;
+  onAcceptAnswers: () => void;
+  pendingAcceptCount: number;
   curseCount: number;
   onOpenCurseStatus: () => void;
 }
@@ -18,9 +20,9 @@ interface ModeActionButtonsProps {
  * functional, useAnswerQuestionsFlow, with a live pending-count badge; it
  * sits in the *upper* row in Hiding mode (CardModule's Draw/Hand/Discard
  * take the bottom, thumb-closest row instead — see MapCanvas.tsx — since
- * cards are the more frequent action). Seeking shows "Accept" (a stub,
- * same as before), "Cursed", and "Ask" (functional, the draft-fact
- * wizard). "Cursed" always uses GameButton's danger (red) tone — it's a
+ * cards are the more frequent action). Seeking shows "Accept" (functional,
+ * useAcceptAnswersFlow, with a live pending-count badge), "Cursed", and
+ * "Ask" (functional, the draft-fact wizard). "Cursed" always uses GameButton's danger (red) tone — it's a
  * threat, not an ordinary action, so it should never read as just another
  * blue button — and only *pulses* while this team actually has an active
  * curse (curse/useCurseModule.ts), with a badge showing how many; tapping
@@ -28,7 +30,7 @@ interface ModeActionButtonsProps {
  * card row, so it stays in the bottom position there.
  */
 export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
-  mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion, curseCount, onOpenCurseStatus,
+  mode, onAnswerQuestions, pendingAnswerCount, onAskQuestion, onAcceptAnswers, pendingAcceptCount, curseCount, onOpenCurseStatus,
 }) => (
   <div
     style={{
@@ -51,7 +53,13 @@ export const ModeActionButtons: React.FC<ModeActionButtonsProps> = ({
       />
     ) : (
       <>
-        <GameButton icon={<CheckCircle2 size={20} />} label="Accept" ariaLabel="Accept answers (coming soon)" disabled />
+        <GameButton
+          icon={<CheckCircle2 size={20} />}
+          label="Accept"
+          ariaLabel="Accept answers"
+          badge={pendingAcceptCount}
+          onClick={onAcceptAnswers}
+        />
         <GameButton
           icon={<Ghost size={20} />}
           label="Cursed"

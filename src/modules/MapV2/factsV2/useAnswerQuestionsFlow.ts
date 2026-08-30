@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
 import { FACT_TYPE, FactDto } from './factTypes';
-import { AskedQuestionRecordDto, toFactRecord } from './questionPipelineTypes';
-import { useAnswerQuestionMutation, useGetPendingQuestionsQuery } from '../apis/mockQnaApi';
+import { AnswerRecordDto, AskedQuestionRecordDto, toFactRecord } from './questionPipelineTypes';
+import { useGetPendingQuestionsQuery } from '../apis/mockQnaApi';
+import { useAnswerQuestionMutation } from '../../../apis/qnaApi';
 import { GROUP_ID } from '../layers/groupIds';
 import { useMapLayerModule } from '../layers/hooks';
 import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
@@ -12,6 +13,7 @@ import { ANSWER_PREVIEW_MODULE_ID, ANSWER_SHAPE_PREVIEW_MODULE_ID } from './fact
 import { ANSWER_STEP, AnswerQuestionsSheetProps, AnswerStep } from '../components/AnswerQuestionsSheet';
 
 export interface UseAnswerQuestionsFlowOptions {
+  gameId: string | undefined;
   teamId: string | null;
   /** Same starting area the confirmed Facts layer currently folds down to
    * (useFactsLayers's draftsUniverse) — the live Yes/No preview folds from
@@ -38,16 +40,17 @@ export interface UseAnswerQuestionsFlowResult {
 
 /**
  * The Hider's "Answer questions" flow as one hook — fetching pending
- * questions (apis/mockQnaApi.ts), picking one, a shape step showing the
+ * questions (apis/mockQnaApi.ts's useGetPendingQuestionsQuery, wired to the
+ * real asked-questions endpoint), picking one, a shape step showing the
  * question's raw geometry bounded only by the game zone, a Yes/No toggle
- * with a live on-map preview, and the final submit, which calls the mock
- * answer API then hands the resulting Fact to onAnswered. Answered
- * questions are tracked locally (answeredIds) since the mock
- * pending-questions list has no real backend to mutate — same reasoning
- * useFactsLayers's draftQuestions uses for wizard-created drafts.
+ * with a live on-map preview, and the final submit, which calls the real
+ * answerQuestion mutation (src/apis/qnaApi.ts) then hands the resulting
+ * Fact to onAnswered. Answered questions are also tracked locally
+ * (answeredIds) so a just-answered question disappears from the list
+ * immediately rather than waiting on the next poll/refetch.
  */
-export function useAnswerQuestionsFlow({ teamId, previewUniverse, playArea, onAnswered }: UseAnswerQuestionsFlowOptions): UseAnswerQuestionsFlowResult {
-  const { data: fetchedQuestions, isLoading: questionsLoading } = useGetPendingQuestionsQuery(teamId);
+export function useAnswerQuestionsFlow({ gameId, teamId, previewUniverse, playArea, onAnswered }: UseAnswerQuestionsFlowOptions): UseAnswerQuestionsFlowResult {
+  const { data: fetchedQuestions, isLoading: questionsLoading } = useGetPendingQuestionsQuery(gameId, teamId);
   const [answerQuestion, { isLoading: submitting }] = useAnswerQuestionMutation();
 
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
@@ -85,17 +88,28 @@ export function useAnswerQuestionsFlow({ teamId, previewUniverse, playArea, onAn
   }, []);
 
   const handleSubmit = useCallback(() => {
-    if (!selectedQuestion) return;
-    answerQuestion({ question_id: selectedQuestion.question_id, value })
-      .then((answer) => {
+    if (!selectedQuestion || !gameId) return;
+    answerQuestion({
+      gameId,
+      askedQuestionId: selectedQuestion.question_id,
+      body: { answer_meta: { result: value } },
+    })
+      .unwrap()
+      .then((asked) => {
+        const answer: AnswerRecordDto = {
+          answer_id: `qna-answer-${selectedQuestion.question_id}`,
+          question_id: selectedQuestion.question_id,
+          value,
+          answered_at: asked.modified,
+        };
         onAnswered(toFactRecord(selectedQuestion, answer));
         setAnsweredIds((prev) => new Set(prev).add(selectedQuestion.question_id));
         closeSheet();
       })
       .catch((err) => {
-        console.warn('[MapV2] Mock answer-question call failed', err);
+        console.warn('[MapV2] Answer-question call failed', err);
       });
-  }, [selectedQuestion, value, answerQuestion, onAnswered, closeSheet]);
+  }, [selectedQuestion, value, gameId, answerQuestion, onAnswered, closeSheet]);
 
   // Shape step — the question's raw region assuming its asserted pole
   // holds (there's no yes/no toggle yet at this step), clipped only to the

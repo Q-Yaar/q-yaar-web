@@ -17,6 +17,16 @@ export const OP_TYPE = {
 
 export type OpType = (typeof OP_TYPE)[keyof typeof OP_TYPE];
 
+const OP_TYPE_VALUES = new Set<string>(Object.values(OP_TYPE));
+
+/** Distinguishes an already-FactsV2-shaped raw fact (op_type is one of the
+ * seven above) from a still-legacy one (draw-circle, split-by-direction,
+ * ...) — see factV2Converter.ts, which reads a fact written by
+ * useAcceptAnswersFlow.ts's createFact call back off the real /facts/ API. */
+export function isOpType(value: unknown): value is OpType {
+  return typeof value === 'string' && OP_TYPE_VALUES.has(value);
+}
+
 export const ANSWER = {
   INSIDE: 'INSIDE',
   OUTSIDE: 'OUTSIDE',

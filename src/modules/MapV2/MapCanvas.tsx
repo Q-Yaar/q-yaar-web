@@ -11,6 +11,7 @@ import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
 import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
+import { useAcceptAnswersFlow } from './factsV2/useAcceptAnswersFlow';
 import { FactDto } from './factsV2/factTypes';
 import { CARD_SHEET, DETAIL_CONTEXT, useCardModule } from './cards/useCardModule';
 import { useCurseModule } from './curse/useCurseModule';
@@ -28,6 +29,7 @@ import { MapStatusBanner } from './components/MapStatusBanner';
 import { FactPopup } from './components/FactPopup';
 import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
 import { AnswerQuestionsSheet } from './components/AnswerQuestionsSheet';
+import { AcceptAnswersSheet } from './components/AcceptAnswersSheet';
 
 interface MapCanvasInnerProps {
   registry: MapLayerRegistry;
@@ -56,6 +58,12 @@ interface MapCanvasInnerProps {
  *                        (hooks/useMapInteractions.ts)
  *   wizard           -> Seeking's "Ask a question" form (factsV2/useDraftFactWizard.ts)
  *   answerFlow       -> Hiding's "Answer questions" form (factsV2/useAnswerQuestionsFlow.ts)
+ *   acceptFlow       -> Seeking's "Accept answers" list (factsV2/useAcceptAnswersFlow.ts) —
+ *                        the mirror image of answerFlow: once the hider answers a
+ *                        question this team asked, it sits here until the seeker
+ *                        accepts it, which is what actually turns it into a real
+ *                        fact (and clears the matching draft) rather than staying
+ *                        a dashed, assumed-value guess forever
  *   cardModule       -> Hiding's Draw/Hand/Discard cards (cards/useCardModule.ts) — wired
  *                        to the real deck API (src/apis/deckApi.ts, the same endpoints
  *                        DeckPage.tsx uses), not mock data. No map layer of its own,
@@ -82,7 +90,10 @@ interface MapCanvasInnerProps {
  * `facts` needs it as soon as it's constructed, but `answerFlow` needs to be
  * constructed *after* `interactions` for the z-order reason above, and
  * `interactions` itself needs `facts`'s modules. Same "lift state out to
- * break a hook-ordering cycle" move as pickResolverRef.
+ * break a hook-ordering cycle" move as pickResolverRef. `acceptFlow` doesn't
+ * need a slot in this array — accepting calls the real createFact API
+ * (factsV2/useAcceptAnswersFlow.ts), so the new fact arrives through
+ * useFactsLayers's own real refetch instead of being faked in locally.
  *
  * The map is full-bleed — TopBar is a floating translucent strip over its
  * top edge (see TopBar.tsx), not a separate flex row pushing it down, so
@@ -160,10 +171,16 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     onSubmit: facts.addDraftQuestion,
   });
   const answerFlow = useAnswerQuestionsFlow({
+    gameId,
     teamId: teamFilter.myTeamId,
     previewUniverse: facts.draftsUniverse,
     playArea: playAreaState.playArea,
     onAnswered: (fact) => setAnsweredFacts((prev) => [...prev, fact]),
+  });
+  const acceptFlow = useAcceptAnswersFlow({
+    gameId,
+    teamId: teamFilter.selectedTeamId,
+    onRemoveDraft: facts.removeDraftQuestion,
   });
   const cardModule = useCardModule(teamFilter.myTeamId);
   const curseModule = useCurseModule();
@@ -184,9 +201,10 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   // already placed before the flow started, never blocks placing new ones.
   const wizardActive = wizard.props.isOpen || wizard.pickPrompt !== null;
   const answerFlowActive = answerFlow.props.isOpen;
+  const acceptFlowActive = acceptFlow.props.isOpen;
   useEffect(() => {
-    registry.setGroupVisible(GROUP_ID.MEASUREMENT, !(wizardActive || answerFlowActive));
-  }, [registry, wizardActive, answerFlowActive]);
+    registry.setGroupVisible(GROUP_ID.MEASUREMENT, !(wizardActive || answerFlowActive || acceptFlowActive));
+  }, [registry, wizardActive, answerFlowActive, acceptFlowActive]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -212,6 +230,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onAnswerQuestions={answerFlow.openSheet}
         pendingAnswerCount={answerFlow.pendingCount}
         onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
+        onAcceptAnswers={acceptFlow.openSheet}
+        pendingAcceptCount={acceptFlow.pendingCount}
         curseCount={curseModule.curses.length}
         onOpenCurseStatus={curseModule.openSheet}
       />
@@ -237,6 +257,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
       {gameMode.mode === GAME_MODE.SEEKING && (
         <>
           <CreateDraftFactWizard {...wizard.props} />
+          <AcceptAnswersSheet {...acceptFlow.props} />
           <CurseStatusSheet
             isOpen={curseModule.isSheetOpen}
             onClose={curseModule.closeSheet}

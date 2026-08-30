@@ -1,34 +1,27 @@
 /**
- * The FactsV2 question pipeline's API layer. Question templates (stage 1)
- * and asking a question (stage 2) are now real — wired through
- * qnaTemplatesApi.ts (list), src/apis/qnaApi.ts's own detail endpoint
- * (identical URL, reused rather than duplicated), and src/apis/qnaApi.ts's
- * askQuestion mutation (useDraftFactWizard.ts imports it directly — see
- * models/QnA.ts's AskQuestionRequestV2 for the v2 body shape it now also
- * accepts alongside the legacy one). Answering a question and listing
- * pending questions (stage 3) stay mocked below: there's no contract for
- * those endpoints yet, so wiring them would mean guessing shapes rather
- * than building against something real. Their hook names/shapes are
- * deliberately RTK-Query-flavored ({data, isLoading} / [trigger,
- * {isLoading}]) so swapping them for real endpoints later, once there's a
- * contract for them too, is a one-file change the same way the template
- * hooks (and askQuestion) just were.
+ * The FactsV2 question pipeline's API layer. Question templates (stage 1),
+ * asking a question (stage 2), listing pending questions, and answering one
+ * (stage 3) are all real now — wired through qnaTemplatesApi.ts (list),
+ * src/apis/qnaApi.ts's own detail/asked-questions endpoints (identical
+ * URLs, reused rather than duplicated), and src/apis/qnaApi.ts's
+ * askQuestion/answerQuestion mutations (useDraftFactWizard.ts and
+ * useAnswerQuestionsFlow.ts import those two directly — see
+ * models/QnA.ts's AskQuestionRequestV2 and questionPipelineTypes.ts's
+ * AskedQuestionV2 for the v2 body/response shapes).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { qnaApi } from '../../../apis/qnaApi';
+import { useCallback, useMemo } from 'react';
+import { qnaApi, useFetchAskedQuestionsQuery } from '../../../apis/qnaApi';
 import { useFetchQuestionTemplatesV2Query } from './qnaTemplatesApi';
 import {
-  AnswerRecordDto,
   AskedQuestionRecordDto,
+  AskedQuestionV2,
   NonGeoQuestionTemplateDto,
   QuestionTemplateDto,
   QuestionTemplateV2,
   classifyQuestionTemplatesV2,
+  fromAskedQuestionV2List,
   fromQuestionTemplateV2,
 } from '../factsV2/questionPipelineTypes';
-import { MOCK_PENDING_QUESTIONS } from '../factsV2/mockPendingQuestions';
-
-const MOCK_LATENCY_MS = 350;
 
 export interface UseGetQuestionTemplatesResult {
   data: QuestionTemplateDto[] | undefined;
@@ -97,64 +90,51 @@ export interface UseGetPendingQuestionsResult {
   isLoading: boolean;
 }
 
-/** Stand-in for GET /qna/v2/asked-questions/?answered=false — every
- * question awaiting the hider's answer (mockPendingQuestions.ts). teamId is
- * accepted for API shape parity with a real, team-scoped endpoint; the mock
- * data itself isn't keyed by team. */
-export function useGetPendingQuestionsQuery(teamId: string | null): UseGetPendingQuestionsResult {
-  const [data, setData] = useState<AskedQuestionRecordDto[] | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(true);
+/** GET /api/v1/qna/game/{game_id}/asked-questions?target_team_id=... —
+ * src/apis/qnaApi.ts's own hook, reused directly; only the wire→DTO
+ * adaptation (question_meta's nested answer_instruction_type unwrapped
+ * flat, same as fromQuestionTemplateV2 does for templates) lives here.
+ * Filtered client-side to unanswered rows — the real endpoint has no
+ * answered= filter param of its own. That endpoint's legacy TypeScript
+ * return type doesn't declare the v2 question_meta shape a real response
+ * now carries, so the raw result is cast before adapting, same as
+ * useGetQuestionTemplateDetail does above. */
+export function useGetPendingQuestionsQuery(gameId: string | undefined, teamId: string | null): UseGetPendingQuestionsResult {
+  const { data, isLoading, isFetching } = useFetchAskedQuestionsQuery(
+    { gameId: gameId ?? '', targetTeamId: teamId ?? '' },
+    { skip: !gameId || !teamId },
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      setData(MOCK_PENDING_QUESTIONS);
-      setIsLoading(false);
-    }, MOCK_LATENCY_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [teamId]);
+  const questions = useMemo(() => {
+    if (!data) return undefined;
+    return fromAskedQuestionV2List(data.results as unknown as AskedQuestionV2[]).filter((q) => !q.answered);
+  }, [data]);
 
-  return { data, isLoading };
+  return { data: questions, isLoading: isLoading || isFetching };
 }
 
-export interface AnswerQuestionInput {
-  question_id: string;
-  value: boolean;
-}
-
-export interface UseAnswerQuestionMutationResult {
+export interface UseGetAnsweredQuestionsResult {
+  data: AskedQuestionV2[] | undefined;
   isLoading: boolean;
 }
 
-/** Stand-in for PATCH /qna/v2/asked-questions/:id/answer — mints an
- * AnswerRecordDto (stage 3) after a simulated round trip, exactly the shape
- * questionPipelineTypes.ts's toFactRecord expects to compose into a Fact
- * (stage 4). */
-export function useAnswerQuestionMutation(): [
-  (input: AnswerQuestionInput) => Promise<AnswerRecordDto>,
-  UseAnswerQuestionMutationResult,
-] {
-  const [isLoading, setIsLoading] = useState(false);
+/** Same GET /api/v1/qna/game/{game_id}/asked-questions call
+ * useGetPendingQuestionsQuery makes (RTK Query dedupes identical args, one
+ * network round trip either way) — the Seeker's side: rows this team has
+ * been asked that are answered but not yet accepted. Kept in the raw wire
+ * shape rather than adapted to AskedQuestionRecordDto, since accepting
+ * needs the hider's actual answer_meta.result, which that DTO deliberately
+ * drops (the hider-side pending list has no answer yet to carry). */
+export function useGetAnsweredQuestionsQuery(gameId: string | undefined, teamId: string | null): UseGetAnsweredQuestionsResult {
+  const { data, isLoading, isFetching } = useFetchAskedQuestionsQuery(
+    { gameId: gameId ?? '', targetTeamId: teamId ?? '' },
+    { skip: !gameId || !teamId },
+  );
 
-  const trigger = (input: AnswerQuestionInput): Promise<AnswerRecordDto> => {
-    setIsLoading(true);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        resolve({
-          answer_id: `mock-answer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          question_id: input.question_id,
-          value: input.value,
-          answered_at: new Date().toISOString(),
-        });
-      }, MOCK_LATENCY_MS);
-    });
-  };
+  const questions = useMemo(() => {
+    if (!data) return undefined;
+    return (data.results as unknown as AskedQuestionV2[]).filter((q) => q.answered && !q.accepted);
+  }, [data]);
 
-  return [trigger, { isLoading }];
+  return { data: questions, isLoading: isLoading || isFetching };
 }

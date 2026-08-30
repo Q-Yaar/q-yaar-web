@@ -8,7 +8,8 @@ import { PlayAreaResult } from './geometryAssets';
 import { AskedQuestionDto, FactDto } from './factTypes';
 import { foldFactsAreaInWorker } from './geoWorkerClient';
 import { draftQuestionToFact } from './mockData';
-import { convertLegacyFacts } from './legacyFactConverter';
+import { convertLegacyFact } from './legacyFactConverter';
+import { fromFactV2 } from './factV2Converter';
 import { FACTS_MODULE_ID, DRAFT_FACTS_MODULE_ID } from './factsLayerIds';
 
 export interface UseFactsLayersOptions {
@@ -54,7 +55,12 @@ export function useFactsLayers({ gameId, teamId, playAreaState, extraFacts = [] 
     { skip: !gameId || !teamId },
   );
   const realFacts = useMemo(
-    () => [...convertLegacyFacts(factsResponse?.results ?? []), ...extraFacts],
+    () => [
+      ...(factsResponse?.results ?? [])
+        .map((raw) => fromFactV2(raw) ?? convertLegacyFact(raw))
+        .filter((f): f is FactDto => f !== null),
+      ...extraFacts,
+    ],
     [factsResponse, extraFacts],
   );
 

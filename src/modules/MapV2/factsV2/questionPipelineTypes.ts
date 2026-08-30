@@ -136,13 +136,8 @@ export interface AskedQuestionRecordDto {
   category: PipelineCategory;
   answer_instruction_type: OpType;
   question_meta: {
-    placeholder_values: Record<string, string | number>;
     resolved_slots: Record<string, ResolvedLatLon | string | number>;
     asserted_answer: Answer;
-    /** Derived — for map rendering only, same caveat the spec calls out:
-     * it's a flat array and can't say which point was which slot. Use
-     * resolved_slots for anything that needs to know that. */
-    location_points: { lat: string; lon: string }[];
   };
   answered: boolean;
   accepted: boolean;
@@ -252,6 +247,60 @@ export function fromQuestionTemplateV2(wire: QuestionTemplateV2): QuestionTempla
 
 export function fromQuestionTemplateV2List(wire: QuestionTemplateV2[]): QuestionTemplateDto[] {
   return wire.map(fromQuestionTemplateV2).filter((t): t is QuestionTemplateDto => t !== null);
+}
+
+/**
+ * The shape GET /api/v1/qna/game/{game_id}/asked-questions and the
+ * askQuestion/answerQuestion mutations actually return — question_meta
+ * nests answer_instruction_type/asserted_answer/resolved_slots (mirroring
+ * the request body models/QnA.ts's AskQuestionRequestV2 sends), with
+ * answer_meta/fact_meta/answer_instruction_meta/reward layered around it as
+ * record bookkeeping AskedQuestionRecordDto doesn't need.
+ */
+export interface AskedQuestionV2 {
+  question_id: string;
+  question_template_id: string;
+  template: string;
+  rendered_question: string;
+  category: PipelineCategory;
+  question_meta: {
+    answer_instruction_type: OpType;
+    asserted_answer: Answer;
+    resolved_slots: Record<string, ResolvedLatLon | string | number>;
+  };
+  /** Populated once the hider has answered (see the real answerQuestion
+   * mutation's body, models/QnA.ts's AnswerQuestionRequest) — empty ({})
+   * until then. */
+  answer_meta?: { result?: boolean | string };
+  answered: boolean;
+  accepted: boolean;
+  created: string;
+  modified: string;
+}
+
+/** Unwraps question_meta's nested answer_instruction_type flat, same
+ * unwrapping fromQuestionTemplateV2 does for a template's answer plan. */
+export function fromAskedQuestionV2(wire: AskedQuestionV2): AskedQuestionRecordDto {
+  return {
+    question_id: wire.question_id,
+    question_template_id: wire.question_template_id,
+    template: wire.template,
+    rendered_question: wire.rendered_question,
+    category: wire.category,
+    answer_instruction_type: wire.question_meta.answer_instruction_type,
+    question_meta: {
+      resolved_slots: wire.question_meta.resolved_slots,
+      asserted_answer: wire.question_meta.asserted_answer,
+    },
+    answered: wire.answered,
+    accepted: wire.accepted,
+    created: wire.created,
+    modified: wire.modified,
+  };
+}
+
+export function fromAskedQuestionV2List(wire: AskedQuestionV2[]): AskedQuestionRecordDto[] {
+  return wire.map(fromAskedQuestionV2);
 }
 
 export interface ClassifiedQuestionTemplates {
