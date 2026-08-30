@@ -14,6 +14,10 @@ export const GROUP_ID = {
    * (which the FactsChip eye toggle can hide independently of any wizard
    * being open at all). Nothing toggles this group off today. */
   WIZARD_AIDS: 'wizard-aids',
+  /** Live player-location pings (PlayerLocationsModule) — its own group so
+   * it can be toggled independently of Overlays/Facts, same reasoning as
+   * every other capability having its own group. */
+  PLAYER_LOCATIONS: 'player-locations',
 } as const;
 
 export type GroupId = (typeof GROUP_ID)[keyof typeof GROUP_ID];

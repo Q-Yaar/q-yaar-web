@@ -3,10 +3,12 @@ import { MapLayerRegistry } from './layers/MapLayerRegistry';
 import { MapLayerRegistryProvider, useMapLayerModule, EMPTY_ITEMS } from './layers/hooks';
 import { GROUP_ID } from './layers/groupIds';
 import { PolygonOverlayModule } from './layers/modules/PolygonOverlayModule';
+import { PlayerLocationsModule } from './layers/modules/PlayerLocationsModule';
 import { useMapInstance } from './hooks/useMapInstance';
 import { useTeamFilter } from './hooks/useTeamFilter';
 import { useGameMode, GAME_MODE } from './hooks/useGameMode';
 import { useMapInteractions } from './hooks/useMapInteractions';
+import { usePlayerLocations } from './hooks/usePlayerLocations';
 import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
@@ -44,6 +46,12 @@ interface MapCanvasInnerProps {
  *   playArea         -> the eagerly-loaded game zone (factsV2/geometryAssets.ts)
  *   polygonCatalog   -> corporation/metro-catchment zones, loaded lazily
  *                        (factsV2/geometryAssets.ts)
+ *   playerLocations  -> live player-location pings (hooks/usePlayerLocations.ts),
+ *                        polling the same real endpoint and 30s interval the old
+ *                        Map page uses — not mode-gated, shown in both Hiding and
+ *                        Seeking exactly like v1, since there's no client-side
+ *                        concept of which pings the backend should or shouldn't
+ *                        be returning to a given viewer
  *   gameMode         -> Hiding/Seeking toggle, manual (hooks/useGameMode.ts —
  *                        there's no real hider/seeker field anywhere in the
  *                        data model yet)
@@ -121,6 +129,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     registry.registerGroup(GROUP_ID.FACTS, 'Facts');
     // No manual toggle either, same as Measurement — see WizardPointsModule.
     registry.registerGroup(GROUP_ID.WIZARD_AIDS, 'Wizard aids');
+    registry.registerGroup(GROUP_ID.PLAYER_LOCATIONS, 'Player locations');
   }, [registry]);
 
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
@@ -148,6 +157,16 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   // wizard so a zone overlay never draws over either of them.
   const [polygonModule] = useState(() => new PolygonOverlayModule());
   useMapLayerModule(polygonModule, polygonCatalog.loading ? EMPTY_ITEMS : polygonCatalog.items);
+
+  // Capability #2b — Player Locations. Same "no dedicated pipeline" reasoning
+  // as Registry Polygons above; usePlayerLocations.ts owns the real
+  // fetch+poll, this just feeds its items into the module. Registered here
+  // (after Registry Polygons, before Measurement/the wizard) so player dots
+  // draw above zone shading but below whichever flow's own live aids are
+  // currently active, same z-order reasoning as the rest of this block.
+  const playerLocations = usePlayerLocations(gameId);
+  const [playerLocationsModule] = useState(() => new PlayerLocationsModule());
+  useMapLayerModule(playerLocationsModule, playerLocations.items);
 
   // See the module-order note above for why this lives here rather than
   // inside useDraftFactWizard.
