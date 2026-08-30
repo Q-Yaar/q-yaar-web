@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Circle, Compass, LocateFixed, Loader2, MapPin, MapPinned, MessageSquare, Ruler, Thermometer } from 'lucide-react';
+import { Camera, Circle, Compass, LocateFixed, Loader2, MapPin, MapPinned, MessageSquare, Route, Ruler, Thermometer } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Answer, OP_TYPE, OpType, ResolvedLatLon } from '../factsV2/factTypes';
 import { ANSWER_WORD, describeResolvedPoint, formatDistance, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
@@ -23,6 +23,8 @@ const OP_TYPE_ICON: Partial<Record<OpType, React.ReactNode>> = {
   [OP_TYPE.TWO_POINT_BISECTOR]: <Thermometer className="w-5 h-5" />,
   [OP_TYPE.POINT_POINT_BUFFER_INSIDE]: <Ruler className="w-5 h-5" />,
   [OP_TYPE.POINT_SPLIT]: <Compass className="w-5 h-5" />,
+  [OP_TYPE.LINE_BUFFER_INSIDE]: <Route className="w-5 h-5" />,
+  [OP_TYPE.LINE_POINT_BUFFER_INSIDE]: <Route className="w-5 h-5" />,
 };
 
 /** Per legacy category name, for the non-map section below — falls back to
@@ -149,6 +151,35 @@ const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
     );
   }
 
+  if (slotKind === 'LINE') {
+    // Unlike POLYGON, a LINE placeholder's allowed_values are the only
+    // source of options at all — there's no separate line catalog fetched
+    // up front the way zoneOptions is for polygons, since each geometry
+    // entry already carries everything needed to render it (key +
+    // display_name) without a cross-reference.
+    const lineOptions = allowedValues?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'geometry' }> => v.type === 'geometry');
+    return (
+      <div>
+        <div className="text-xs font-semibold text-white mb-1.5">Which line?</div>
+        {!allowedValues ? (
+          <div className="text-[11px] text-white/40 flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading lines…</div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {lineOptions?.map((option) => (
+              <button
+                key={option.value.key}
+                onClick={() => onSetPlaceholderValue(binding.placeholder, option.value.key ?? option.value.geometry_id)}
+                className={chipStyle(selected === option.value.key)}
+              >
+                {option.display_name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (slotKind === 'LENGTH') {
     // A template can curate its own distance options (allowed_values of
     // type 'number', e.g. the worked "100/200 metres" example) — fall back
@@ -183,9 +214,10 @@ const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
     );
   }
 
-  // LINE has no registry picker in MapV2 yet — templates needing one are
-  // filtered out of the selectable group in step 1, so this shouldn't
-  // normally render; kept as an honest fallback rather than silently blank.
+  // Every PLACEHOLDER-bound kind the wizard supports is handled above —
+  // templates needing anything else are filtered out of the selectable
+  // group in step 1 (see isTemplateSupported), so this shouldn't normally
+  // render; kept as an honest fallback rather than silently blank.
   return <div key={slotName} className="text-[11px] text-amber-300">This question type isn’t supported yet.</div>;
 };
 

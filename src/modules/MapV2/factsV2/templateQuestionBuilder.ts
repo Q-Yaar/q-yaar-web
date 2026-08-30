@@ -143,11 +143,11 @@ export function buildRenderedQuestion(
   return template.template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, token) => placeholderText[token] ?? token);
 }
 
-/** The slot kinds this wizard can actually render a picker for. LINE slots
- * have no registry-line picker in MapV2 yet — a template needing one is
- * treated as unsupported (see isTemplateSupported) rather than rendering a
- * broken control. */
-const SUPPORTED_PLACEHOLDER_SLOT_KINDS = new Set(['POLYGON', 'LENGTH']);
+/** The slot kinds this wizard can actually render a picker for. A LINE
+ * placeholder's own allowed_values carry the same tagged geometry shape a
+ * POLYGON one does (key + display_name), so the same generic chip picker
+ * covers both — see CreateDraftFactWizard.tsx's PlaceholderSlotField. */
+const SUPPORTED_PLACEHOLDER_SLOT_KINDS = new Set(['POLYGON', 'LINE', 'LENGTH']);
 
 /** A template is "supported" (shown in the wizard's top, selectable group)
  * when MapV2 knows how to render every slot it declares — every
