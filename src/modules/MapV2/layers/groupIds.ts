@@ -18,6 +18,9 @@ export const GROUP_ID = {
    * it can be toggled independently of Overlays/Facts, same reasoning as
    * every other capability having its own group. */
   PLAYER_LOCATIONS: 'player-locations',
+  /** A hider's own local-only "remember where I'm hiding" marker
+   * (HidingZoneModule) — its own group, same reasoning as the rest. */
+  HIDING_ZONE: 'hiding-zone',
 } as const;
 
 export type GroupId = (typeof GROUP_ID)[keyof typeof GROUP_ID];

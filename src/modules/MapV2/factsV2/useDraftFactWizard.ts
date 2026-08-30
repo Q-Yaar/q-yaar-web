@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
-import { AskedQuestionDto, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
+import { AskedQuestionDto, FACT_TYPE, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
 import {
   buildAskedQuestion,
   buildRenderedQuestion,
@@ -25,6 +25,7 @@ import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/Wiz
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
 import { useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/qnaPipelineApi';
 import { useAskQuestionMutation } from '../../../apis/qnaApi';
+import { useCreateFactMutation } from '../../../apis/api';
 import { QuestionTemplateDto } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
@@ -97,6 +98,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
   const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery();
   const { data: nonGeoTemplates, isLoading: nonGeoTemplatesLoading } = useGetNonGeoQuestionTemplatesQuery();
   const [askQuestion, { isLoading: submitting }] = useAskQuestionMutation();
+  const [createFact, { isLoading: addingFact }] = useCreateFactMutation();
   const [getTemplateDetail] = useGetQuestionTemplateDetail();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -249,6 +251,36 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
       });
   }, [selectedTemplate, points, placeholderValues, assumedValue, gameId, targetTeamId, askQuestion, onSubmit, closeWizard]);
 
+  // Secondary review-step action — skips asking the hider entirely and
+  // records the asserted pole (at whatever Yes/No the preview toggle is
+  // set to) straight into a real, confirmed fact via the same createFact
+  // call useAcceptAnswersFlow.ts's Accept step uses. Belongs to the same
+  // team the question would otherwise have been asked of, so it shows up
+  // through useFactsLayers's own real refetch exactly like an accepted
+  // answer would — no local fact-state juggling needed here either.
+  const handleAddAsFact = useCallback(() => {
+    if (!selectedTemplate || !gameId || !targetTeamId) return;
+    const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, newQuestionId());
+    if (!question) return;
+
+    createFact({
+      game_id: gameId,
+      team_id: targetTeamId,
+      fact_type: FACT_TYPE.GEO,
+      fact_info: {
+        op_type: question.answer_instruction_type,
+        op_meta: { ...question.question_meta.resolved_slots, assertedAnswer: question.question_meta.asserted_answer, value: assumedValue },
+      },
+    })
+      .unwrap()
+      .then(() => {
+        closeWizard();
+      })
+      .catch((err) => {
+        console.warn('[MapV2] Add-as-fact call failed', err);
+      });
+  }, [selectedTemplate, points, placeholderValues, assumedValue, gameId, targetTeamId, createFact, closeWizard]);
+
   // Live "what would this look like" preview — only while reviewing, so the
   // shape the user is about to commit to shows on the map before they add
   // it, reacting instantly to the Yes/No toggle.
@@ -350,6 +382,8 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
     onContinue: () => setStep(WIZARD_STEP.REVIEW),
     onSubmit: handleSubmit,
     submitting,
+    onAddAsFact: handleAddAsFact,
+    addingFact,
   };
 
   return { props, openWizard, pickPrompt, cancelPick };

@@ -281,6 +281,11 @@ export interface CreateDraftFactWizardProps {
   /** True while the ask-question API call from the last submit is
    * in flight. */
   submitting: boolean;
+  /** Review step's secondary action — skips asking the hider and records
+   * the asserted pole straight into a real, confirmed fact. */
+  onAddAsFact: () => void;
+  /** True while that createFact call is in flight. */
+  addingFact: boolean;
 }
 
 /**
@@ -308,6 +313,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
     placeholderValues, onSetPlaceholderValue,
     zoneOptions, zoneOptionsLoading,
     renderedQuestionPreview, assumedValue, onSetAssumedValue, canContinue, onContinue, onSubmit, submitting,
+    onAddAsFact, addingFact,
   } = props;
 
   const title = step === WIZARD_STEP.KIND
@@ -318,12 +324,12 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
 
   const leftAction = step === WIZARD_STEP.KIND
     ? { label: 'Cancel', onClick: onClose }
-    : { label: 'Back', onClick: onBack, disabled: submitting };
+    : { label: 'Back', onClick: onBack, disabled: submitting || addingFact };
 
   const rightAction = step === WIZARD_STEP.DETAILS
     ? { label: 'Continue', onClick: onContinue, disabled: !canContinue }
     : step === WIZARD_STEP.REVIEW
-      ? { label: submitting ? 'Asking…' : 'Ask question', onClick: onSubmit, disabled: submitting }
+      ? { label: submitting ? 'Asking…' : 'Ask question', onClick: onSubmit, disabled: submitting || addingFact }
       : undefined;
 
   const supportedTemplates = templates.filter((t) => isTemplateSupported(t));
@@ -448,6 +454,20 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
 
           <p className="text-[11px] text-white/40">
             The amber shape on the map previews what stays possible if the hider answers “{assumedValue ? 'yes' : 'no'}”. Asking sends this to the hider now and saves it as a dashed draft fact until they actually answer.
+          </p>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onAddAsFact}
+            disabled={submitting || addingFact}
+            className="w-full h-9 text-xs"
+          >
+            {addingFact ? 'Adding…' : 'Add directly as fact'}
+          </Button>
+          <p className="text-[11px] text-white/40">
+            Skips asking the hider — records “{assumedValue ? 'yes' : 'no'}” straight away as a real, confirmed fact.
           </p>
         </div>
       )}

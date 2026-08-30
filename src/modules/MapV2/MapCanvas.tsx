@@ -4,11 +4,13 @@ import { MapLayerRegistryProvider, useMapLayerModule, EMPTY_ITEMS } from './laye
 import { GROUP_ID } from './layers/groupIds';
 import { PolygonOverlayModule } from './layers/modules/PolygonOverlayModule';
 import { PlayerLocationsModule } from './layers/modules/PlayerLocationsModule';
+import { HidingZoneModule } from './layers/modules/HidingZoneModule';
 import { useMapInstance } from './hooks/useMapInstance';
 import { useTeamFilter } from './hooks/useTeamFilter';
 import { useGameMode, GAME_MODE } from './hooks/useGameMode';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { usePlayerLocations } from './hooks/usePlayerLocations';
+import { useHidingZoneFlow } from './hooks/useHidingZoneFlow';
 import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
 import { useFactsLayers } from './factsV2/useFactsLayers';
 import { useDraftFactWizard } from './factsV2/useDraftFactWizard';
@@ -32,6 +34,7 @@ import { FactPopup } from './components/FactPopup';
 import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
 import { AnswerQuestionsSheet } from './components/AnswerQuestionsSheet';
 import { AcceptAnswersSheet } from './components/AcceptAnswersSheet';
+import { HidingZoneSheet } from './components/HidingZoneSheet';
 
 interface MapCanvasInnerProps {
   registry: MapLayerRegistry;
@@ -72,6 +75,12 @@ interface MapCanvasInnerProps {
  *                        accepts it, which is what actually turns it into a real
  *                        fact (and clears the matching draft) rather than staying
  *                        a dashed, assumed-value guess forever
+ *   hidingZone       -> Hiding's "My hiding zone" marker (hooks/useHidingZoneFlow.ts) —
+ *                        a point+radius saved only to this device (localStorage,
+ *                        hooks/useHidingZone.ts), never sent to the backend or any
+ *                        other player; shares pickResolverRef with wizard the same
+ *                        way, but only ever active in Hiding mode so there's no
+ *                        real contention between the two
  *   cardModule       -> Hiding's Draw/Hand/Discard cards (cards/useCardModule.ts) — wired
  *                        to the real deck API (src/apis/deckApi.ts, the same endpoints
  *                        DeckPage.tsx uses), not mock data. No map layer of its own,
@@ -130,6 +139,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     // No manual toggle either, same as Measurement — see WizardPointsModule.
     registry.registerGroup(GROUP_ID.WIZARD_AIDS, 'Wizard aids');
     registry.registerGroup(GROUP_ID.PLAYER_LOCATIONS, 'Player locations');
+    registry.registerGroup(GROUP_ID.HIDING_ZONE, 'My hiding zone');
   }, [registry]);
 
   const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
@@ -201,6 +211,11 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     teamId: teamFilter.selectedTeamId,
     onRemoveDraft: facts.removeDraftQuestion,
   });
+  const hidingZone = useHidingZoneFlow({ gameId, pickResolverRef });
+  // Only relevant while actually hiding — a seeker viewing another team
+  // shouldn't see their own private hiding-zone marker cluttering that view.
+  const [hidingZoneModule] = useState(() => new HidingZoneModule());
+  useMapLayerModule(hidingZoneModule, gameMode.mode === GAME_MODE.HIDING ? hidingZone.items : EMPTY_ITEMS);
   const cardModule = useCardModule(teamFilter.myTeamId);
   const curseModule = useCurseModule();
   // The hider's curse target — the other player team, so a CURSE card's
@@ -221,9 +236,10 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const wizardActive = wizard.props.isOpen || wizard.pickPrompt !== null;
   const answerFlowActive = answerFlow.props.isOpen;
   const acceptFlowActive = acceptFlow.props.isOpen;
+  const hidingZoneActive = hidingZone.props.isOpen || hidingZone.pickPrompt !== null;
   useEffect(() => {
-    registry.setGroupVisible(GROUP_ID.MEASUREMENT, !(wizardActive || answerFlowActive || acceptFlowActive));
-  }, [registry, wizardActive, answerFlowActive, acceptFlowActive]);
+    registry.setGroupVisible(GROUP_ID.MEASUREMENT, !(wizardActive || answerFlowActive || acceptFlowActive || hidingZoneActive));
+  }, [registry, wizardActive, answerFlowActive, acceptFlowActive, hidingZoneActive]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -238,7 +254,10 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
       />
 
       <FactsChip count={facts.factsCount} />
-      <MapStatusBanner pickPrompt={wizard.pickPrompt} onCancelPick={wizard.cancelPick} />
+      <MapStatusBanner
+        pickPrompt={wizard.pickPrompt ?? hidingZone.pickPrompt}
+        onCancelPick={wizard.pickPrompt ? wizard.cancelPick : hidingZone.cancelPick}
+      />
 
       {gameMode.mode === GAME_MODE.SEEKING && (
         <DraftQuestionsList questions={facts.draftQuestions} onRemove={facts.removeDraftQuestion} />
@@ -251,6 +270,9 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         onAskQuestion={() => wizard.openWizard(interactions.measurementPoints)}
         onAcceptAnswers={acceptFlow.openSheet}
         pendingAcceptCount={acceptFlow.pendingCount}
+        onOpenHidingZone={hidingZone.openSheet}
+        hasSavedHidingZone={hidingZone.hasSavedZone}
+        hidingZoneVisible={hidingZone.props.isVisible}
         curseCount={curseModule.curses.length}
         onOpenCurseStatus={curseModule.openSheet}
       />
@@ -292,6 +314,7 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
       {gameMode.mode === GAME_MODE.HIDING && (
         <>
           <AnswerQuestionsSheet {...answerFlow.props} />
+          <HidingZoneSheet {...hidingZone.props} />
           <CardsSheet
             isOpen={cardModule.activeSheet === CARD_SHEET.HAND}
             onClose={cardModule.closeSheet}

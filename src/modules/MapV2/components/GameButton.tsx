@@ -1,10 +1,15 @@
 import React from 'react';
+import { Check, EyeOff } from 'lucide-react';
 
 export interface GameButtonProps {
   icon: React.ReactNode;
   label: string;
   ariaLabel: string;
-  badge?: number;
+  /** A number renders as a count badge (hidden at 0); 'check' renders a
+   * checkmark for a binary "this is set" state where a count would be
+   * misleading (e.g. a saved hiding zone); 'hidden' renders an eye-off
+   * icon for that same state when it's currently toggled off the map. */
+  badge?: number | 'check' | 'hidden';
   onClick?: () => void;
   disabled?: boolean;
   /** 'blue' (default) for ordinary actions; 'purple' marks the card system
@@ -47,9 +52,9 @@ export const GameButton: React.FC<GameButtonProps> = ({ icon, label, ariaLabel, 
         : `cursor-pointer active:translate-y-[4px] ${TONE_CLASSES[tone]}`
     }`}
   >
-    {badge !== undefined && badge > 0 && (
+    {badge !== undefined && (badge === 'check' || badge === 'hidden' || badge > 0) && (
       <span className="absolute -top-2 -right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-[#141414] bg-[#E11900] px-1 text-[10px] font-extrabold text-white">
-        {badge}
+        {badge === 'check' ? <Check size={12} strokeWidth={3} /> : badge === 'hidden' ? <EyeOff size={12} strokeWidth={3} /> : badge}
       </span>
     )}
     <span className="flex items-center justify-center">{icon}</span>
