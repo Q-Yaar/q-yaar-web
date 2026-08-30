@@ -36,7 +36,7 @@ export function LocationPusher(): null {
 
     const endpointTemplate = settings.tracking_endpoint.replace('<location_client>', LOCATION_CLIENT);
     const endpointPath = endpointTemplate.endsWith('/') ? endpointTemplate : `${endpointTemplate}/`;
-    const pushUrl = `${BASE_URL}${endpointPath}${settings.tracking_id}`;
+    const pushUrl = `${BASE_URL}/api/v1/wh/live-location/WEB_APP/track/${settings.tracking_id}`;
 
     let cancelled = false;
 
