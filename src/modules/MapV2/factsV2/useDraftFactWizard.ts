@@ -10,6 +10,7 @@ import {
   PointValues,
   pointSlotLabel,
   pointSlotNames,
+  resolvePlaceholders,
 } from './templateQuestionBuilder';
 import { resolveCurrentLocation } from '../utils/geolocation';
 import { PolygonOverlayItemData } from './geometryAssets';
@@ -22,7 +23,8 @@ import { PointDistanceItem } from '../layers/modules/PointsDistanceModule';
 import { WizardPointItem, WizardPointsModule } from '../layers/modules/WizardPointsModule';
 import { WizardShapeItem, WizardShapePreviewModule } from '../layers/modules/WizardShapePreviewModule';
 import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
-import { useAskQuestionMutation, useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
+import { useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/mockQnaApi';
+import { useAskQuestionMutation } from '../../../apis/qnaApi';
 import { QuestionTemplateDto } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
@@ -38,6 +40,12 @@ const toCoordinates = (p: ResolvedLatLon): [number, number] => [Number(p.lon), N
 const newQuestionId = (): string => `q-draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export interface UseDraftFactWizardOptions {
+  /** Threaded through to the real askQuestion call — see handleSubmit. */
+  gameId: string | undefined;
+  /** The team this question is being asked of — MapCanvas's teamFilter
+   * already resolves this (the *opposite* team in Seeking mode); handed
+   * straight to the real askQuestion call's target_team_id. */
+  targetTeamId: string | undefined | null;
   zoneOptions: PolygonOverlayItemData[];
   zoneOptionsLoading: boolean;
   /** Same starting area a real draft would fold on top of once added (see
@@ -78,14 +86,14 @@ export interface UseDraftFactWizardResult {
  * templates (apis/mockQnaApi.ts), every piece of the generic slot-filling
  * form state, the map-pick handshake (hide the wizard, wait for a click,
  * refill the field, reopen), a live on-map preview of the shape while
- * composing and reviewing it, and the final submit — which calls the mock
- * ask-question API before handing the resulting AskedQuestionDto to
- * onSubmit. MapCanvas only needs to render
+ * composing and reviewing it, and the final submit — which calls the real
+ * askQuestion mutation (src/apis/qnaApi.ts) before handing the resulting
+ * AskedQuestionDto to onSubmit. MapCanvas only needs to render
  * <CreateDraftFactWizard {...wizard.props}> and wire the pick-prompt
  * banner — pickResolverRef itself is MapCanvas's (see that option's doc)
  * and already shared with useMapInteractions.
  */
-export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
+export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
   const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery();
   const { data: nonGeoTemplates, isLoading: nonGeoTemplatesLoading } = useGetNonGeoQuestionTemplatesQuery();
   const [askQuestion, { isLoading: submitting }] = useAskQuestionMutation();
@@ -211,25 +219,35 @@ export function useDraftFactWizard({ zoneOptions, zoneOptionsLoading, previewUni
   }, [selectedTemplate, points, placeholderValues, canContinue]);
 
   const handleSubmit = useCallback(() => {
-    if (!selectedTemplate) return;
+    if (!selectedTemplate || !gameId || !targetTeamId) return;
     const question = buildAskedQuestion(selectedTemplate, points, placeholderValues, assumedValue, newQuestionId());
     if (!question) return;
 
     askQuestion({
-      question_template_id: selectedTemplate.question_template_id,
-      rendered_question: question.rendered_question,
-      answer_instruction_type: question.answer_instruction_type,
-      resolved_slots: question.question_meta.resolved_slots,
-      asserted_answer: question.question_meta.asserted_answer,
+      gameId,
+      questionId: selectedTemplate.question_template_id,
+      body: {
+        target_team_id: targetTeamId,
+        question_meta: {
+          answer_instruction_type: question.answer_instruction_type,
+          asserted_answer: question.question_meta.asserted_answer,
+          resolved_slots: question.question_meta.resolved_slots,
+          resolved_placeholders: resolvePlaceholders(selectedTemplate, placeholderValues),
+        },
+      },
     })
-      .then(() => {
-        onSubmit(question);
+      .unwrap()
+      .then((asked) => {
+        // Prefer the server-minted question_id over the locally-generated
+        // placeholder so this draft's ID matches what the answer flow will
+        // later see from fetchAskedQuestions.
+        onSubmit(asked.question_id ? { ...question, question_id: asked.question_id } : question);
         closeWizard();
       })
       .catch((err) => {
-        console.warn('[MapV2] Mock ask-question call failed', err);
+        console.warn('[MapV2] Ask-question call failed', err);
       });
-  }, [selectedTemplate, points, placeholderValues, assumedValue, askQuestion, onSubmit, closeWizard]);
+  }, [selectedTemplate, points, placeholderValues, assumedValue, gameId, targetTeamId, askQuestion, onSubmit, closeWizard]);
 
   // Live "what would this look like" preview — only while reviewing, so the
   // shape the user is about to commit to shows on the map before they add

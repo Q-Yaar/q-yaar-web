@@ -1,20 +1,22 @@
 /**
  * The FactsV2 question pipeline's API layer. Question templates (stage 1)
- * are now real — the backend supports the v2 contract — wired through
- * qnaTemplatesApi.ts (list) and src/apis/qnaApi.ts's own detail endpoint
- * (identical URL, reused rather than duplicated). Asking a question,
- * answering one, and listing pending questions (stages 2-3) stay mocked
- * below: there's no contract for those endpoints yet, so wiring them would
- * mean guessing shapes rather than building against something real. Their
- * hook names/shapes are deliberately RTK-Query-flavored
- * ({data, isLoading} / [trigger, {isLoading}]) so swapping them for real
- * endpoints later, once there's a contract for them too, is a one-file
- * change the same way the template hooks just were.
+ * and asking a question (stage 2) are now real — wired through
+ * qnaTemplatesApi.ts (list), src/apis/qnaApi.ts's own detail endpoint
+ * (identical URL, reused rather than duplicated), and src/apis/qnaApi.ts's
+ * askQuestion mutation (useDraftFactWizard.ts imports it directly — see
+ * models/QnA.ts's AskQuestionRequestV2 for the v2 body shape it now also
+ * accepts alongside the legacy one). Answering a question and listing
+ * pending questions (stage 3) stay mocked below: there's no contract for
+ * those endpoints yet, so wiring them would mean guessing shapes rather
+ * than building against something real. Their hook names/shapes are
+ * deliberately RTK-Query-flavored ({data, isLoading} / [trigger,
+ * {isLoading}]) so swapping them for real endpoints later, once there's a
+ * contract for them too, is a one-file change the same way the template
+ * hooks (and askQuestion) just were.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { qnaApi } from '../../../apis/qnaApi';
 import { useFetchQuestionTemplatesV2Query } from './qnaTemplatesApi';
-import { Answer, OpType } from '../factsV2/factTypes';
 import {
   AnswerRecordDto,
   AskedQuestionRecordDto,
@@ -88,49 +90,6 @@ export function useGetQuestionTemplateDetail(): [
   }, [trigger]);
 
   return [fetchDetail, { isLoading }];
-}
-
-export interface AskQuestionInput {
-  question_template_id: string;
-  rendered_question: string;
-  answer_instruction_type: OpType;
-  resolved_slots: Record<string, unknown>;
-  asserted_answer: Answer;
-}
-
-export interface AskQuestionResult {
-  question_id: string;
-  created: string;
-}
-
-export interface UseAskQuestionMutationResult {
-  isLoading: boolean;
-}
-
-/** Stand-in for POST /qna/v2/questions/:id/ask — mints a question_id after
- * a simulated round trip. Mirrors RTK Query's mutation hook shape
- * ([trigger, {isLoading}]) so the wizard's submit handler reads the same
- * way it would against a real endpoint. */
-export function useAskQuestionMutation(): [
-  (input: AskQuestionInput) => Promise<AskQuestionResult>,
-  UseAskQuestionMutationResult,
-] {
-  const [isLoading, setIsLoading] = useState(false);
-
-  const trigger = (_input: AskQuestionInput): Promise<AskQuestionResult> => {
-    setIsLoading(true);
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setIsLoading(false);
-        resolve({
-          question_id: `mock-asked-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          created: new Date().toISOString(),
-        });
-      }, MOCK_LATENCY_MS);
-    });
-  };
-
-  return [trigger, { isLoading }];
 }
 
 export interface UseGetPendingQuestionsResult {

@@ -150,6 +150,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     pickResolverRef,
   });
   const wizard = useDraftFactWizard({
+    gameId,
+    targetTeamId: teamFilter.selectedTeamId,
     zoneOptions: polygonCatalog.items,
     zoneOptionsLoading: polygonCatalog.loading,
     previewUniverse: facts.draftsUniverse,

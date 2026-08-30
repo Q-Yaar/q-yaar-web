@@ -98,6 +98,35 @@ function allowedValueDisplayName(allowedValues: PlaceholderAllowedValue[] | unde
   return match ? match.display_name : null;
 }
 
+/** Every PLACEHOLDER-sourced value the asker has chosen, resolved to the
+ * full tagged {type, value, display_name} shape the real askQuestion
+ * payload's question_meta.resolved_placeholders expects — matched against
+ * the template's own allowed_values when the choice came from a curated
+ * list (same matching allowedValueDisplayName does), or synthesized
+ * (display_name === value, as text/number) for a free-typed one. Covers
+ * both a slot's own placeholder and the asserted_answer's placeholder,
+ * same two sources resolveTemplateSlots/resolveAssertedAnswer draw from
+ * separately. */
+export function resolvePlaceholders(template: QuestionTemplateDto, placeholders: PlaceholderValues): Record<string, PlaceholderAllowedValue> {
+  const keys = new Set<string>();
+  for (const binding of Object.values(template.slot_bindings)) {
+    if (binding.source === 'PLACEHOLDER') keys.add(binding.placeholder);
+  }
+  if (template.asserted_answer.source === 'PLACEHOLDER') keys.add(template.asserted_answer.placeholder);
+
+  const resolved: Record<string, PlaceholderAllowedValue> = {};
+  for (const key of Array.from(keys)) {
+    const value = placeholders[key];
+    if (value === undefined) continue;
+    const spec = template.placeholders[key];
+    const match = spec?.allowed_values?.find((v) => (v.type === 'geometry' ? v.value.key === value : v.value === value));
+    resolved[key] = match ?? (typeof value === 'number'
+      ? { type: 'number', value, display_name: String(value) }
+      : { type: 'text', value: String(value), display_name: String(value) });
+  }
+  return resolved;
+}
+
 function slotDisplayText(binding: SlotBinding, value: SlotValue, placeholderSpec: PlaceholderSpec | undefined): string {
   if (binding.source === 'ASKER_LOCATION') return 'your location';
   if (binding.source === 'MAP_POINT') return describeResolvedPoint(value as ResolvedLatLon, 'the point you picked');

@@ -278,7 +278,7 @@ export interface CreateDraftFactWizardProps {
   canContinue: boolean;
   onContinue: () => void;
   onSubmit: () => void;
-  /** True while the mock ask-question API call from the last submit is
+  /** True while the ask-question API call from the last submit is
    * in flight. */
   submitting: boolean;
 }
@@ -323,7 +323,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
   const rightAction = step === WIZARD_STEP.DETAILS
     ? { label: 'Continue', onClick: onContinue, disabled: !canContinue }
     : step === WIZARD_STEP.REVIEW
-      ? { label: submitting ? 'Adding…' : 'Add fact', onClick: onSubmit, disabled: submitting }
+      ? { label: submitting ? 'Asking…' : 'Ask question', onClick: onSubmit, disabled: submitting }
       : undefined;
 
   const supportedTemplates = templates.filter((t) => isTemplateSupported(t));
@@ -447,7 +447,7 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
           </div>
 
           <p className="text-[11px] text-white/40">
-            The amber shape on the map previews what stays possible if the hider answers “{assumedValue ? 'yes' : 'no'}”. It becomes a dashed draft fact once added, until the hider actually answers.
+            The amber shape on the map previews what stays possible if the hider answers “{assumedValue ? 'yes' : 'no'}”. Asking sends this to the hider now and saves it as a dashed draft fact until they actually answer.
           </p>
         </div>
       )}

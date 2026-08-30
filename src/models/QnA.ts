@@ -78,6 +78,43 @@ export interface GenericAskQuestionRequest {
   fact_meta?: FactMeta;
 }
 
+/**
+ * A single resolved placeholder in the shape the real v2 API uses on both
+ * sides of asking — the same tagged {type, value, display_name} triple a
+ * template's own allowed_values come in (see MapV2's questionPipelineTypes.ts
+ * PlaceholderAllowedValue, which this deliberately mirrors structurally
+ * rather than importing, to keep this shared models file free of a
+ * dependency on a feature module).
+ */
+export interface AskedPlaceholderValue {
+  type: 'geometry' | 'text' | 'number';
+  value: unknown;
+  display_name: string;
+}
+
+/**
+ * Ask-to-Fact v2 request body for askQuestion — question_meta nests
+ * resolved_slots/asserted_answer/resolved_placeholders, computed
+ * client-side by MapV2's wizard, replacing the legacy flat
+ * chosen_placeholders/question_meta shape above for v2-templated
+ * questions. The same nested question_meta shape comes back on the
+ * AskedQuestion this mutation resolves to (and on every asked-question
+ * record fetched afterwards), just with additional record fields (answered,
+ * accepted, reward, ...) layered around it. askQuestion accepts either this
+ * or the legacy body shape (see qnaApi.ts); this one is additive, not a
+ * replacement, so the legacy caller (QuestionAndAnswer/AskQuestionModule.tsx)
+ * is untouched.
+ */
+export interface AskQuestionRequestV2 {
+  target_team_id: string;
+  question_meta: {
+    answer_instruction_type: string;
+    asserted_answer: string;
+    resolved_slots: Record<string, unknown>;
+    resolved_placeholders: Record<string, AskedPlaceholderValue>;
+  };
+}
+
 export interface AnswerQuestionRequest {
   answer_meta: {
     result: boolean | string;
