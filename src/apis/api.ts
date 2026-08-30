@@ -38,22 +38,6 @@ const baseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
   prepareHeaders: (headers, { getState, endpoint }) => {
     try {
-      // TEMPORARY (~2 days) — the qna templates list currently requires a
-      // GAME_MASTER-role token; a player token gets rejected/empty even
-      // though this is a player-facing read. Scoped to just this one
-      // endpoint so nothing else is affected, and gone the moment the
-      // backend accepts a player token here. The token itself lives in
-      // .env.local (gitignored — see that file's comment), never in
-      // tracked source, so removing this block is the only cleanup needed
-      // once the backend is fixed.
-      if (endpoint === 'fetchQuestionTemplatesV2') {
-        const gameMasterToken = process.env.REACT_APP_QNA_GAME_MASTER_TOKEN;
-        if (gameMasterToken) {
-          headers.set('Authorization', `Bearer ${gameMasterToken}`);
-          return headers;
-        }
-      }
-
       // You might need to adjust this depending on which token (user vs profile) you want to use by default
       const playerAccessToken = (getState() as RootState).auth.authData
         ?.profiles['PLAYER']?.access_token;
