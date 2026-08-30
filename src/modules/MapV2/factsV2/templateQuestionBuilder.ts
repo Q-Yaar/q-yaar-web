@@ -27,7 +27,7 @@ export const describeResolvedPoint = (p: ResolvedLatLon | null, fallback = 'a po
 
 const ANSWER_WORD: Record<Answer, string> = {
   INSIDE: 'inside', OUTSIDE: 'outside',
-  N: 'north', S: 'south', E: 'east', W: 'west',
+  NORTH: 'north', SOUTH: 'south', EAST: 'east', WEST: 'west',
   HOTTER: 'hotter', COLDER: 'colder',
 };
 

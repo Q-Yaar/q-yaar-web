@@ -34,10 +34,10 @@ import { Fact } from '../../../models/Fact';
 import { ANSWER, Answer, FACT_TYPE, FactDto, OP_TYPE, OpType } from './factTypes';
 
 const DIRECTION_TO_ANSWER: Record<string, Answer> = {
-  North: ANSWER.N,
-  South: ANSWER.S,
-  East: ANSWER.E,
-  West: ANSWER.W,
+  North: ANSWER.NORTH,
+  South: ANSWER.SOUTH,
+  East: ANSWER.EAST,
+  West: ANSWER.WEST,
 };
 
 const toResolvedPoint = (coords: [number, number]) => ({

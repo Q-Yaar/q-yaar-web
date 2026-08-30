@@ -33,10 +33,10 @@ import { AnswerRecordDto, AskedQuestionRecordDto, toFactRecord } from './questio
 // legacy source, the old map tool's, which IS capitalized). Looked up
 // case-insensitively below rather than assuming either casing.
 const DIRECTION_TO_ANSWER: Record<string, Answer> = {
-  north: ANSWER.N,
-  south: ANSWER.S,
-  east: ANSWER.E,
-  west: ANSWER.W,
+  north: ANSWER.NORTH,
+  south: ANSWER.SOUTH,
+  east: ANSWER.EAST,
+  west: ANSWER.WEST,
 };
 
 interface LegacyPoint {

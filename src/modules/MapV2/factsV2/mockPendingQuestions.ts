@@ -57,9 +57,9 @@ export const MOCK_PENDING_QUESTIONS: AskedQuestionRecordDto[] = [
     category: { category_id: '47cc4c38-c578-4ab0-b856-96234c5fe805', category_name: 'Relative', priority: 1 },
     answer_instruction_type: 'POINT_SPLIT',
     question_meta: {
-      placeholder_values: { direction: 'N' },
+      placeholder_values: { direction: 'NORTH' },
       resolved_slots: { point: { lat: '12.99', lon: '77.61', source: 'ASKER_LOCATION' } },
-      asserted_answer: ANSWER.N,
+      asserted_answer: ANSWER.NORTH,
       location_points: [{ lat: '12.99', lon: '77.61' }],
     },
     answered: false,

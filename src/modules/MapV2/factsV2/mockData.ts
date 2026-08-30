@@ -75,7 +75,7 @@ export const MOCK_FACTS: FactDto[] = [
       op_type: OP_TYPE.POINT_SPLIT,
       op_meta: {
         point: rl(77.59, 12.99),
-        assertedAnswer: ANSWER.N,
+        assertedAnswer: ANSWER.NORTH,
         value: true,
       },
     },

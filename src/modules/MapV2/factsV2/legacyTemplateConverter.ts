@@ -125,10 +125,10 @@ const LEGACY_CATEGORY_SHAPES: Record<string, TemplateShape> = {
     opType: OP_TYPE.POINT_SPLIT,
     slotBindings: () => ({ point: { source: 'ASKER_LOCATION' } }),
     // The direction is asker-chosen, not author-fixed — POINT_SPLIT's
-    // asserted pole is whichever of N/S/E/W the asker's placeholder picks.
+    // asserted pole is whichever of NORTH/SOUTH/EAST/WEST the asker's placeholder picks.
     assertedAnswer: (template) => {
       const key = findPlaceholderKey(template, 'direction');
-      return key ? { source: 'PLACEHOLDER', placeholder: key } : { source: 'TEMPLATE_CONSTANT', value: 'N' };
+      return key ? { source: 'PLACEHOLDER', placeholder: key } : { source: 'TEMPLATE_CONSTANT', value: 'NORTH' };
     },
   },
   'Relative Heading': {
@@ -136,7 +136,7 @@ const LEGACY_CATEGORY_SHAPES: Record<string, TemplateShape> = {
     slotBindings: () => ({ point: { source: 'ASKER_LOCATION' } }),
     assertedAnswer: (template) => {
       const key = findPlaceholderKey(template, 'direction');
-      return key ? { source: 'PLACEHOLDER', placeholder: key } : { source: 'TEMPLATE_CONSTANT', value: 'N' };
+      return key ? { source: 'PLACEHOLDER', placeholder: key } : { source: 'TEMPLATE_CONSTANT', value: 'NORTH' };
     },
   },
 };

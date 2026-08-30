@@ -20,10 +20,10 @@ export type OpType = (typeof OP_TYPE)[keyof typeof OP_TYPE];
 export const ANSWER = {
   INSIDE: 'INSIDE',
   OUTSIDE: 'OUTSIDE',
-  N: 'N',
-  S: 'S',
-  E: 'E',
-  W: 'W',
+  NORTH: 'NORTH',
+  SOUTH: 'SOUTH',
+  EAST: 'EAST',
+  WEST: 'WEST',
   HOTTER: 'HOTTER',
   COLDER: 'COLDER',
 } as const;
@@ -32,8 +32,8 @@ export type Answer = (typeof ANSWER)[keyof typeof ANSWER];
 
 export const OPPOSITE: Record<Answer, Answer> = {
   [ANSWER.INSIDE]: ANSWER.OUTSIDE, [ANSWER.OUTSIDE]: ANSWER.INSIDE,
-  [ANSWER.N]: ANSWER.S, [ANSWER.S]: ANSWER.N,
-  [ANSWER.E]: ANSWER.W, [ANSWER.W]: ANSWER.E,
+  [ANSWER.NORTH]: ANSWER.SOUTH, [ANSWER.SOUTH]: ANSWER.NORTH,
+  [ANSWER.EAST]: ANSWER.WEST, [ANSWER.WEST]: ANSWER.EAST,
   [ANSWER.HOTTER]: ANSWER.COLDER, [ANSWER.COLDER]: ANSWER.HOTTER,
 };
 

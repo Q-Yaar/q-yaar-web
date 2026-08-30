@@ -16,11 +16,11 @@
  * This file's shapes (QuestionTemplateDto and friends) are the *client's*
  * flat spec, not the wire shape the real Qonsole console API actually
  * sends — see fromQuestionTemplateV2() at the bottom for the adapter
- * between the two, and its doc comment for the three ways they differ
- * (nested answer plan, compass-direction spelling, an optional answer
- * plan on legacy rows). Nothing that already consumes QuestionTemplateDto
- * (templateQuestionBuilder.ts, resolveClue.ts, the wizard) needs to change
- * for this — they only ever see the already-adapted flat shape.
+ * between the two: a nested answer plan that needs unwrapping flat, and an
+ * answer plan that's optional on a pre-v2 legacy row. Nothing that already
+ * consumes QuestionTemplateDto (templateQuestionBuilder.ts, resolveClue.ts,
+ * the wizard) needs to change for this — they only ever see the
+ * already-adapted flat shape.
  */
 import { LineString, MultiPolygon, Point, Polygon } from 'geojson';
 import { Answer, FACT_TYPE, FactDto, OpType, ResolvedLatLon } from './factTypes';
@@ -33,7 +33,7 @@ export const SUBOP_CONTRACT: Record<OpType, { slots: Record<string, SlotKind>; a
   POLYGON_INSIDE: { slots: { polygon: 'POLYGON' }, answers: ['INSIDE', 'OUTSIDE'] },
   POINT_BUFFER_INSIDE: { slots: { point: 'POINT', radius: 'LENGTH' }, answers: ['INSIDE', 'OUTSIDE'] },
   POINT_POINT_BUFFER_INSIDE: { slots: { anchor: 'POINT', point: 'POINT' }, answers: ['INSIDE', 'OUTSIDE'] },
-  POINT_SPLIT: { slots: { point: 'POINT' }, answers: ['N', 'S', 'E', 'W'] },
+  POINT_SPLIT: { slots: { point: 'POINT' }, answers: ['NORTH', 'SOUTH', 'EAST', 'WEST'] },
   TWO_POINT_BISECTOR: { slots: { point: 'POINT', pointFinal: 'POINT' }, answers: ['HOTTER', 'COLDER'] },
 };
 
@@ -185,30 +185,12 @@ export function toFactRecord(question: AskedQuestionRecordDto, answer: AnswerRec
 
 // ============================================================================
 // Wire adapter — QuestionTemplateV2 (Qonsole/console API shape) -> the flat
-// QuestionTemplateDto above. See "Ask to Fact — Templates v2 Contract" §2 for
-// the three mismatches this resolves; nothing downstream of the adapter
-// needs to know the wire shape ever differed.
+// QuestionTemplateDto above. See "Ask to Fact — Templates v2 Contract" §2 —
+// only the nested answer plan (§2.01) and the optional-on-legacy-rows answer
+// plan (§2.03) still apply; the client's ANSWER (factTypes.ts) now spells
+// the compass points NORTH/SOUTH/EAST/WEST the same way the console does, so
+// §2.02's translation is no longer needed here.
 // ============================================================================
-
-/** The console's own Answer spelling for the four compass points —
- * everywhere else (INSIDE/OUTSIDE, HOTTER/COLDER) already matches the
- * client's ANSWER byte-for-byte. Left untranslated, POINT_SPLIT resolves
- * nothing (PointSplitResolver.contains() falls through to false). */
-const WIRE_ANSWER_ALIASES: Record<string, Answer> = {
-  NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W',
-};
-
-/** Any wire Answer spelling -> the client's. Passes through unchanged for
- * every answer that already matches (INSIDE/OUTSIDE/HOTTER/COLDER/N/S/E/W). */
-export function normalizeWireAnswer(value: string): Answer {
-  return (WIRE_ANSWER_ALIASES[value] ?? value) as Answer;
-}
-
-function normalizeAllowedValue(value: PlaceholderAllowedValue): PlaceholderAllowedValue {
-  if (value.type !== 'text') return value;
-  const normalized = WIRE_ANSWER_ALIASES[value.value];
-  return normalized ? { ...value, value: normalized } : value;
-}
 
 /** The console's nested answer plan — §2.01. Note operation_type where the
  * client says answer_instruction_type; that rename happens in the adapter,
@@ -244,12 +226,10 @@ export interface QuestionTemplateV2 {
 /**
  * Returns null for a pre-v2 row (no answer_instruction_meta — §2.03) or one
  * with no resolvable id at all — there's nothing a QuestionTemplateDto can
- * represent for either. Otherwise: unwraps the nested answer plan flat
- * (§2.01), renames operation_type -> answer_instruction_type, and
- * translates every NORTH/SOUTH/EAST/WEST spelling to N/S/E/W (§2.02) —
- * both in a TEMPLATE_CONSTANT asserted_answer and in any 'text'-type
- * allowed_value a PLACEHOLDER-sourced asserted_answer might offer to pick
- * from (e.g. "Are you {{ direction }} of me?").
+ * represent for either. Otherwise just unwraps the nested answer plan flat
+ * (§2.01) and renames operation_type -> answer_instruction_type; every
+ * field inside it (including Answer spellings) already matches the client
+ * shape byte-for-byte.
  */
 export function fromQuestionTemplateV2(wire: QuestionTemplateV2): QuestionTemplateDto | null {
   const questionTemplateId = wire.question_template_id ?? wire.question_id;
@@ -257,26 +237,14 @@ export function fromQuestionTemplateV2(wire: QuestionTemplateV2): QuestionTempla
 
   const { operation_type, slot_bindings, asserted_answer, placeholders } = wire.answer_instruction_meta;
 
-  const normalizedAssertedAnswer: AssertedAnswerBinding = asserted_answer.source === 'TEMPLATE_CONSTANT'
-    ? { source: 'TEMPLATE_CONSTANT', value: normalizeWireAnswer(asserted_answer.value) }
-    : asserted_answer;
-
-  const normalizedPlaceholders: Record<string, PlaceholderSpec> = {};
-  for (const [key, spec] of Object.entries(placeholders)) {
-    normalizedPlaceholders[key] = {
-      ...spec,
-      allowed_values: spec.allowed_values?.map(normalizeAllowedValue),
-    };
-  }
-
   return {
     question_template_id: questionTemplateId,
     template: wire.template,
     category: wire.category,
     answer_instruction_type: operation_type,
     slot_bindings,
-    asserted_answer: normalizedAssertedAnswer,
-    placeholders: normalizedPlaceholders,
+    asserted_answer,
+    placeholders,
     created: wire.created,
     modified: wire.modified,
   };
