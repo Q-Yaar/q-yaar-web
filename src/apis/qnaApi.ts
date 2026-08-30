@@ -7,6 +7,7 @@ import {
   AskedQuestion,
   AnswerQuestionRequest,
   GenericAskQuestionRequest,
+  AskQuestionRequestV2,
 } from '../models/QnA';
 import { BaseQuestionMeta, LocationPoint, FactMeta } from '../models/QuestionMeta';
 import { QNA_MODULE } from '../constants/modules';
@@ -50,7 +51,7 @@ export const qnaApi = api.injectEndpoints({
     }),
     askQuestion: builder.mutation<
       AskedQuestion,
-      { gameId: string; questionId: string; body: GenericAskQuestionRequest }
+      { gameId: string; questionId: string; body: GenericAskQuestionRequest | AskQuestionRequestV2 }
     >({
       query: ({ gameId, questionId, body }) => ({
         url: `${QNA_API}game/${gameId}/questions/${questionId}/ask`,

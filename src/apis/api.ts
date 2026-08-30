@@ -36,7 +36,7 @@ import {
 
 const baseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
-  prepareHeaders: (headers, { getState }) => {
+  prepareHeaders: (headers, { getState, endpoint }) => {
     try {
       // You might need to adjust this depending on which token (user vs profile) you want to use by default
       const playerAccessToken = (getState() as RootState).auth.authData

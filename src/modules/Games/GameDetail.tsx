@@ -1,21 +1,18 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  DECK_ROUTE,
-  DICE_ROLLER_ROUTE,
-  MAP_ROUTE,
-  ASK_QUESTION_ROUTE,
-  ANSWER_QUESTION_ROUTE,
-  FACTS_ROUTE,
-} from '../../constants/routes';
+import { MAP_ROUTE } from '../../constants/routes';
 import { useFetchMyTeamQuery, useFetchGameDetailsQuery } from '../../apis/gameApi';
 import { Header } from '../../components/ui/header';
 import { Button } from '../../components/ui/button';
-import { ModulesSection, GameModule } from './ModulesSection';
 import { LocationCard } from './LocationCard';
+import { MyTeamCard } from './MyTeamCard';
+import { QuestionsCard } from './QuestionsCard';
+import { DecksCard } from './DecksCard';
 import { TeamModal } from './TeamModal';
 import { useState } from 'react';
 import { TeamAvatar } from 'components/TeamAvatar';
-import { RefreshCw, Share2, Check, Hash } from 'lucide-react';
+import { isPlayerTeam } from '../../models/Team';
+import { getRoute } from '../../utils/getRoute';
+import { RefreshCw, Share2, Check, Hash, MapPinned } from 'lucide-react';
 
 export default function GameDetail() {
   const navigate = useNavigate();
@@ -33,6 +30,10 @@ export default function GameDetail() {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const teams = game?.teams || [];
+  // A spectator has no team (or a non-player one) — the team roster and
+  // deck cards have nothing to show them, so both are skipped entirely
+  // rather than rendering an empty/misleading state.
+  const isSpectator = !isTeamLoading && (!team || !isPlayerTeam(team));
 
   const onBack = () => navigate(-1);
 
@@ -57,61 +58,10 @@ export default function GameDetail() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const modules: GameModule[] = [
-    {
-      id: 1,
-      name: 'Card Deck',
-      icon: '🃏',
-      description: 'Manage and draw cards',
-      color: 'from-red-500 to-pink-500',
-      route: DECK_ROUTE,
-    },
-    {
-      id: 2,
-      name: 'Map',
-      icon: '🗺️',
-      description: 'Interactive game map',
-      color: 'from-green-500 to-emerald-500',
-      route: MAP_ROUTE,
-    },
-    {
-      id: 3,
-      name: 'Dice Roller',
-      icon: '🎲',
-      description: 'Roll virtual dice',
-      color: 'from-blue-500 to-cyan-500',
-      route: DICE_ROLLER_ROUTE,
-    },
-    {
-      id: 7,
-      name: 'Ask Question',
-      icon: '❓',
-      description: 'Ask questions to other teams',
-      color: 'from-indigo-500 to-violet-500',
-      route: ASK_QUESTION_ROUTE,
-    },
-    {
-      id: 8,
-      name: 'Answer Question',
-      icon: '🙋',
-      description: 'Answer pending questions',
-      color: 'from-teal-500 to-green-500',
-      route: ANSWER_QUESTION_ROUTE,
-    },
-    {
-      id: 9,
-      name: 'Facts',
-      icon: '📜',
-      description: 'History of facts',
-      color: 'from-orange-500 to-amber-500',
-      route: FACTS_ROUTE,
-    },
-  ];
-
   const isPendingGame = game?.game_status?.toUpperCase() === 'PENDING';
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
+    <div className="min-h-screen bg-gray-50 pb-28">
       <Header
         title={game?.name || 'Game Modules'}
         onBack={onBack}
@@ -199,8 +149,32 @@ export default function GameDetail() {
         {/* Location card component */}
         <LocationCard gameId={gameId!} />
 
-        {/* Game Modules Section */}
-        <ModulesSection modules={modules} gameId={gameId!} teamId={team?.team_id || ''} />
+        {!isSpectator && (
+          <MyTeamCard
+            team={team || null}
+            isLoading={isTeamLoading}
+            isPendingGame={isPendingGame}
+            onChangeTeam={() => setIsModalOpen(true)}
+          />
+        )}
+
+        <QuestionsCard gameId={gameId!} />
+
+        {!isSpectator && team && <DecksCard gameId={gameId!} team={team} />}
+      </div>
+
+      {/* Floating "Enter game" CTA — the map is the whole point of the
+          game now that Deck/Dice/Ask/Answer/Facts have their own entry
+          points removed from this grid, so it gets a permanent, always
+          reachable button instead of competing with other tiles. */}
+      <div className="fixed bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 shadow-lg flex justify-center">
+        <Button
+          onClick={() => navigate(getRoute(MAP_ROUTE, { gameId }))}
+          className="w-full max-w-md h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2"
+        >
+          <MapPinned className="w-4 h-4" />
+          Enter Game
+        </Button>
       </div>
     </div>
   );
