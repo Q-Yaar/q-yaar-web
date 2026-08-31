@@ -17,6 +17,12 @@ interface DrawCardModalProps {
   onDrawSelected: () => void;
   onDrawAll: () => void;
   onClose: () => void;
+  /** Set only for a reward's bounded "draw N, pick M" (see
+   * cards/useCardModule.ts's DrawOptions/cards/useRewardClaimFlow.ts) —
+   * swaps in pick-count copy and hides "Draw all", since drawing every
+   * peeked card isn't "pick M" once N > M. Undefined for the ordinary free
+   * draw, unchanged. */
+  maxPick?: number;
 }
 
 /**
@@ -30,7 +36,7 @@ interface DrawCardModalProps {
  */
 export const DrawCardModal: React.FC<DrawCardModalProps> = ({
   isOpen, peeking, peekedCards, canPeekMore, onPeekMore, selectedIds, onToggleSelect, onCardClick,
-  drawing, onDrawSelected, onDrawAll, onClose,
+  drawing, onDrawSelected, onDrawAll, onClose, maxPick,
 }) => {
   if (!isOpen) return null;
 
@@ -55,7 +61,9 @@ export const DrawCardModal: React.FC<DrawCardModalProps> = ({
         className="flex max-h-[80dvh] w-full max-w-[340px] flex-col rounded-3xl border-2 border-purple-400/40 bg-gradient-to-b from-[#2a1a4d] to-[#141414] p-4 shadow-2xl"
       >
         <div className="mb-3 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-wide text-purple-300">
-          Peeked {peekedCards.length || ''} cards — pick which to draw
+          {maxPick !== undefined
+            ? `Your reward — pick up to ${maxPick} of ${peekedCards.length || maxPick} to draw`
+            : `Peeked ${peekedCards.length || ''} cards — pick which to draw`}
         </div>
 
         {peeking ? (
@@ -97,17 +105,23 @@ export const DrawCardModal: React.FC<DrawCardModalProps> = ({
           <button
             onClick={onDrawSelected}
             disabled={peeking || drawing || selectedIds.size === 0}
-            className="flex-1 rounded-full border border-white/20 py-2 text-xs font-extrabold text-white disabled:opacity-40"
+            className={`flex-1 rounded-full py-2 text-xs font-extrabold text-white disabled:opacity-40 ${
+              maxPick !== undefined
+                ? 'bg-gradient-to-b from-[#B78CFF] to-[#7C3AED]'
+                : 'border border-white/20'
+            }`}
           >
-            Draw ({selectedIds.size})
+            {drawing ? 'Drawing…' : `Draw (${selectedIds.size})`}
           </button>
-          <button
-            onClick={onDrawAll}
-            disabled={peeking || drawing || peekedCards.length === 0}
-            className="flex-1 rounded-full bg-gradient-to-b from-[#B78CFF] to-[#7C3AED] py-2 text-xs font-extrabold text-white disabled:opacity-50"
-          >
-            {drawing ? 'Drawing…' : 'Draw all'}
-          </button>
+          {maxPick === undefined && (
+            <button
+              onClick={onDrawAll}
+              disabled={peeking || drawing || peekedCards.length === 0}
+              className="flex-1 rounded-full bg-gradient-to-b from-[#B78CFF] to-[#7C3AED] py-2 text-xs font-extrabold text-white disabled:opacity-50"
+            >
+              {drawing ? 'Drawing…' : 'Draw all'}
+            </button>
+          )}
         </div>
       </div>
     </div>,

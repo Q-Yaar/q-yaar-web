@@ -23,6 +23,7 @@
  */
 import { LineString, MultiPolygon, Point, Polygon } from 'geojson';
 import { Answer, FACT_TYPE, FactDto, OpType, ResolvedLatLon } from './factTypes';
+import { Reward } from '../../../models/QnA';
 
 export type SlotKind = 'POINT' | 'LINE' | 'POLYGON' | 'LENGTH';
 
@@ -208,6 +209,12 @@ export interface AskedQuestionV2 {
   answer_meta?: { result?: boolean | string };
   answered: boolean;
   accepted: boolean;
+  /** The category's "draw N, pick M" card reward (models/QnA.ts's Reward,
+   * shared with the legacy AskedQuestion this row's own category can carry
+   * one on) — present once accepted, per the real wire response; there's no
+   * "claimed" concept on the wire at all yet, so that's tracked entirely
+   * client-side (see cards/useRewardClaimFlow.ts). */
+  reward?: Reward;
   created: string;
   modified: string;
 }

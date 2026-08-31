@@ -133,3 +133,29 @@ export function useGetAnsweredQuestionsQuery(gameId: string | undefined, teamId:
 
   return { data: questions, isLoading: isLoading || isFetching };
 }
+
+export interface UseGetRewardableQuestionsResult {
+  data: AskedQuestionV2[] | undefined;
+  isLoading: boolean;
+}
+
+/** Same GET /api/v1/qna/game/{game_id}/asked-questions call
+ * useGetPendingQuestionsQuery/useGetAnsweredQuestionsQuery make (RTK Query
+ * dedupes identical args, one network round trip either way) — the hider's
+ * side: rows targeting this team that are accepted and carry a reward
+ * (draw N, pick M cards — see AskedQuestionV2.reward). Every row here is a
+ * candidate for cards/useRewardClaimFlow.ts's "claimed" filtering — this
+ * hook itself doesn't know or care which ones already were. */
+export function useGetRewardableQuestionsQuery(gameId: string | undefined, teamId: string | null): UseGetRewardableQuestionsResult {
+  const { data, isLoading, isFetching } = useFetchAskedQuestionsQuery(
+    { gameId: gameId ?? '', targetTeamId: teamId ?? '' },
+    { skip: !gameId || !teamId },
+  );
+
+  const questions = useMemo(() => {
+    if (!data) return undefined;
+    return (data.results as unknown as AskedQuestionV2[]).filter((q) => q.accepted && q.reward != null);
+  }, [data]);
+
+  return { data: questions, isLoading: isLoading || isFetching };
+}

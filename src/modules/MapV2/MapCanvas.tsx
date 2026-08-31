@@ -22,6 +22,7 @@ import { useAnswerQuestionsFlow } from './factsV2/useAnswerQuestionsFlow';
 import { useAcceptAnswersFlow } from './factsV2/useAcceptAnswersFlow';
 import { FactDto } from './factsV2/factTypes';
 import { CARD_SHEET, DETAIL_CONTEXT, useCardModule } from './cards/useCardModule';
+import { useRewardClaimFlow } from './cards/useRewardClaimFlow';
 import { CURSE_FEATURE_ENABLED, useCurseModule } from './curse/useCurseModule';
 import { TopBar } from './components/TopBar';
 import { CompactGameButton } from './components/CompactGameButton';
@@ -40,6 +41,7 @@ import { FactPopup } from './components/FactPopup';
 import { CreateDraftFactWizard } from './components/CreateDraftFactWizard';
 import { AnswerQuestionsSheet } from './components/AnswerQuestionsSheet';
 import { AcceptAnswersSheet } from './components/AcceptAnswersSheet';
+import { RewardPickerSheet } from './components/RewardPickerSheet';
 import { HidingZoneSheet } from './components/HidingZoneSheet';
 import { NotificationsSheet } from './components/NotificationsSheet';
 import { LocationPusher } from './components/LocationPusher';
@@ -260,6 +262,12 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const [hidingZoneModule] = useState(() => new HidingZoneModule());
   useMapLayerModule(hidingZoneModule, gameMode.mode === GAME_MODE.HIDING ? hidingZone.items : EMPTY_ITEMS);
   const cardModule = useCardModule(teamFilter.myTeamId);
+  // The hider's reward-claim flow — accepted questions targeting this
+  // team that carry a card reward (see cards/useRewardClaimFlow.ts), which
+  // is why it's scoped to the same teamFilter.myTeamId cardModule itself
+  // uses, not acceptFlow's teamFilter.selectedTeamId above (that's the
+  // Seeker's own, unrelated "which team am I asking" scope).
+  const rewardClaimFlow = useRewardClaimFlow({ gameId, teamId: teamFilter.myTeamId, cardModule });
   const curseModule = useCurseModule();
   // The hider's curse target — the other player team, so a CURSE card's
   // detail action ("Curse <team>") has somewhere to point without asking
@@ -341,7 +349,8 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
         <CardModule
           handCount={cardModule.handCount}
           discardCount={cardModule.discardCount}
-          onOpenDraw={cardModule.openDrawModal}
+          onOpenDraw={rewardClaimFlow.openPicker}
+          unclaimedRewardCount={rewardClaimFlow.unclaimedCount}
           onOpenHand={cardModule.openHand}
           onOpenDiscard={cardModule.openDiscard}
         />
@@ -407,7 +416,9 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
             onDrawSelected={cardModule.drawSelected}
             onDrawAll={cardModule.drawAll}
             onClose={cardModule.closeDrawModal}
+            maxPick={cardModule.maxPick}
           />
+          <RewardPickerSheet {...rewardClaimFlow.props} />
         </>
       )}
       {/* Not gated by mode — reused from Seeking's Cursed sheet too (see
