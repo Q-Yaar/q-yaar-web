@@ -86,12 +86,17 @@ export function resolveAssertedAnswer(template: GeoQuestionTemplate, placeholder
  * that aren't bound to any slot and aren't the asserted_answer's own
  * placeholder either — decorative prose placeholders like Thermometer's
  * "distance", which the asker can still fill in even though it feeds into
- * neither resolved_slots nor the asserted answer. */
+ * neither resolved_slots nor the asserted answer. A MAP_POINT slot's own
+ * label_placeholder (see pointSlotLabel) doesn't count as decorative even
+ * though it's outside slot_bindings' PLACEHOLDER sources too — it's already
+ * resolved from that slot's point value once picked (see buildRenderedQuestion's
+ * MAP_POINT branch), not something the asker fills in separately. */
 export function decorativePlaceholderKeys(template: GeoQuestionTemplate): string[] {
   const { slot_bindings, asserted_answer, placeholders } = template.answer_instruction_meta;
   const bound = new Set<string>();
   for (const binding of Object.values(slot_bindings)) {
     if (binding.source === 'PLACEHOLDER') bound.add(binding.placeholder);
+    if (binding.source === 'MAP_POINT' && binding.label_placeholder) bound.add(binding.label_placeholder);
   }
   if (asserted_answer.source === 'PLACEHOLDER') bound.add(asserted_answer.placeholder);
   return Object.keys(placeholders).filter((key) => !bound.has(key));
