@@ -66,6 +66,53 @@ const PointField: React.FC<PointFieldProps> = ({ label, helpText, value, locatin
   </div>
 );
 
+interface LabelPlaceholderFieldProps {
+  /** Humanized from the MAP_POINT binding's own label_placeholder (see
+   * pointSlotLabel) — the same label shown on the point picker above this
+   * field, so the two visually read as one unit. */
+  label: string;
+  placeholderKey: string;
+  spec: PlaceholderSpec | undefined;
+  placeholderValues: PlaceholderValues;
+  onSetPlaceholderValue: (key: string, value: string | number) => void;
+}
+
+/** A free-text name for a MAP_POINT slot — e.g. POINT_POINT_BUFFER_INSIDE's
+ * "landmark_name" ("closer to {{landmark_name}} than me?"). Placing the
+ * point (PointField, above this) is only ever a pin; without this the
+ * question's prose has no way to say what that pin actually is, and falls
+ * back to a generic "the point you picked" (see buildRenderedQuestion).
+ * Curated allowed_values (if the template has any) are offered as chips
+ * first, same pattern as every other placeholder field. */
+const LabelPlaceholderField: React.FC<LabelPlaceholderFieldProps> = ({ label, placeholderKey, spec, placeholderValues, onSetPlaceholderValue }) => {
+  const selected = placeholderValues[placeholderKey];
+  const textChoices = spec?.allowed_values?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'text' }> => v.type === 'text');
+
+  return (
+    <div>
+      <div className="text-[11px] text-white/40 mb-1.5">What should we call it?</div>
+      {textChoices && textChoices.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-1.5">
+          {textChoices.map((choice) => (
+            <button key={choice.value} onClick={() => onSetPlaceholderValue(placeholderKey, choice.value)} className={chipStyle(selected === choice.value)}>
+              {choice.display_name}
+            </button>
+          ))}
+        </div>
+      )}
+      {(spec === undefined || spec.allow_free_text) && (
+        <input
+          type="text"
+          defaultValue={typeof selected === 'string' ? selected : ''}
+          placeholder={`e.g. ${label.toLowerCase()}…`}
+          className="w-full rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/30"
+          onChange={(e) => onSetPlaceholderValue(placeholderKey, e.target.value)}
+        />
+      )}
+    </div>
+  );
+};
+
 const chipStyle = (selected: boolean): string =>
   `px-2.5 py-1.5 rounded-full text-[11px] font-medium border transition-colors whitespace-nowrap ${
     selected ? 'bg-white text-neutral-900 border-white' : 'border-white/20 text-white/80 hover:border-white/40'
@@ -423,15 +470,25 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
             if (binding.source === 'ASKER_LOCATION' || binding.source === 'MAP_POINT') {
               const label = pointSlotLabel(slotName, binding);
               return (
-                <PointField
-                  key={slotName}
-                  label={label}
-                  helpText={binding.source === 'ASKER_LOCATION' ? 'Resolved from your device automatically.' : `Where is ${label.toLowerCase()}?`}
-                  value={points[slotName] ?? null}
-                  locating={locating}
-                  onPickOnMap={() => onPickPointOnMap(slotName, label)}
-                  onUseMyLocation={() => onUseMyLocationForSlot(slotName)}
-                />
+                <div key={slotName} className="space-y-1.5">
+                  <PointField
+                    label={label}
+                    helpText={binding.source === 'ASKER_LOCATION' ? 'Resolved from your device automatically.' : `Where is ${label.toLowerCase()}?`}
+                    value={points[slotName] ?? null}
+                    locating={locating}
+                    onPickOnMap={() => onPickPointOnMap(slotName, label)}
+                    onUseMyLocation={() => onUseMyLocationForSlot(slotName)}
+                  />
+                  {binding.source === 'MAP_POINT' && binding.label_placeholder && (
+                    <LabelPlaceholderField
+                      label={label}
+                      placeholderKey={binding.label_placeholder}
+                      spec={selectedTemplate.answer_instruction_meta.placeholders[binding.label_placeholder]}
+                      placeholderValues={placeholderValues}
+                      onSetPlaceholderValue={onSetPlaceholderValue}
+                    />
+                  )}
+                </div>
               );
             }
 

@@ -235,7 +235,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
           answer_instruction_type: question.question_meta.answer_instruction_type,
           asserted_answer: question.question_meta.asserted_answer,
           resolved_slots: question.question_meta.resolved_slots,
-          resolved_placeholders: resolvePlaceholders(selectedTemplate, placeholderValues),
+          resolved_placeholders: resolvePlaceholders(selectedTemplate, points, placeholderValues),
         },
       },
     })

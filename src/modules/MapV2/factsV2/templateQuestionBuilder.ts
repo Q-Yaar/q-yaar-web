@@ -87,10 +87,10 @@ export function resolveAssertedAnswer(template: GeoQuestionTemplate, placeholder
  * placeholder either — decorative prose placeholders like Thermometer's
  * "distance", which the asker can still fill in even though it feeds into
  * neither resolved_slots nor the asserted answer. A MAP_POINT slot's own
- * label_placeholder (see pointSlotLabel) doesn't count as decorative even
- * though it's outside slot_bindings' PLACEHOLDER sources too — it's already
- * resolved from that slot's point value once picked (see buildRenderedQuestion's
- * MAP_POINT branch), not something the asker fills in separately. */
+ * label_placeholder (see labelPlaceholderKeys) doesn't count as decorative
+ * even though it's outside slot_bindings' PLACEHOLDER sources too — it's a
+ * distinct, always-optional-to-type-over case with its own field next to
+ * that slot's point picker, not a standalone block of its own. */
 export function decorativePlaceholderKeys(template: GeoQuestionTemplate): string[] {
   const { slot_bindings, asserted_answer, placeholders } = template.answer_instruction_meta;
   const bound = new Set<string>();
@@ -102,15 +102,30 @@ export function decorativePlaceholderKeys(template: GeoQuestionTemplate): string
   return Object.keys(placeholders).filter((key) => !bound.has(key));
 }
 
-/** True once every slot, the asserted answer, and every required decorative
- * placeholder (see decorativePlaceholderKeys) all have a value — the
+/** Every MAP_POINT slot's label_placeholder, in declaration order — e.g.
+ * POINT_POINT_BUFFER_INSIDE's "landmark_name" ("closer to {{landmark_name}}
+ * than me?"). Named by that slot's binding, not the slot name itself, since
+ * a slot has at most one and the two namespaces (slot names, placeholder
+ * names) are otherwise disjoint. See pointSlotLabel for the picker's own
+ * label (derived from the same field) and buildRenderedQuestion for how a
+ * typed value here takes over the point's generic description text. */
+export function labelPlaceholderKeys(template: GeoQuestionTemplate): string[] {
+  return Object.values(template.answer_instruction_meta.slot_bindings)
+    .filter((binding): binding is Extract<SlotBinding, { source: 'MAP_POINT' }> => binding.source === 'MAP_POINT' && !!binding.label_placeholder)
+    .map((binding) => binding.label_placeholder as string);
+}
+
+/** True once every slot, the asserted answer, every required decorative
+ * placeholder (see decorativePlaceholderKeys), and every required
+ * label_placeholder (see labelPlaceholderKeys) all have a value — the
  * wizard's Continue button reads this directly instead of re-deriving it
  * per op_type. */
 export function isTemplateComplete(template: GeoQuestionTemplate, points: PointValues, placeholders: PlaceholderValues): boolean {
   if (resolveTemplateSlots(template, points, placeholders) === null) return false;
   if (resolveAssertedAnswer(template, placeholders) === null) return false;
   const specs = template.answer_instruction_meta.placeholders;
-  return decorativePlaceholderKeys(template).every((key) => !specs[key]?.required || placeholders[key] !== undefined);
+  const fillableKeys = [...decorativePlaceholderKeys(template), ...labelPlaceholderKeys(template)];
+  return fillableKeys.every((key) => !specs[key]?.required || placeholders[key] !== undefined);
 }
 
 /** The curated display name for whichever value the asker picked, if it
@@ -131,17 +146,19 @@ function allowedValueDisplayName(allowedValues: PlaceholderAllowedValue[] | unde
  * both a slot's own placeholder and the asserted_answer's placeholder,
  * same two sources resolveTemplateSlots/resolveAssertedAnswer draw from
  * separately. */
-export function resolvePlaceholders(template: GeoQuestionTemplate, placeholders: PlaceholderValues): Record<string, PlaceholderAllowedValue> {
+export function resolvePlaceholders(template: GeoQuestionTemplate, points: PointValues, placeholders: PlaceholderValues): Record<string, PlaceholderAllowedValue> {
   const { slot_bindings, asserted_answer, placeholders: placeholderSpecs } = template.answer_instruction_meta;
   const keys = new Set<string>();
   for (const binding of Object.values(slot_bindings)) {
     if (binding.source === 'PLACEHOLDER') keys.add(binding.placeholder);
   }
   if (asserted_answer.source === 'PLACEHOLDER') keys.add(asserted_answer.placeholder);
-  // Decorative placeholders too (e.g. Thermometer's "distance") — so an
-  // asker-entered value still round-trips through resolved_placeholders and
+  // Decorative placeholders (e.g. Thermometer's "distance") and MAP_POINT
+  // label_placeholders (e.g. "landmark_name") too — so an asker-entered
+  // value for either still round-trips through resolved_placeholders and
   // renders correctly once the question has actually been asked.
   for (const key of decorativePlaceholderKeys(template)) keys.add(key);
+  for (const key of labelPlaceholderKeys(template)) keys.add(key);
 
   const resolved: Record<string, PlaceholderAllowedValue> = {};
   for (const key of Array.from(keys)) {
@@ -153,6 +170,20 @@ export function resolvePlaceholders(template: GeoQuestionTemplate, placeholders:
       ? { type: 'number', value, display_name: String(value) }
       : { type: 'text', value: String(value), display_name: String(value) });
   }
+
+  // A MAP_POINT label_placeholder the asker left untyped still gets the
+  // same generic point description buildRenderedQuestion shows while
+  // composing ("your location", "the point you picked"), so
+  // renderAskedQuestionText shows that instead of the bare token name once
+  // the question has actually been asked.
+  for (const [slotName, binding] of Object.entries(slot_bindings)) {
+    if (binding.source !== 'MAP_POINT' || !binding.label_placeholder || resolved[binding.label_placeholder]) continue;
+    const point = points[slotName];
+    if (!point) continue;
+    const text = slotDisplayText(binding, point, placeholderSpecs[binding.label_placeholder]);
+    resolved[binding.label_placeholder] = { type: 'text', value: text, display_name: text };
+  }
+
   return resolved;
 }
 
@@ -188,7 +219,13 @@ export function buildRenderedQuestion(
     if (binding.source === 'PLACEHOLDER') {
       placeholderText[binding.placeholder] = slotDisplayText(binding, value, placeholderSpecs[binding.placeholder]);
     } else if (binding.source === 'MAP_POINT' && binding.label_placeholder) {
-      placeholderText[binding.label_placeholder] = slotDisplayText(binding, value, placeholderSpecs[binding.label_placeholder]);
+      // A typed name ("the fountain", "Gate 3") always wins over the point's
+      // generic description — see CreateDraftFactWizard's landmark-name field
+      // next to this slot's point picker.
+      const typedLabel = placeholders[binding.label_placeholder];
+      placeholderText[binding.label_placeholder] = typeof typedLabel === 'string' && typedLabel.trim() !== ''
+        ? typedLabel
+        : slotDisplayText(binding, value, placeholderSpecs[binding.label_placeholder]);
     }
   }
 
@@ -220,9 +257,8 @@ export function buildRenderedQuestion(
  * renders as that word (e.g. "north"), same as buildRenderedQuestion's
  * asserted_answer special-case, rather than whatever display_name the
  * template curated for the chip. A token with no resolved_placeholders
- * entry — unresolved, or a MAP_POINT label_placeholder, which
- * resolved_placeholders never carries — is left as its bare name, same
- * fallback buildRenderedQuestion uses. */
+ * entry — unresolved, or truly decorative with nothing typed for it — is
+ * left as its bare name, same fallback buildRenderedQuestion uses. */
 export function renderAskedQuestionText(question: AskedQuestionV2): string {
   const resolvedPlaceholders = question.question_meta.resolved_placeholders ?? {};
   return question.template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, token) => {
