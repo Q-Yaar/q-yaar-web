@@ -2,7 +2,7 @@ import React from 'react';
 import { Camera, Circle, Compass, LocateFixed, Loader2, MapPin, MapPinned, MessageSquare, Route, Ruler, Thermometer } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Answer, OP_TYPE, OpType, ResolvedLatLon } from '../factsV2/factTypes';
-import { ANSWER_WORD, describeResolvedPoint, formatDistance, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
+import { ANSWER_WORD, decorativePlaceholderKeys, describeResolvedPoint, formatDistance, humanize, isTemplateSupported, pointSlotLabel, PlaceholderValues, PointValues } from '../factsV2/templateQuestionBuilder';
 import { PolygonOverlayItemData, REGION_KIND } from '../factsV2/geometryAssets';
 import { GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, QuestionTemplateV2, SlotBinding, SUBOP_CONTRACT, questionTemplateId } from '../factsV2/questionPipelineTypes';
 import { BottomSheet } from './BottomSheet';
@@ -221,6 +221,54 @@ const PlaceholderSlotField: React.FC<PlaceholderSlotFieldProps> = ({
   return <div key={slotName} className="text-[11px] text-amber-300">This question type isn’t supported yet.</div>;
 };
 
+interface DecorativePlaceholderFieldProps {
+  /** The template's own placeholder name (e.g. Thermometer's "distance") —
+   * not a slot name, since these aren't bound to any slot at all. */
+  placeholderKey: string;
+  spec: PlaceholderSpec | undefined;
+  placeholderValues: PlaceholderValues;
+  onSetPlaceholderValue: (key: string, value: string | number) => void;
+}
+
+/** A field for a placeholder that's declared on the template but not bound
+ * to any slot (see decorativePlaceholderKeys) — e.g. Thermometer's
+ * "distance", which flavors the question's prose without feeding into
+ * resolved_slots. Every such placeholder seen so far is numeric, so the
+ * free-text input is a number field, same as the LENGTH slot case above. */
+const DecorativePlaceholderField: React.FC<DecorativePlaceholderFieldProps> = ({ placeholderKey, spec, placeholderValues, onSetPlaceholderValue }) => {
+  const selected = placeholderValues[placeholderKey];
+  const label = humanize(placeholderKey);
+  const numberChoices = spec?.allowed_values?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'number' }> => v.type === 'number');
+  const textChoices = spec?.allowed_values?.filter((v): v is Extract<PlaceholderAllowedValue, { type: 'text' }> => v.type === 'text');
+  const choices = numberChoices && numberChoices.length > 0 ? numberChoices : textChoices;
+
+  return (
+    <div>
+      <div className="text-xs font-semibold text-white mb-1.5">{label}{spec?.required ? '' : ' (optional)'}</div>
+      {choices && choices.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {choices.map((choice) => (
+            <button key={String(choice.value)} onClick={() => onSetPlaceholderValue(placeholderKey, choice.value)} className={chipStyle(selected === choice.value)}>
+              {choice.display_name}
+            </button>
+          ))}
+        </div>
+      )}
+      {spec?.allow_free_text && (
+        <input
+          type="number"
+          placeholder={`Or type your own ${label.toLowerCase()}…`}
+          className="mt-1.5 w-full rounded-md border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white placeholder:text-white/30"
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw) onSetPlaceholderValue(placeholderKey, Number(raw));
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
 interface AnswerChipsProps {
   answers: readonly Answer[];
   selected: string | number | undefined;
@@ -402,6 +450,16 @@ export const CreateDraftFactWizard: React.FC<CreateDraftFactWizardProps> = (prop
               />
             );
           })}
+
+          {decorativePlaceholderKeys(selectedTemplate).map((key) => (
+            <DecorativePlaceholderField
+              key={key}
+              placeholderKey={key}
+              spec={selectedTemplate.answer_instruction_meta.placeholders[key]}
+              placeholderValues={placeholderValues}
+              onSetPlaceholderValue={onSetPlaceholderValue}
+            />
+          ))}
 
           {(() => {
             const { asserted_answer: assertedAnswer, placeholders, operation_type: operationType } = selectedTemplate.answer_instruction_meta;

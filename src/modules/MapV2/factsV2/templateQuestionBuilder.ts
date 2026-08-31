@@ -82,12 +82,30 @@ export function resolveAssertedAnswer(template: GeoQuestionTemplate, placeholder
   return typeof value === 'string' ? (value as Answer) : null;
 }
 
-/** True once every slot and the asserted answer both have a value — the
+/** Placeholder names the template declares (answer_instruction_meta.placeholders)
+ * that aren't bound to any slot and aren't the asserted_answer's own
+ * placeholder either — decorative prose placeholders like Thermometer's
+ * "distance", which the asker can still fill in even though it feeds into
+ * neither resolved_slots nor the asserted answer. */
+export function decorativePlaceholderKeys(template: GeoQuestionTemplate): string[] {
+  const { slot_bindings, asserted_answer, placeholders } = template.answer_instruction_meta;
+  const bound = new Set<string>();
+  for (const binding of Object.values(slot_bindings)) {
+    if (binding.source === 'PLACEHOLDER') bound.add(binding.placeholder);
+  }
+  if (asserted_answer.source === 'PLACEHOLDER') bound.add(asserted_answer.placeholder);
+  return Object.keys(placeholders).filter((key) => !bound.has(key));
+}
+
+/** True once every slot, the asserted answer, and every required decorative
+ * placeholder (see decorativePlaceholderKeys) all have a value — the
  * wizard's Continue button reads this directly instead of re-deriving it
  * per op_type. */
 export function isTemplateComplete(template: GeoQuestionTemplate, points: PointValues, placeholders: PlaceholderValues): boolean {
-  return resolveTemplateSlots(template, points, placeholders) !== null
-    && resolveAssertedAnswer(template, placeholders) !== null;
+  if (resolveTemplateSlots(template, points, placeholders) === null) return false;
+  if (resolveAssertedAnswer(template, placeholders) === null) return false;
+  const specs = template.answer_instruction_meta.placeholders;
+  return decorativePlaceholderKeys(template).every((key) => !specs[key]?.required || placeholders[key] !== undefined);
 }
 
 /** The curated display name for whichever value the asker picked, if it
@@ -115,6 +133,10 @@ export function resolvePlaceholders(template: GeoQuestionTemplate, placeholders:
     if (binding.source === 'PLACEHOLDER') keys.add(binding.placeholder);
   }
   if (asserted_answer.source === 'PLACEHOLDER') keys.add(asserted_answer.placeholder);
+  // Decorative placeholders too (e.g. Thermometer's "distance") — so an
+  // asker-entered value still round-trips through resolved_placeholders and
+  // renders correctly once the question has actually been asked.
+  for (const key of decorativePlaceholderKeys(template)) keys.add(key);
 
   const resolved: Record<string, PlaceholderAllowedValue> = {};
   for (const key of Array.from(keys)) {
@@ -141,11 +163,12 @@ function slotDisplayText(binding: SlotBinding, value: SlotValue, placeholderSpec
 
 /** Substitutes every {{ token }} in the template's prose with a
  * human-friendly value: a point's description, a zone's display name, a
- * formatted distance, or the asserted answer's word (e.g. "north") when
- * the token is the asserted_answer's own placeholder. A token with no
- * value yet (not chosen, or truly decorative — e.g. Thermometer's
- * "distance" placeholder isn't bound to any slot at all) is left as its
- * bare name so the sheet never shows a stray "{{ }}" while composing. */
+ * formatted distance, the asserted answer's word (e.g. "north") when the
+ * token is the asserted_answer's own placeholder, or an asker-entered
+ * decorative value (e.g. Thermometer's "distance" — not bound to any slot,
+ * but still fillable and worth showing once the asker has typed one in). A
+ * token with no value yet is left as its bare name so the sheet never shows
+ * a stray "{{ }}" while composing. */
 export function buildRenderedQuestion(
   template: GeoQuestionTemplate,
   points: PointValues,
@@ -170,6 +193,12 @@ export function buildRenderedQuestion(
     if (typeof chosen === 'string' && chosen in ANSWER_WORD) {
       placeholderText[key] = ANSWER_WORD[chosen as Answer];
     }
+  }
+
+  for (const key of decorativePlaceholderKeys(template)) {
+    const value = placeholders[key];
+    if (value === undefined) continue;
+    placeholderText[key] = allowedValueDisplayName(placeholderSpecs[key]?.allowed_values, value) ?? String(value);
   }
 
   return template.template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, token) => placeholderText[token] ?? token);
@@ -239,7 +268,7 @@ export function firstAskerLocationSlot(template: GeoQuestionTemplate): string | 
   return entry ? entry[0] : null;
 }
 
-function humanize(key: string): string {
+export function humanize(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
