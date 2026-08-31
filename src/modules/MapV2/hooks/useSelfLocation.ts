@@ -126,8 +126,13 @@ export function useSelfLocation(): UseSelfLocationResult {
  * permission concept at all). Call from inside a real click/tap handler,
  * never on mount — see MapCanvas's first-map-tap listener. */
 export function requestOrientationPermission(): void {
-  const ctor = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<'granted' | 'denied'> };
-  if (typeof ctor.requestPermission === 'function') {
+  // Routed through `window` rather than the bare `DeviceOrientationEvent`
+  // identifier — a browser that never declares that global at all (plenty
+  // of desktop browsers don't) throws a ReferenceError on the bare name
+  // outside a `typeof` check; property access on `window` just reads
+  // undefined instead.
+  const ctor = (window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<'granted' | 'denied'> } }).DeviceOrientationEvent;
+  if (typeof ctor?.requestPermission === 'function') {
     ctor.requestPermission().catch(() => {
       // Denied, or the call itself unsupported here — heading just stays
       // unavailable, same as any browser that never had it.
