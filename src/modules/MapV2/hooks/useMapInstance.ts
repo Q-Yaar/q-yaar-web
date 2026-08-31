@@ -23,6 +23,13 @@ interface UseMapInstanceOptions {
   registry: MapLayerRegistry;
   center?: [number, number];
   zoom?: number;
+  /** Fired once, on the very first tap/click anywhere on the map — a real
+   * user gesture, which is what iOS Safari requires before it'll grant
+   * deviceorientation access, and a reasonable moment to also start
+   * watching position if it hasn't started already (see
+   * hooks/useSelfLocation.ts and MapCanvas's wiring of this option). Not
+   * called again after the first time. */
+  onFirstMapGesture?: () => void;
 }
 
 interface UseMapInstanceResult {
@@ -43,10 +50,17 @@ export function useMapInstance({
   registry,
   center = [77.591, 12.979],
   zoom = 10,
+  onFirstMapGesture,
 }: UseMapInstanceOptions): UseMapInstanceResult {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
+
+  // Kept fresh via a ref (assigned every render, read only inside the
+  // mount-once effect below) so a new callback identity each render doesn't
+  // require re-running map setup just to pick it up.
+  const onFirstMapGestureRef = useRef(onFirstMapGesture);
+  onFirstMapGestureRef.current = onFirstMapGesture;
 
   useEffect(() => {
     ensurePmtilesProtocol();
@@ -62,13 +76,25 @@ export function useMapInstance({
     mapRef.current = m;
 
     m.addControl(new maplibregl.NavigationControl(), 'top-right');
+    // A plain "jump to my location" button, nothing more — this MapLibre GL
+    // JS version's GeolocateControl has no heading indicator at all (see
+    // layers/modules/MyLocationModule.ts's doc comment), and a persistent
+    // dot is drawn there too, so trackUserLocation/showUserLocation are off
+    // here to avoid a second, redundant dot fighting for the same spot.
     const geolocateControl = new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
-      trackUserLocation: true,
-      showUserLocation: true,
+      trackUserLocation: false,
+      showUserLocation: false,
       showAccuracyCircle: false,
     });
     m.addControl(geolocateControl, 'top-right');
+
+    // The map's first tap/click — a real user gesture, not just "the map
+    // loaded" — is when useSelfLocation's watch (if not already running via
+    // an existing permission grant) and iOS's gesture-gated deviceorientation
+    // permission both get requested. See onFirstMapGesture's own doc comment.
+    const handleFirstGesture = (): void => onFirstMapGestureRef.current?.();
+    container.addEventListener('pointerdown', handleFirstGesture, { once: true });
 
     // TopBar floats over the map now (see TopBar.tsx) rather than pushing
     // it down, so MapLibre's own top-right zoom/geolocate buttons need a
@@ -158,6 +184,7 @@ export function useMapInstance({
 
     return () => {
       resizeObserver.disconnect();
+      container.removeEventListener('pointerdown', handleFirstGesture);
       if (mapRef.current === m) mapRef.current = null;
       m.remove();
     };

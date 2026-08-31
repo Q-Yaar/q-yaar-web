@@ -6,11 +6,13 @@ import { GROUP_ID } from './layers/groupIds';
 import { PolygonOverlayModule } from './layers/modules/PolygonOverlayModule';
 import { PlayerLocationsModule } from './layers/modules/PlayerLocationsModule';
 import { HidingZoneModule } from './layers/modules/HidingZoneModule';
+import { MyLocationModule } from './layers/modules/MyLocationModule';
 import { useMapInstance } from './hooks/useMapInstance';
 import { useTeamFilter } from './hooks/useTeamFilter';
 import { useGameMode, GAME_MODE } from './hooks/useGameMode';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { usePlayerLocations } from './hooks/usePlayerLocations';
+import { useSelfLocation, requestOrientationPermission } from './hooks/useSelfLocation';
 import { useHidingZoneFlow } from './hooks/useHidingZoneFlow';
 import { useNotifications } from './hooks/useNotifications';
 import { usePlayArea, usePolygonCatalog } from './factsV2/geometryAssets';
@@ -66,6 +68,13 @@ interface MapCanvasInnerProps {
  *                        every 30s (components/LocationPusher.tsx), only while
  *                        location sharing is enabled. Renders nothing; mounted
  *                        for its effect alone, not wired to any other capability
+ *   selfLocation     -> this device's own persistent "you are here" dot +
+ *                        heading cone (hooks/useSelfLocation.ts). Not gated by
+ *                        location sharing (that's LocationPusher's separate,
+ *                        server-side concern) — purely local, continuous
+ *                        watchPosition/deviceorientation tracking, started the
+ *                        moment permission is already granted or the map gets
+ *                        its first tap (see useMapInstance's onFirstMapGesture)
  *   notifications    -> TopBar's bell (hooks/useNotifications.ts) — the same real
  *                        API the game home page's own bell uses
  *                        (src/components/ui/NotificationBell.tsx), just opening a
@@ -155,9 +164,21 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
     registry.registerGroup(GROUP_ID.WIZARD_AIDS, 'Wizard aids');
     registry.registerGroup(GROUP_ID.PLAYER_LOCATIONS, 'Player locations');
     registry.registerGroup(GROUP_ID.HIDING_ZONE, 'My hiding zone');
+    registry.registerGroup(GROUP_ID.MY_LOCATION, 'My location');
   }, [registry]);
 
-  const { containerRef, mapRef, isMapReady } = useMapInstance({ registry });
+  // This device's own live position + heading (hooks/useSelfLocation.ts) —
+  // constructed before useMapInstance so its requestLocation can be handed
+  // in as the map's first-tap gesture handler below.
+  const selfLocation = useSelfLocation();
+
+  const { containerRef, mapRef, isMapReady } = useMapInstance({
+    registry,
+    onFirstMapGesture: () => {
+      requestOrientationPermission();
+      selfLocation.requestLocation();
+    },
+  });
   const playAreaState = usePlayArea();
   const polygonCatalog = usePolygonCatalog();
   const gameMode = useGameMode(gameId);
@@ -193,6 +214,12 @@ const MapCanvasInner: React.FC<MapCanvasInnerProps> = ({ registry, gameId, onBac
   const playerLocations = usePlayerLocations(gameId);
   const [playerLocationsModule] = useState(() => new PlayerLocationsModule());
   useMapLayerModule(playerLocationsModule, playerLocations.items);
+
+  // Capability #2c — My Location. This device's own dot/heading cone, right
+  // alongside Player Locations for the same z-order reasoning — above zone
+  // shading, below whichever flow's own live aids are currently active.
+  const [myLocationModule] = useState(() => new MyLocationModule());
+  useMapLayerModule(myLocationModule, selfLocation.items);
 
   // See the module-order note above for why this lives here rather than
   // inside useDraftFactWizard.

@@ -21,6 +21,9 @@ export const GROUP_ID = {
   /** A hider's own local-only "remember where I'm hiding" marker
    * (HidingZoneModule) — its own group, same reasoning as the rest. */
   HIDING_ZONE: 'hiding-zone',
+  /** This device's own live "you are here" dot + heading cone
+   * (MyLocationModule) — its own group, same reasoning as the rest. */
+  MY_LOCATION: 'my-location',
 } as const;
 
 export type GroupId = (typeof GROUP_ID)[keyof typeof GROUP_ID];
