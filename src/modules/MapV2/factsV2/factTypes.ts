@@ -75,9 +75,10 @@ export interface ResolvedLatLon {
  * actual geometry inline instead of a registry key, and the resolver skips
  * the registry lookup entirely when it's present. Named to match
  * RegistryEntry.geometry, which is the same "here's the real geometry"
- * value in the normal (registry-backed) case. AskedQuestionDto/
- * templateQuestionBuilder.ts never set this — the wizard only ever
- * resolves slots through a registry key, never an inline geometry.
+ * value in the normal (registry-backed) case. DraftAskedQuestion
+ * (questionPipelineTypes.ts)/templateQuestionBuilder.ts never set this — the
+ * wizard only ever resolves slots through a registry key, never an inline
+ * geometry.
  */
 export interface LineBufferInsideMeta { line: string; distance: number; geometry?: LineString }
 export interface LinePointBufferInsideMeta { line: string; point: ResolvedLatLon; geometry?: LineString }
@@ -140,23 +141,3 @@ export interface Region {
   toPolygon(universe: import('geojson').Feature<Polygon | MultiPolygon>): import('geojson').Feature<Polygon | MultiPolygon>;
 }
 
-/**
- * A question the asker has sent but the hider hasn't answered yet. Rendered
- * as a "Draft Fact" — same factToRegion path as a confirmed Fact, just with
- * an assumed value (assumed_value, picked in the wizard's review step — see
- * draftQuestionToFact in draftFactConverter.ts) and dashed styling so it reads as
- * unconfirmed.
- */
-export interface AskedQuestionDto {
-  question_id: string;
-  rendered_question: string;
-  answer_instruction_type: OpType;
-  question_meta: {
-    resolved_slots: Record<string, unknown>;
-    asserted_answer: Answer;
-    /** What we assume the hider will answer, chosen by the asker in the
-     * wizard's review step before adding the draft — true assumes the
-     * asserted pole holds, false assumes its opposite. */
-    assumed_value: boolean;
-  };
-}

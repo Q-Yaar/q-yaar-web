@@ -1,4 +1,5 @@
-import { AskedQuestionDto, FACT_TYPE, FactDto } from './factTypes';
+import { FACT_TYPE, FactDto } from './factTypes';
+import { DraftAskedQuestion } from './questionPipelineTypes';
 
 /**
  * A draft has no Answer yet, so there's no hider boolean to flip
@@ -10,15 +11,15 @@ import { AskedQuestionDto, FACT_TYPE, FactDto } from './factTypes';
  * conversion only ever runs on this session's own in-progress local state,
  * never on anything fetched from an API.
  */
-export function draftQuestionToFact(question: AskedQuestionDto): FactDto {
-  const { resolved_slots, asserted_answer, assumed_value } = question.question_meta;
+export function draftQuestionToFact(question: DraftAskedQuestion): FactDto {
+  const { answer_instruction_type, resolved_slots, asserted_answer, assumed_value } = question.question_meta;
   return {
     fact_id: `draft-${question.question_id}`,
     fact_type: FACT_TYPE.GEO,
     question_id: question.question_id,
     answer_id: `draft-${question.question_id}`,
     fact_info: {
-      op_type: question.answer_instruction_type,
+      op_type: answer_instruction_type,
       op_meta: { ...resolved_slots, assertedAnswer: asserted_answer, value: assumed_value },
     },
     created: new Date().toISOString(),

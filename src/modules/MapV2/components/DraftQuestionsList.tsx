@@ -1,9 +1,9 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { AskedQuestionDto } from '../factsV2/factTypes';
+import { DraftAskedQuestion } from '../factsV2/questionPipelineTypes';
 
 interface DraftQuestionsListProps {
-  questions: AskedQuestionDto[];
+  questions: DraftAskedQuestion[];
   onRemove: (questionId: string) => void;
 }
 

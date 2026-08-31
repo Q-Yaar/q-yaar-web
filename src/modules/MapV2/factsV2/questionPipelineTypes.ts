@@ -180,7 +180,7 @@ export function classifyQuestionTemplatesV2(wire: QuestionTemplateV2[]): Classif
  * answer_instruction_type/asserted_answer/resolved_slots (mirroring the
  * request body models/QnA.ts's AskQuestionRequestV2 sends), with
  * answer_meta/fact_meta/reward layered around it as record bookkeeping.
- * Not to be confused with factTypes.ts's AskedQuestionDto, a different,
+ * Not to be confused with DraftAskedQuestion below, a different,
  * MapV2-local concept (the draft-fact wizard's own in-progress question) —
  * not this spec's stage 2 of the real backend pipeline.
  */
@@ -210,6 +210,31 @@ export interface AskedQuestionV2 {
   accepted: boolean;
   created: string;
   modified: string;
+}
+
+/**
+ * A question the asker has composed and sent but the hider hasn't answered
+ * yet — built entirely client-side by templateQuestionBuilder.ts's
+ * buildAskedQuestion(), before (and shortly after) the real askQuestion
+ * call, to drive the live map preview and the draft-chip list
+ * (DraftQuestionsList.tsx, useFactsLayers.ts's draftQuestions) while
+ * waiting on the hider. Shaped exactly like an AskedQuestionV2 the backend
+ * would eventually hand back for the same question — every wire field is
+ * filled with the best locally-available value (category/template/
+ * question_template_id straight from the picked GeoQuestionTemplate,
+ * answered/accepted false, created/modified stamped now) — plus one field
+ * the backend has no concept of: assumed_value, rendered as a "Draft Fact"
+ * (same factToRegion path as a confirmed Fact, just dashed — see
+ * draftQuestionToFact in draftFactConverter.ts) until a real answer
+ * replaces it.
+ */
+export interface DraftAskedQuestion extends AskedQuestionV2 {
+  question_meta: AskedQuestionV2['question_meta'] & {
+    /** What we assume the hider will answer, chosen by the asker in the
+     * wizard's review step before adding the draft — true assumes the
+     * asserted pole holds, false assumes its opposite. */
+    assumed_value: boolean;
+  };
 }
 
 /** Stage 3 — the hider's entire contribution: one boolean. Assembled

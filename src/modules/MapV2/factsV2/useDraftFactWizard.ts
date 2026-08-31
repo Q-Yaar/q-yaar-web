@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Feature, MultiPolygon, Polygon } from 'geojson';
-import { AskedQuestionDto, FACT_TYPE, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
+import { FACT_TYPE, FactDto, POINT_SOURCE, ResolvedLatLon } from './factTypes';
 import {
   buildAskedQuestion,
   buildRenderedQuestion,
@@ -26,7 +26,7 @@ import { WIZARD_PREVIEW_MODULE_ID } from './factsLayerIds';
 import { useGetNonGeoQuestionTemplatesQuery, useGetQuestionTemplateDetail, useGetQuestionTemplatesQuery } from '../apis/qnaPipelineApi';
 import { useAskQuestionMutation } from '../../../apis/qnaApi';
 import { useCreateFactMutation } from '../../../apis/api';
-import { GeoQuestionTemplate, questionTemplateId } from './questionPipelineTypes';
+import { DraftAskedQuestion, GeoQuestionTemplate, questionTemplateId } from './questionPipelineTypes';
 import { CreateDraftFactWizardProps, WIZARD_STEP, WizardStep } from '../components/CreateDraftFactWizard';
 
 const toMapPoint = (coordinates: [number, number]): ResolvedLatLon => ({
@@ -65,7 +65,7 @@ export interface UseDraftFactWizardOptions {
    * preview/points should always be the topmost thing on the map, never
    * obscured by the measurement tool's crosshair/rings/points. */
   pickResolverRef: React.RefObject<((coordinates: [number, number]) => void) | null>;
-  onSubmit: (question: AskedQuestionDto) => void;
+  onSubmit: (question: DraftAskedQuestion) => void;
 }
 
 export interface UseDraftFactWizardResult {
@@ -89,7 +89,7 @@ export interface UseDraftFactWizardResult {
  * refill the field, reopen), a live on-map preview of the shape while
  * composing and reviewing it, and the final submit — which calls the real
  * askQuestion mutation (src/apis/qnaApi.ts) before handing the resulting
- * AskedQuestionDto to onSubmit. MapCanvas only needs to render
+ * DraftAskedQuestion to onSubmit. MapCanvas only needs to render
  * <CreateDraftFactWizard {...wizard.props}> and wire the pick-prompt
  * banner — pickResolverRef itself is MapCanvas's (see that option's doc)
  * and already shared with useMapInteractions.
@@ -232,7 +232,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
       body: {
         target_team_id: targetTeamId,
         question_meta: {
-          answer_instruction_type: question.answer_instruction_type,
+          answer_instruction_type: question.question_meta.answer_instruction_type,
           asserted_answer: question.question_meta.asserted_answer,
           resolved_slots: question.question_meta.resolved_slots,
           resolved_placeholders: resolvePlaceholders(selectedTemplate, placeholderValues),
@@ -269,7 +269,7 @@ export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOpti
       team_id: targetTeamId,
       fact_type: FACT_TYPE.GEO,
       fact_info: {
-        op_type: question.answer_instruction_type,
+        op_type: question.question_meta.answer_instruction_type,
         op_meta: { ...question.question_meta.resolved_slots, assertedAnswer: question.question_meta.asserted_answer, value: assumedValue },
       },
     })

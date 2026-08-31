@@ -5,7 +5,8 @@ import { useLayerTree, useMapLayerModule, EMPTY_ITEMS } from '../layers/hooks';
 import { GROUP_ID } from '../layers/groupIds';
 import { FactItem, FactsLayerModule } from '../layers/modules/FactsLayerModule';
 import { PlayAreaResult } from './geometryAssets';
-import { AskedQuestionDto, FactDto } from './factTypes';
+import { FactDto } from './factTypes';
+import { DraftAskedQuestion } from './questionPipelineTypes';
 import { foldFactsAreaInWorker } from './geoWorkerClient';
 import { draftQuestionToFact } from './draftFactConverter';
 import { fromFactV2 } from './factV2Converter';
@@ -31,8 +32,8 @@ export interface UseFactsLayersResult {
   draftFactsModule: FactsLayerModule;
   /** Confirmed facts loaded for the selected team — for the map's FactsChip. */
   factsCount: number;
-  draftQuestions: AskedQuestionDto[];
-  addDraftQuestion: (q: AskedQuestionDto) => void;
+  draftQuestions: DraftAskedQuestion[];
+  addDraftQuestion: (q: DraftAskedQuestion) => void;
   removeDraftQuestion: (questionId: string) => void;
   /** Wherever Draft Facts currently fold on top of — i.e. the confirmed
    * area, minus visible confirmed facts. Exposed so the wizard's own live
@@ -127,8 +128,8 @@ export function useFactsLayers({ gameId, teamId, playAreaState, extraFacts = [] 
   // Draft questions created via the wizard — the legacy API has no concept
   // of an unanswered draft, so these only ever come from this session's own
   // wizard use and start empty.
-  const [draftQuestions, setDraftQuestions] = useState<AskedQuestionDto[]>([]);
-  const addDraftQuestion = useCallback((q: AskedQuestionDto) => setDraftQuestions((prev) => [...prev, q]), []);
+  const [draftQuestions, setDraftQuestions] = useState<DraftAskedQuestion[]>([]);
+  const addDraftQuestion = useCallback((q: DraftAskedQuestion) => setDraftQuestions((prev) => [...prev, q]), []);
   const removeDraftQuestion = useCallback(
     (questionId: string) => setDraftQuestions((prev) => prev.filter((q) => q.question_id !== questionId)),
     [],

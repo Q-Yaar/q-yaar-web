@@ -1,15 +1,15 @@
 /**
  * Turns a real GeoQuestionTemplate (fetched via apis/qnaPipelineApi.ts) plus
  * whatever the asker has filled in — resolved points, chosen placeholder
- * values — into an AskedQuestionDto, generically across every op_type: one
+ * values — into a DraftAskedQuestion, generically across every op_type: one
  * slot_bindings entry -> one resolved_slots entry, driven entirely by each
  * binding's `source`, never a hardcoded per-category branch. This is what
  * replaced the old buildDraftQuestion.ts, which only knew about three
  * hand-picked "wizard kinds" (circle/zone/hotter-colder) instead of
  * whatever templates the API actually returns.
  */
-import { Answer, AskedQuestionDto, ResolvedLatLon } from './factTypes';
-import { AskedQuestionV2, GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, SlotBinding, SUBOP_CONTRACT } from './questionPipelineTypes';
+import { Answer, ResolvedLatLon } from './factTypes';
+import { AskedQuestionV2, DraftAskedQuestion, GeoQuestionTemplate, PlaceholderAllowedValue, PlaceholderSpec, SlotBinding, SUBOP_CONTRACT, questionTemplateId } from './questionPipelineTypes';
 
 export const formatDistance = (metres: number): string => (
   metres >= 1000 ? `${(metres / 1000).toFixed(metres % 1000 === 0 ? 0 : 1)} km` : `${metres} m`
@@ -258,20 +258,28 @@ export function buildAskedQuestion(
   placeholders: PlaceholderValues,
   assumedValue: boolean,
   questionId: string,
-): AskedQuestionDto | null {
+): DraftAskedQuestion | null {
   const resolvedSlots = resolveTemplateSlots(template, points, placeholders);
   const assertedAnswer = resolveAssertedAnswer(template, placeholders);
   if (!resolvedSlots || !assertedAnswer) return null;
 
+  const now = new Date().toISOString();
   return {
     question_id: questionId,
+    question_template_id: questionTemplateId(template) ?? questionId,
+    template: template.template,
     rendered_question: buildRenderedQuestion(template, points, placeholders),
-    answer_instruction_type: template.answer_instruction_meta.operation_type,
+    category: template.category,
     question_meta: {
+      answer_instruction_type: template.answer_instruction_meta.operation_type,
       resolved_slots: resolvedSlots,
       asserted_answer: assertedAnswer,
       assumed_value: assumedValue,
     },
+    answered: false,
+    accepted: false,
+    created: now,
+    modified: now,
   };
 }
 
