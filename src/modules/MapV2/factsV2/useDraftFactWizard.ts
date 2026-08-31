@@ -95,8 +95,8 @@ export interface UseDraftFactWizardResult {
  * and already shared with useMapInteractions.
  */
 export function useDraftFactWizard({ gameId, targetTeamId, zoneOptions, zoneOptionsLoading, previewUniverse, playArea, pickResolverRef, onSubmit }: UseDraftFactWizardOptions): UseDraftFactWizardResult {
-  const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery();
-  const { data: nonGeoTemplates, isLoading: nonGeoTemplatesLoading } = useGetNonGeoQuestionTemplatesQuery();
+  const { data: templates, isLoading: templatesLoading } = useGetQuestionTemplatesQuery(gameId);
+  const { data: nonGeoTemplates, isLoading: nonGeoTemplatesLoading } = useGetNonGeoQuestionTemplatesQuery(gameId);
   const [askQuestion, { isLoading: submitting }] = useAskQuestionMutation();
   const [createFact, { isLoading: addingFact }] = useCreateFactMutation();
   const [getTemplateDetail] = useGetQuestionTemplateDetail();

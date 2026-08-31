@@ -27,8 +27,8 @@ export interface UseGetQuestionTemplatesResult {
 
 /** GET /api/v1/qna/questions/ (qnaTemplatesApi.ts) — the map-answerable
  * half of the response: every row with a real answer_instruction_meta. */
-export function useGetQuestionTemplatesQuery(): UseGetQuestionTemplatesResult {
-  const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query();
+export function useGetQuestionTemplatesQuery(gameId: string | undefined): UseGetQuestionTemplatesResult {
+  const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query(gameId ? { game_id: gameId } : undefined);
   const templates = useMemo(() => (data ? classifyQuestionTemplatesV2(data).geo : undefined), [data]);
   return { data: templates, isLoading: isLoading || isFetching };
 }
@@ -42,8 +42,8 @@ export interface UseGetNonGeoQuestionTemplatesResult {
  * request with useGetQuestionTemplatesQuery's, one network round trip
  * either way. The other half of the split: pre-v2 rows with no answer plan
  * at all (§2.03), listed separately since they aren't map-answerable. */
-export function useGetNonGeoQuestionTemplatesQuery(): UseGetNonGeoQuestionTemplatesResult {
-  const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query();
+export function useGetNonGeoQuestionTemplatesQuery(gameId: string | undefined): UseGetNonGeoQuestionTemplatesResult {
+  const { data, isLoading, isFetching } = useFetchQuestionTemplatesV2Query(gameId ? { game_id: gameId } : undefined);
   const templates = useMemo(() => (data ? classifyQuestionTemplatesV2(data).nonGeo : undefined), [data]);
   return { data: templates, isLoading: isLoading || isFetching };
 }

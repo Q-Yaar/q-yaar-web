@@ -22,6 +22,7 @@ import { QuestionTemplateV2 } from '../factsV2/questionPipelineTypes';
 
 export interface FetchQuestionTemplatesV2Params {
   category_id?: string;
+  game_id?: string;
 }
 
 export const qnaTemplatesApi = api.injectEndpoints({
@@ -42,7 +43,11 @@ export const qnaTemplatesApi = api.injectEndpoints({
           const response = await baseQuery({
             url: `${QNA_API}questions/`,
             method: 'GET',
-            params: { ...(params?.category_id ? { category_id: params.category_id } : {}), page },
+            params: {
+              ...(params?.category_id ? { category_id: params.category_id } : {}),
+              ...(params?.game_id ? { game_id: params.game_id } : {}),
+              page,
+            },
           });
           if (response.error) return { error: response.error };
           const data = response.data as ListResponse<QuestionTemplateV2>;
